@@ -69,7 +69,7 @@
           </form></div></details>
           <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="submit"><input type="hidden" name="claim_id" value="{{ row.id }}"><button class="button button-small" type="submit">Submit</button></form>
           {% elif row.status == 'submitted' %}
-          {% if current_access.can('expense_claims.approve') %}<details><summary class="button button-small">Review</summary><div style="min-width:300px;margin-top:.5rem">
+          {% if can_approve %}<details><summary class="button button-small">Review</summary><div style="min-width:300px;margin-top:.5rem">
             <form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Posting date</label><input type="date" name="posting_date" value="{{ today }}" required></div><div class="field-full"><button class="button button-small" type="submit">Approve & post</button></div></form>
             <hr><form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reject"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Reason</label><input name="reason"></div><div class="field-full"><button class="button button-small button-secondary" type="submit">Reject</button></div></form>
           </div></details>{% endif %}
