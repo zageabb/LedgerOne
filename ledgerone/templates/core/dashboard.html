@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Your money at a glance' if ui_mode == 'home' else 'Financial dashboard' }}</h1>
+    <p>{{ 'A simple view of what you own, owe, earn and spend.' if ui_mode == 'home' else 'Current ledger position based on posted journals.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.new_journal') }}">{{ 'Add transaction' if ui_mode == 'home' else 'Post journal' }}</a>
+    <a class="button" href="{{ url_for('ai.index') }}">Ask LedgerOne AI</a>
+  </div>
+</div>
+
+<div class="grid grid-4">
+  <div class="card metric"><div class="metric-label">{{ 'What you own' if ui_mode == 'home' else 'Assets' }}</div><div class="metric-value">£{{ '%.2f'|format(assets) }}</div><div class="metric-note">Debit-balance asset accounts</div></div>
+  <div class="card metric"><div class="metric-label">{{ 'What you owe' if ui_mode == 'home' else 'Liabilities' }}</div><div class="metric-value">£{{ '%.2f'|format(liabilities) }}</div><div class="metric-note">Credit-balance liability accounts</div></div>
+  <div class="card metric"><div class="metric-label">{{ 'Money in' if ui_mode == 'home' else 'Income' }}</div><div class="metric-value">£{{ '%.2f'|format(income) }}</div><div class="metric-note">Posted income to date</div></div>
+  <div class="card metric"><div class="metric-label">{{ 'Money out' if ui_mode == 'home' else 'Expenses' }}</div><div class="metric-value">£{{ '%.2f'|format(expenses) }}</div><div class="metric-note">Posted expenses to date</div></div>
+</div>
+
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Recent activity' if ui_mode == 'home' else 'Recent journals' }}</h2><a href="{{ url_for('ledger.journals') }}">View all</a></div>
+    <div class="table-wrap">
+      {% if recent_journals %}
+      <table><thead><tr><th>Date</th><th>{{ 'Details' if ui_mode == 'home' else 'Reference / Description' }}</th><th class="number">Amount</th></tr></thead><tbody>
+      {% for row in recent_journals %}
+      <tr><td>{{ row.journal_date.strftime('%d %b %Y') }}</td><td>{% if ui_mode == 'professional' and row.reference %}<span class="code">{{ row.reference }}</span> {% endif %}{{ row.description }}</td><td class="number">£{{ '%.2f'|format(row.total_debit) }}</td></tr>
+      {% endfor %}
+      </tbody></table>
+      {% else %}<div class="empty">No transactions have been posted yet.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Start here' if ui_mode == 'home' else 'Quick actions' }}</h2></div>
+    <div class="card-body grid">
+      <a class="button button-secondary" href="{{ url_for('banking.index') }}">{{ 'Set up a bank account' if ui_mode == 'home' else 'Banking & reconciliation' }}</a>
+      <a class="button button-secondary" href="{{ url_for('sales.index') }}">{{ 'Record income / invoice' if ui_mode == 'home' else 'Create sales invoice' }}</a>
+      <a class="button button-secondary" href="{{ url_for('purchases.index') }}">{{ 'Record an expense / bill' if ui_mode == 'home' else 'Create purchase bill' }}</a>
+      <a class="button button-secondary" href="{{ url_for('reports.index') }}">{{ 'See your reports' if ui_mode == 'home' else 'Financial statements' }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
