@@ -27,9 +27,7 @@ Status: **complete**
 
 ## v0.2 — Accounting controls
 
-Status: **in progress**
-
-Implemented:
+Status: **complete**
 
 - accounting periods and period locking
 - journal reversal workflow
@@ -43,15 +41,17 @@ Implemented:
 - outstanding receivable/payable balances
 - audit viewer, filters, API and CSV export
 - broader audit coverage across ledger, sales, purchases, banking, settings and AI configuration
-
-Next:
-
-- attachments and source-document references
-- permission/role administration UI
-- API key expiry/rotation UI
-- pagination/filtering on ledger APIs
+- source-document files and external evidence references
+- record-level document links for journals, invoices, bills and bank transactions
+- organisation member/role/permission administration
+- last-owner and self-deactivation safeguards
+- API key expiry, last-used visibility, rotation and revocation
+- SQLite/PostgreSQL-safe API key expiry validation
+- pagination and filtering on ledger account/journal APIs
 
 ## v0.3 — Tax and day-to-day business
+
+Status: **next**
 
 - VAT/tax codes and tax accounts
 - UK VAT return support as first tax implementation
