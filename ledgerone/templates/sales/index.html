@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>{{ 'Income' if ui_mode == 'home' else 'Sales & receivables' }}</h1>
-    <p>{{ 'Record people or organisations that pay you, then create income entries.' if ui_mode == 'home' else 'Maintain customers and post sales invoices to receivables and revenue.' }}</p>
+    <p>{{ 'Record people or organisations that pay you, then create income entries.' if ui_mode == 'home' else 'Maintain customers and post sales invoices to receivables, revenue and VAT control accounts.' }}</p>
   </div>
   <div class="actions"><a class="button button-secondary" href="{{ url_for('sales.payments') }}">{{ 'Money received' if ui_mode == 'home' else 'Customer payments' }}</a></div>
 </div>
@@ -28,7 +28,8 @@
         <div class="field"><label>Customer</label><select name="customer_id" required><option value="">Select</option>{% for row in customers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>{{ 'Reference' if ui_mode == 'home' else 'Invoice number' }}</label><input name="invoice_number" placeholder="INV-001" required></div>
         <div class="field"><label>Date</label><input type="date" name="invoice_date" value="{{ today }}" required></div><div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
-        <div class="field"><label>Amount</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select><div class="help">The entered amount is net of VAT. LedgerOne calculates VAT and posts it to the configured VAT control account.</div></div>{% endif %}
         <div class="field field-full"><label>Description</label><input name="description" placeholder="Services / income"></div>
         <div class="field"><label>{{ 'Money owed to you account' if ui_mode == 'home' else 'Receivables account' }}</label><select name="receivable_account_id" required>{% for row in receivable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>{{ 'Income category' if ui_mode == 'home' else 'Revenue account' }}</label><select name="revenue_account_id" required>{% for row in revenue_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
@@ -45,7 +46,7 @@
   </div>
   <div class="card">
     <div class="card-head"><h2>{{ 'Recent income' if ui_mode == 'home' else 'Sales invoices' }}</h2></div>
-    <div class="table-wrap">{% if invoices %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th><th class="number">Total</th><th class="number">Outstanding</th><th></th></tr></thead><tbody>{% for row in invoices %}<tr><td>{{ row.invoice_number }}</td><td>{{ row.invoice_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status == 'paid' else '' }}">{{ row.status|replace('_',' ')|title }}</span></td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No sales invoices yet.</div>{% endif %}</div>
+    <div class="table-wrap">{% if invoices %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th>{% if tax_enabled %}<th class="number">VAT</th>{% endif %}<th class="number">Total</th><th class="number">Outstanding</th><th></th></tr></thead><tbody>{% for row in invoices %}<tr><td>{{ row.invoice_number }}</td><td>{{ row.invoice_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status == 'paid' else '' }}">{{ row.status|replace('_',' ')|title }}</span></td>{% if tax_enabled %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td>{% endif %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No sales invoices yet.</div>{% endif %}</div>
   </div>
 </div>
 {% endblock %}
