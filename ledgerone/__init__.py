@@ -5,7 +5,13 @@ from flask_login import current_user
 from dotenv import load_dotenv
 
 
-def create_app():
+def create_app(config_overrides: dict | None = None):
+    """Create and configure a LedgerOne Flask application.
+
+    ``config_overrides`` is intentionally supported so tests, workers and future
+    deployment wrappers can create isolated app instances without mutating global
+    environment variables.
+    """
     load_dotenv()
 
     from ledgerone.config import get_config
@@ -15,6 +21,8 @@ def create_app():
 
     app = Flask(__name__)
     app.config.from_object(get_config())
+    if config_overrides:
+        app.config.update(config_overrides)
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -32,7 +40,8 @@ def create_app():
     def secure_browser_request():
         session.permanent = True
         if (
-            request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}
+            app.config.get("WTF_CSRF_ENABLED", True)
+            and request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}
             and not request.path.startswith("/api/")
         ):
             csrf.protect()
@@ -72,6 +81,9 @@ def create_app():
     with app.app_context():
         from ledgerone.bootstrap import bootstrap_database
 
-        bootstrap_database()
+        bootstrap_database(
+            create_schema=app.config.get("AUTO_CREATE_SCHEMA", True),
+            seed_defaults=app.config.get("AUTO_SEED_DEFAULTS", True),
+        )
 
     return app
