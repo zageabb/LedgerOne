@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from ledgerone.extensions import db
 from ledgerone.modules.sales.models import Customer, SalesInvoice, SalesInvoiceLine
+from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
 
@@ -27,6 +28,15 @@ class SalesService:
             phone=(phone or "").strip() or None,
         )
         db.session.add(customer)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="sales",
+            action="customer_created",
+            entity_type="customer",
+            entity_id=customer.id,
+            detail={"name": customer.name, "email": customer.email},
+        )
         db.session.commit()
         return customer
 
@@ -112,6 +122,20 @@ class SalesService:
             )
             invoice.posted_journal_id = journal.id
             invoice.status = "posted"
+            record_audit_event(
+                context,
+                module_id="sales",
+                action="invoice_posted",
+                entity_type="sales_invoice",
+                entity_id=invoice.id,
+                detail={
+                    "invoice_number": invoice.invoice_number,
+                    "customer_id": customer.id,
+                    "journal_id": journal.id,
+                    "total": str(amount),
+                    "currency": invoice.currency,
+                },
+            )
             db.session.commit()
             return invoice
         except Exception:
