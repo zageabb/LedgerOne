@@ -42,6 +42,9 @@ class PurchaseBill(db.Model):
     supplier = db.relationship("Supplier")
     posted_journal = db.relationship("Journal")
     lines = db.relationship("PurchaseBillLine", back_populates="bill", cascade="all, delete-orphan", lazy="selectin")
+    payment_allocations = db.relationship(
+        "PurchasePaymentAllocation", back_populates="bill", cascade="all, delete-orphan", lazy="selectin"
+    )
 
 
 class PurchaseBillLine(db.Model):
@@ -60,3 +63,43 @@ class PurchaseBillLine(db.Model):
 
     bill = db.relationship("PurchaseBill", back_populates="lines")
     expense_account = db.relationship("Account")
+
+
+class PurchasePayment(db.Model):
+    __tablename__ = "purchase_payments"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "journal_id", name="uq_purchase_payment_org_journal"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    supplier_id = db.Column(db.String(36), db.ForeignKey("suppliers.id"), nullable=False, index=True)
+    payment_date = db.Column(db.Date, nullable=False, index=True)
+    reference = db.Column(db.String(120), nullable=True, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False, default="unallocated", index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    supplier = db.relationship("Supplier")
+    journal = db.relationship("Journal")
+    allocations = db.relationship(
+        "PurchasePaymentAllocation", back_populates="payment", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class PurchasePaymentAllocation(db.Model):
+    __tablename__ = "purchase_payment_allocations"
+    __table_args__ = (
+        db.UniqueConstraint("payment_id", "bill_id", name="uq_purchase_payment_bill"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    payment_id = db.Column(db.String(36), db.ForeignKey("purchase_payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    bill_id = db.Column(db.String(36), db.ForeignKey("purchase_bills.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    payment = db.relationship("PurchasePayment", back_populates="allocations")
+    bill = db.relationship("PurchaseBill", back_populates="payment_allocations")
