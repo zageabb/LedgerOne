@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Accounting periods · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Lock dates' if ui_mode == 'home' else 'Accounting periods' }}</h1>
+    <p>{{ 'Lock finished date ranges so nothing can accidentally be posted into them.' if ui_mode == 'home' else 'Define posting periods and lock completed periods against further ledger postings.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.accounts') }}">Accounts</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.journals') }}">{{ 'Transactions' if ui_mode == 'home' else 'Journals' }}</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Add a date range' if ui_mode == 'home' else 'Create accounting period' }}</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field field-full"><label>Period name</label><input name="name" placeholder="April 2026" required></div>
+        <div class="field"><label>Start date</label><input type="date" name="start_date" required></div>
+        <div class="field"><label>End date</label><input type="date" name="end_date" required></div>
+        <div class="field-full"><button class="button" type="submit">Create period</button></div>
+      </form>
+      <p class="help">Periods cannot overlap. Creating a period does not lock it automatically.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Date ranges' if ui_mode == 'home' else 'Posting periods' }}</h2><span class="badge">{{ periods|length }}</span></div>
+    <div class="table-wrap">
+      {% if periods %}
+      <table>
+        <thead><tr><th>Name</th><th>Dates</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for row in periods %}
+          <tr>
+            <td><strong>{{ row.name }}</strong></td>
+            <td>{{ row.start_date.strftime('%d %b %Y') }} – {{ row.end_date.strftime('%d %b %Y') }}</td>
+            <td><span class="badge {{ 'badge-success' if row.status == 'open' else '' }}">{{ row.status|title }}</span></td>
+            <td>
+              <form method="post" action="{{ url_for('ledger.set_period_lock', period_id=row.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="locked" value="{{ '0' if row.status == 'locked' else '1' }}">
+                <button class="button button-small {{ 'button-secondary' if row.status == 'locked' else 'button-danger' }}" type="submit">
+                  {{ 'Unlock' if row.status == 'locked' else 'Lock' }}
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">No accounting periods have been created yet.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
