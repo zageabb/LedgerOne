@@ -1,8 +1,9 @@
+from datetime import date
 from decimal import Decimal
 
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
-from ledgerone.models.ledger import Account, Journal
+from ledgerone.models.ledger import Account, AccountingPeriod, Journal
 from ledgerone.modules.purchases.models import PurchaseBill
 from ledgerone.modules.sales.models import SalesInvoice
 
@@ -113,3 +114,49 @@ def test_purchase_permission_can_post_bill_atomically(client, app):
         assert journal.source_module == "purchases"
         assert journal.total_debit == Decimal("75.00")
         assert journal.total_credit == Decimal("75.00")
+
+
+def test_locked_period_blocks_sales_and_rolls_back_invoice(client, app):
+    token, accounts = _scoped_key(app, {"sales.read", "sales.write"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with app.app_context():
+        organisation = Organisation.query.one()
+        db.session.add(
+            AccountingPeriod(
+                organisation_id=organisation.id,
+                name="September 2026",
+                start_date=date(2026, 9, 1),
+                end_date=date(2026, 9, 30),
+                status="locked",
+            )
+        )
+        db.session.commit()
+
+    customer_response = client.post(
+        "/api/v1/sales/customers",
+        headers=headers,
+        json={"name": "Locked Customer"},
+    )
+    customer_id = customer_response.get_json()["id"]
+
+    invoice_response = client.post(
+        "/api/v1/sales/invoices",
+        headers=headers,
+        json={
+            "customer_id": customer_id,
+            "invoice_number": "INV-LOCKED-001",
+            "invoice_date": "2026-09-14",
+            "description": "Should not post",
+            "amount": "125.00",
+            "receivable_account_id": accounts["1200"],
+            "revenue_account_id": accounts["4000"],
+            "currency": "GBP",
+        },
+    )
+    assert invoice_response.status_code == 400
+    assert "locked period September 2026" in invoice_response.get_json()["error"]
+
+    with app.app_context():
+        assert SalesInvoice.query.count() == 0
+        assert Journal.query.count() == 0
