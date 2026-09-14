@@ -41,6 +41,14 @@ def browser_context() -> AccessContext | None:
     )
 
 
+def _normalise_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _bearer_context() -> AccessContext | None:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
@@ -52,7 +60,8 @@ def _bearer_context() -> AccessContext | None:
     record = db.session.get(ApiKey, parts[1])
     if not record or not record.is_active or not record.verify_token(token):
         return None
-    if record.expires_at and record.expires_at < datetime.now(timezone.utc):
+    expires_at = _normalise_utc(record.expires_at)
+    if expires_at and expires_at <= datetime.now(timezone.utc):
         return None
     record.last_used_at = datetime.now(timezone.utc)
     db.session.commit()
