@@ -200,9 +200,10 @@ TOOLS = {
 }
 
 
-def available_tools(organisation_id: str):
+def available_tools(organisation_id: str, *, allow_writes: bool = True):
     return {
         name: spec
         for name, spec in TOOLS.items()
         if module_registry.is_enabled(organisation_id, spec.module_id)
+        and (allow_writes or not spec.write)
     }
