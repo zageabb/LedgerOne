@@ -15,12 +15,23 @@ class ModuleManifest:
     description: str
     icon: str = "box"
     order: int = 100
+    route_endpoint: str | None = None
+    api_prefix: str | None = None
+    home_name: str | None = None
+    professional_name: str | None = None
     default_enabled: bool = True
     always_on: bool = False
     home_visible: bool = True
     professional_visible: bool = True
     permissions: tuple[str, ...] = field(default_factory=tuple)
     dependencies: tuple[str, ...] = field(default_factory=tuple)
+
+    def display_name(self, mode: str) -> str:
+        if mode == "home" and self.home_name:
+            return self.home_name
+        if mode == "professional" and self.professional_name:
+            return self.professional_name
+        return self.name
 
 
 class ModuleRegistry:
