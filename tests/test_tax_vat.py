@@ -4,23 +4,25 @@ from decimal import Decimal
 import pytest
 
 from ledgerone.extensions import db
-from ledgerone.models.core import ModuleState, Organisation
+from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account, Journal
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.modules.sales.services import SalesService
+from ledgerone.modules.settings.services import SettingsService
 from ledgerone.modules.tax.models import TaxCode
 from ledgerone.modules.tax.services import TaxError, TaxService
 from ledgerone.services.context import AccessContext
 
 
-def _context_and_accounts(app, *, enable_tax=True):
+def _enable_tax(app):
     with app.app_context():
         organisation = Organisation.query.one()
-        state = ModuleState.query.filter_by(
-            organisation_id=organisation.id, module_id="tax"
-        ).one()
-        state.enabled = enable_tax
-        db.session.commit()
+        context = AccessContext.system(organisation.id)
+        SettingsService.set_module_enabled(context, "tax", True)
+        # The service-level enable flow is expected to seed module defaults.
+        if not TaxCode.query.filter_by(organisation_id=organisation.id).first():
+            TaxService.seed_defaults(organisation.id)
         accounts = {
             row.code: row.id
             for row in Account.query.filter_by(organisation_id=organisation.id).all()
@@ -32,11 +34,21 @@ def _context_and_accounts(app, *, enable_tax=True):
         return AccessContext.system(organisation.id), accounts, tax_codes
 
 
-def test_tax_defaults_seed_control_accounts_and_uk_codes(app):
+def test_tax_module_starts_disabled_without_vat_defaults(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        assert module_registry.is_enabled(organisation.id, "tax") is False
+        assert Account.query.filter_by(organisation_id=organisation.id, code="1300").first() is None
+        assert Account.query.filter_by(organisation_id=organisation.id, code="2200").first() is None
+        assert TaxCode.query.filter_by(organisation_id=organisation.id).count() == 0
+
+
+def test_enabling_tax_seeds_control_accounts_and_uk_codes(app):
+    with app.app_context():
+        context, _, _ = _enable_tax(app)
+        organisation_id = context.organisation_id
         accounts = {
-            row.code: row for row in Account.query.filter_by(organisation_id=organisation.id).all()
+            row.code: row for row in Account.query.filter_by(organisation_id=organisation_id).all()
         }
         assert accounts["1300"].name == "VAT Recoverable"
         assert accounts["1300"].account_type == "asset"
@@ -45,7 +57,7 @@ def test_tax_defaults_seed_control_accounts_and_uk_codes(app):
         assert accounts["2200"].account_type == "liability"
         assert accounts["2200"].is_control_account is True
         codes = {
-            row.code: row for row in TaxCode.query.filter_by(organisation_id=organisation.id).all()
+            row.code: row for row in TaxCode.query.filter_by(organisation_id=organisation_id).all()
         }
         assert codes["T20"].rate_percent == Decimal("20.0000")
         assert codes["T5"].rate_percent == Decimal("5.0000")
@@ -56,7 +68,7 @@ def test_tax_defaults_seed_control_accounts_and_uk_codes(app):
 
 def test_sales_and_purchase_vat_post_to_control_accounts_and_feed_return(app):
     with app.app_context():
-        context, accounts, tax_codes = _context_and_accounts(app, enable_tax=True)
+        context, accounts, tax_codes = _enable_tax(app)
         customer = SalesService.create_customer(context, name="VAT Customer")
         supplier = PurchasesService.create_supplier(context, name="VAT Supplier")
 
@@ -118,9 +130,10 @@ def test_sales_and_purchase_vat_post_to_control_accounts_and_feed_return(app):
         assert summary["box_7_purchases_net"] == Decimal("50.00")
 
 
-def test_supplying_tax_code_while_tax_module_disabled_is_rejected(app):
+def test_supplying_seeded_tax_code_after_module_is_disabled_is_rejected(app):
     with app.app_context():
-        context, accounts, tax_codes = _context_and_accounts(app, enable_tax=False)
+        context, accounts, tax_codes = _enable_tax(app)
+        SettingsService.set_module_enabled(context, "tax", False)
         customer = SalesService.create_customer(context, name="No VAT Customer")
         with pytest.raises(TaxError, match="disabled"):
             SalesService.create_invoice(
@@ -139,7 +152,7 @@ def test_supplying_tax_code_while_tax_module_disabled_is_rejected(app):
 
 def test_vat_return_refuses_unsupported_cash_scheme(app):
     with app.app_context():
-        context, _, _ = _context_and_accounts(app, enable_tax=True)
+        context, _, _ = _enable_tax(app)
         TaxService.update_profile(
             context,
             jurisdiction="GB",
