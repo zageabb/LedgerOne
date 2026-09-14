@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import or_
@@ -123,12 +124,20 @@ class AuditService:
             full_access=context.full_access,
             permissions=context.permissions | frozenset({"audit.read"}),
         )
-        rows, _ = AuditService.search(
-            query_context,
-            limit=500,
-            offset=0,
-            **filters,
-        )
+        rows = []
+        offset = 0
+        while len(rows) < 10000:
+            page, total = AuditService.search(
+                query_context,
+                limit=500,
+                offset=offset,
+                **filters,
+            )
+            rows.extend(page)
+            offset += len(page)
+            if not page or offset >= total:
+                break
+
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(
@@ -153,7 +162,7 @@ class AuditService:
                     row.actor_id or "",
                     row.entity_type or "",
                     row.entity_id or "",
-                    str(row.detail or {}),
+                    json.dumps(row.detail or {}, sort_keys=True, default=str),
                 ]
             )
         return output.getvalue()
