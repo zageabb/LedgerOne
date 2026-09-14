@@ -96,7 +96,8 @@ class SalesService:
     def create_invoice(context: AccessContext, *, customer_id: str, invoice_number: str,
                        invoice_date, due_date, description: str, amount,
                        receivable_account_id: str, revenue_account_id: str,
-                       currency: str = "GBP", tax_code_id: str | None = None):
+                       currency: str = "GBP", tax_code_id: str | None = None,
+                       commit: bool = True):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         amount = _money(amount)
@@ -213,7 +214,10 @@ class SalesService:
                     "currency": invoice.currency,
                 },
             )
-            db.session.commit()
+            if commit:
+                db.session.commit()
+            else:
+                db.session.flush()
             return invoice
         except Exception:
             db.session.rollback()
