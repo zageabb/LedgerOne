@@ -3,6 +3,7 @@ from datetime import datetime, time, timezone
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import login_required
 
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context
@@ -47,11 +48,11 @@ def index():
                 )
                 flash("Organisation settings updated.", "success")
             elif action == "module":
-                SettingsService.set_module_enabled(
-                    context,
-                    request.form.get("module_id", ""),
-                    request.form.get("enabled") == "1",
-                )
+                module_id = request.form.get("module_id", "")
+                enabled = request.form.get("enabled") == "1"
+                SettingsService.set_module_enabled(context, module_id, enabled)
+                if enabled:
+                    module_registry.seed_module_defaults(context.organisation_id, module_id)
                 flash("Module setting updated.", "success")
             elif action == "member_save":
                 SettingsService.save_member(
