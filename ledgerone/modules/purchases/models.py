@@ -58,11 +58,13 @@ class PurchaseBillLine(db.Model):
     unit_price = db.Column(db.Numeric(18, 4), nullable=False, default=0)
     net_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     tax_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    tax_code_id = db.Column(db.String(36), db.ForeignKey("tax_codes.id"), nullable=True, index=True)
     expense_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=False)
     dimensions = db.Column(db.JSON, nullable=False, default=dict)
 
     bill = db.relationship("PurchaseBill", back_populates="lines")
     expense_account = db.relationship("Account")
+    tax_code = db.relationship("TaxCode")
 
 
 class PurchasePayment(db.Model):
