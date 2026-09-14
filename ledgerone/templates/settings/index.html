@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Settings · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p>{{ 'Choose how LedgerOne is set up and which features you want to use.' if ui_mode == 'home' else 'Organisation configuration, module lifecycle and API security.' }}</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Your ledger' if ui_mode == 'home' else 'Organisation' }}</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="general">
+        <div class="field field-full"><label>Name</label><input name="name" value="{{ organisation.name }}" required></div>
+        <div class="field"><label>Base currency</label><input name="base_currency" value="{{ organisation.base_currency }}" maxlength="3"></div>
+        <div class="field"><label>Country</label><input name="country_code" value="{{ organisation.country_code }}" maxlength="2"></div>
+        <div class="field"><label>Financial year start month</label><input type="number" name="fiscal_year_start_month" min="1" max="12" value="{{ organisation.fiscal_year_start_month }}"></div>
+        <div class="field"><label>Financial year start day</label><input type="number" name="fiscal_year_start_day" min="1" max="31" value="{{ organisation.fiscal_year_start_day }}"></div>
+        <div class="field-full"><button class="button" type="submit">Save settings</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Interface</h2></div>
+    <div class="card-body">
+      <p><strong>Current mode:</strong> {{ 'Home / Apprentice' if ui_mode == 'home' else 'Professional' }}</p>
+      <p class="muted">Both modes use the same ledger and data. Switching only changes labels, density and how much accounting detail is shown.</p>
+      <form method="post" action="{{ url_for('auth.ui_mode') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="{{ 'professional' if ui_mode == 'home' else 'home' }}">
+        <button class="button button-secondary" type="submit">Switch to {{ 'Professional' if ui_mode == 'home' else 'Home / Apprentice' }}</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><div><h2>Modules</h2><p class="muted">Each feature is a standalone module with its own UI, service layer and API.</p></div></div>
+  <div class="table-wrap">
+    <table><thead><tr><th>Module</th><th>Description</th><th>Dependencies</th><th>Status</th><th></th></tr></thead><tbody>
+    {% for item in module_states %}
+      <tr>
+        <td><strong>{{ item.manifest.name }}</strong><br><span class="code">{{ item.manifest.id }}</span></td>
+        <td>{{ item.manifest.description }}</td>
+        <td>{{ item.manifest.dependencies|join(', ') if item.manifest.dependencies else '—' }}</td>
+        <td><span class="badge {{ 'badge-success' if item.enabled else '' }}">{{ 'Enabled' if item.enabled else 'Disabled' }}</span></td>
+        <td>
+          {% if not item.manifest.always_on %}
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="module">
+            <input type="hidden" name="module_id" value="{{ item.manifest.id }}">
+            <input type="hidden" name="enabled" value="{{ '0' if item.enabled else '1' }}">
+            <button class="button button-small button-secondary" type="submit">{{ 'Disable' if item.enabled else 'Enable' }}</button>
+          </form>
+          {% else %}<span class="muted">Core</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>API access</h2></div>
+    <div class="card-body">
+      {% if new_api_token %}
+      <div class="flash flash-warning"><strong>Copy this key now.</strong> LedgerOne stores only its hash and cannot show it again.</div>
+      <div class="token-box"><input id="new-api-token" readonly value="{{ new_api_token }}"><button class="button button-secondary" type="button" data-copy-target="#new-api-token">Copy</button></div>
+      <br>
+      {% endif %}
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="api_key">
+        <div class="field field-full"><label>Key name</label><input name="key_name" placeholder="Reporting integration" required></div>
+        <div class="field field-full"><label>Permissions (comma separated)</label><input name="permissions" placeholder="ledger.read,reports.read"><div class="help">Leave permissions blank only if Full access is selected.</div></div>
+        <div class="field field-full"><label><input style="width:auto" type="checkbox" name="full_access" value="1"> Full access</label></div>
+        <div class="field-full"><button class="button" type="submit">Create API key</button></div>
+      </form>
+      <p class="help">Use as <span class="code">Authorization: Bearer &lt;key&gt;</span>. Built-in LedgerOne AI does not need an HTTP key; it uses a trusted internal system identity.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Active API keys</h2></div>
+    <div class="table-wrap">
+      {% if api_keys %}
+      <table><thead><tr><th>Name</th><th>Access</th><th>Status</th><th></th></tr></thead><tbody>
+      {% for row in api_keys %}<tr><td>{{ row.name }}<br><span class="code">{{ row.id[:8] }}…</span></td><td>{{ 'Full' if row.full_access else (row.permissions|join(', ') or 'None') }}</td><td><span class="badge {{ 'badge-success' if row.is_active else '' }}">{{ 'Active' if row.is_active else 'Revoked' }}</span></td><td>{% if row.is_active %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="revoke_api_key"><input type="hidden" name="key_id" value="{{ row.id }}"><button class="button button-small button-danger" type="submit">Revoke</button></form>{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}<div class="empty">No API keys have been created.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
