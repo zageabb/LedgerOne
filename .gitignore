@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.sqlite
+*.sqlite3
+ledgerone.db
+instance/
+.venv/
+venv/
+.env
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
