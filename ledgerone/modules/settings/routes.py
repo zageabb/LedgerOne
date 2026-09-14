@@ -1,3 +1,5 @@
+from datetime import datetime, time, timezone
+
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import login_required
 
@@ -16,6 +18,14 @@ def _ai_form_values():
         "timeout": int(request.form.get("ai_timeout", 120)),
         "allow_writes": request.form.get("ai_allow_writes") == "1",
     }
+
+
+def _expiry_from_form(name: str = "expires_on"):
+    raw = (request.form.get(name) or "").strip()
+    if not raw:
+        return None
+    day = datetime.strptime(raw, "%Y-%m-%d").date()
+    return datetime.combine(day, time(23, 59, 59), tzinfo=timezone.utc)
 
 
 @bp.route("/", methods=["GET", "POST"])
@@ -43,6 +53,23 @@ def index():
                     request.form.get("enabled") == "1",
                 )
                 flash("Module setting updated.", "success")
+            elif action == "member_save":
+                SettingsService.save_member(
+                    context,
+                    email=request.form.get("member_email", ""),
+                    name=request.form.get("member_name", ""),
+                    role=request.form.get("member_role", "member"),
+                    permissions=request.form.getlist("member_permissions"),
+                    password=request.form.get("member_password") or None,
+                    active=request.form.get("member_active", "1") == "1",
+                )
+                flash("Member access updated.", "success")
+            elif action == "member_deactivate":
+                SettingsService.deactivate_member(
+                    context,
+                    request.form.get("membership_id", ""),
+                )
+                flash("Member deactivated.", "success")
             elif action == "ai_save":
                 values = _ai_form_values()
                 AIConfiguration.update(context, **values)
@@ -51,7 +78,6 @@ def index():
                 if not context.can("settings.manage"):
                     raise PermissionError("settings.manage")
                 values = _ai_form_values()
-                # Validate without persisting, then test exactly what is on the form.
                 base_url, model, timeout = AIConfiguration._validate(
                     base_url=values["base_url"],
                     model=values["model"],
@@ -79,9 +105,18 @@ def index():
                     name=request.form.get("key_name", "API key"),
                     full_access=request.form.get("full_access") == "1",
                     permissions=permissions,
+                    expires_at=_expiry_from_form(),
                 )
                 session["new_api_token"] = token
                 flash("API key created. Copy it now; it will not be shown again.", "success")
+            elif action == "rotate_api_key":
+                _, token = SettingsService.rotate_api_key(
+                    context,
+                    request.form.get("key_id", ""),
+                    expires_at=_expiry_from_form("rotate_expires_on"),
+                )
+                session["new_api_token"] = token
+                flash("API key rotated. The previous key was revoked; copy the replacement now.", "success")
             elif action == "revoke_api_key":
                 SettingsService.revoke_api_key(context, request.form.get("key_id", ""))
                 flash("API key revoked.", "success")
@@ -98,6 +133,8 @@ def index():
         "settings/index.html",
         organisation=SettingsService.organisation(context),
         module_states=SettingsService.module_states(context),
+        members=SettingsService.list_members(context),
+        permission_catalog=SettingsService.permission_catalog(),
         api_keys=SettingsService.list_api_keys(context),
         new_api_token=session.pop("new_api_token", None),
         ai_settings=ai_settings,
