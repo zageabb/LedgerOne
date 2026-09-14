@@ -96,7 +96,7 @@ class SalesService:
     def create_invoice(context: AccessContext, *, customer_id: str, invoice_number: str,
                        invoice_date, due_date, description: str, amount,
                        receivable_account_id: str, revenue_account_id: str,
-                       currency: str = "GBP"):
+                       currency: str = "GBP", tax_code_id: str | None = None):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         amount = _money(amount)
@@ -110,6 +110,11 @@ class SalesService:
         ).first():
             raise ValueError("Invoice number already exists")
 
+        from ledgerone.modules.tax.services import TaxService
+        tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
+        tax_amount = TaxService.tax_amount(amount, tax_code)
+        total = amount + tax_amount
+
         invoice = SalesInvoice(
             organisation_id=context.organisation_id,
             customer_id=customer.id,
@@ -119,7 +124,8 @@ class SalesService:
             currency=currency.upper(),
             status="posting",
             subtotal=amount,
-            total=amount,
+            tax_total=tax_amount,
+            total=total,
         )
         db.session.add(invoice)
         db.session.flush()
@@ -131,9 +137,51 @@ class SalesService:
                 quantity=1,
                 unit_price=amount,
                 net_amount=amount,
+                tax_amount=tax_amount,
+                tax_code_id=tax_code.id if tax_code else None,
                 revenue_account_id=revenue_account_id,
             )
         )
+
+        journal_lines = [
+            {
+                "account_id": receivable_account_id,
+                "debit": total,
+                "credit": 0,
+                "description": customer.name,
+                "currency": currency.upper(),
+                "dimensions": {"customer_id": customer.id, "invoice_id": invoice.id},
+            },
+            {
+                "account_id": revenue_account_id,
+                "debit": 0,
+                "credit": amount,
+                "description": description.strip() or "Sales",
+                "currency": currency.upper(),
+                "dimensions": {
+                    "customer_id": customer.id,
+                    "invoice_id": invoice.id,
+                    "tax_code_id": tax_code.id if tax_code else None,
+                },
+            },
+        ]
+        if tax_amount:
+            if not tax_code or not tax_code.sales_tax_account_id:
+                raise ValueError("Selected tax code has no output VAT account")
+            journal_lines.append(
+                {
+                    "account_id": tax_code.sales_tax_account_id,
+                    "debit": 0,
+                    "credit": tax_amount,
+                    "description": f"{tax_code.code} output VAT",
+                    "currency": currency.upper(),
+                    "dimensions": {
+                        "customer_id": customer.id,
+                        "invoice_id": invoice.id,
+                        "tax_code_id": tax_code.id,
+                    },
+                }
+            )
 
         try:
             journal = LedgerService.post_journal(
@@ -143,24 +191,7 @@ class SalesService:
                 reference=invoice.invoice_number,
                 source_module="sales",
                 source_reference=invoice.id,
-                lines=[
-                    {
-                        "account_id": receivable_account_id,
-                        "debit": amount,
-                        "credit": 0,
-                        "description": customer.name,
-                        "currency": currency.upper(),
-                        "dimensions": {"customer_id": customer.id, "invoice_id": invoice.id},
-                    },
-                    {
-                        "account_id": revenue_account_id,
-                        "debit": 0,
-                        "credit": amount,
-                        "description": description.strip() or "Sales",
-                        "currency": currency.upper(),
-                        "dimensions": {"customer_id": customer.id, "invoice_id": invoice.id},
-                    },
-                ],
+                lines=journal_lines,
                 commit=False,
             )
             invoice.posted_journal_id = journal.id
@@ -175,7 +206,10 @@ class SalesService:
                     "invoice_number": invoice.invoice_number,
                     "customer_id": customer.id,
                     "journal_id": journal.id,
-                    "total": str(amount),
+                    "subtotal": str(amount),
+                    "tax_total": str(tax_amount),
+                    "total": str(total),
+                    "tax_code": tax_code.code if tax_code else None,
                     "currency": invoice.currency,
                 },
             )
