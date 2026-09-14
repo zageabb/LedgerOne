@@ -35,6 +35,9 @@ class Config:
     AUTO_CREATE_SCHEMA = _env_bool("AUTO_CREATE_SCHEMA", True)
     AUTO_SEED_DEFAULTS = _env_bool("AUTO_SEED_DEFAULTS", True)
 
+    # Cookies are shared across ports on a host; isolate LedgerOne from other apps.
+    SESSION_COOKIE_NAME = "ledgerone_session"
+    REMEMBER_COOKIE_NAME = "ledgerone_remember"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_HTTPONLY = True
