@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Audit Trail · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Activity' if ui_mode == 'home' else 'Audit Trail' }}</h1>
+    <p>{{ 'See important changes and transactions recorded by LedgerOne.' if ui_mode == 'home' else 'Search auditable activity across LedgerOne modules, users, APIs and local AI.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ export_url }}">Export CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Filters</h2><span class="badge">{{ total }} events</span></div>
+  <div class="card-body">
+    <form method="get" class="form-grid">
+      <div class="field"><label>Search</label><input name="text" value="{{ filters.text }}" placeholder="Journal, account, user, ID..."></div>
+      <div class="field"><label>Module</label><select name="module_id"><option value="">All modules</option>{% for value in options.modules %}<option value="{{ value }}" {% if filters.module_id == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Action</label><select name="action"><option value="">All actions</option>{% for value in options.actions %}<option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Actor</label><select name="actor_type"><option value="">All actor types</option>{% for value in options.actor_types %}<option value="{{ value }}" {% if filters.actor_type == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Entity type</label><select name="entity_type"><option value="">All entity types</option>{% for value in options.entity_types %}<option value="{{ value }}" {% if filters.entity_type == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="field"><label>From date</label><input type="date" name="from_date" value="{{ filters.from_date }}"></div>
+      <div class="field"><label>To date</label><input type="date" name="to_date" value="{{ filters.to_date }}"></div>
+      <div class="field field-full actions"><button class="button" type="submit">Apply filters</button><a class="button button-secondary" href="{{ url_for('audit.index') }}">Clear</a></div>
+    </form>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="table-wrap">
+    {% if events %}
+    <table>
+      <thead><tr><th>When</th><th>Module</th><th>Action</th><th>Actor</th><th>Entity</th><th>Details</th></tr></thead>
+      <tbody>
+      {% for row in events %}
+        <tr>
+          <td>{{ row.created_at.strftime('%d %b %Y %H:%M:%S') }}</td>
+          <td><span class="badge">{{ row.module_id }}</span></td>
+          <td><strong>{{ row.action }}</strong></td>
+          <td>{{ row.actor_type }}{% if row.actor_id %}<br><span class="code">{{ row.actor_id[:18] }}{% if row.actor_id|length > 18 %}…{% endif %}</span>{% endif %}</td>
+          <td>{{ row.entity_type or '—' }}{% if row.entity_id %}<br><span class="code">{{ row.entity_id[:18] }}{% if row.entity_id|length > 18 %}…{% endif %}</span>{% endif %}</td>
+          <td>{% if row.detail %}<details><summary>View</summary><pre class="code" style="white-space:pre-wrap;max-width:520px">{{ row.detail|tojson(indent=2) }}</pre></details>{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No audit events match the selected filters.</div>{% endif %}
+  </div>
+</div>
+
+{% if previous_url or next_url %}
+<div class="actions section">
+  {% if previous_url %}<a class="button button-secondary" href="{{ previous_url }}">Previous</a>{% endif %}
+  <span class="badge">Page {{ page }}</span>
+  {% if next_url %}<a class="button button-secondary" href="{{ next_url }}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
