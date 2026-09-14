@@ -63,6 +63,7 @@ class PaymentTermsService:
             )
             db.session.add(row)
         row.value = {"customer_days": customer_days, "supplier_days": supplier_days}
+        db.session.flush()
         record_audit_event(
             context,
             module_id="settings",
