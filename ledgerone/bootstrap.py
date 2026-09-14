@@ -1,6 +1,7 @@
 import re
 
 from flask import current_app
+from sqlalchemy import inspect
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Membership, Organisation, User
@@ -46,14 +47,22 @@ def bootstrap_database(*, create_schema: bool = True, seed_defaults: bool = True
     """Prepare a development/local database after the app and modules are loaded.
 
     Production deployments should normally set ``AUTO_CREATE_SCHEMA=false`` and run
-    ``flask db upgrade`` before starting the web process.  Keeping schema creation
+    ``flask db upgrade`` before starting the web process. Keeping schema creation
     separate from seeding prevents ``db.create_all()`` from silently replacing the
     migration workflow while retaining a frictionless SQLite first run.
+
+    When the schema does not exist yet, seeding is skipped. This is essential for
+    commands such as ``flask db upgrade`` because Flask must create the app before
+    Alembic can create the initial tables.
     """
     if create_schema:
         db.create_all()
 
     if not seed_defaults:
+        return
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table("users") or not inspector.has_table("organisations"):
         return
 
     if not User.query.first():
