@@ -13,20 +13,7 @@ api_bp = Blueprint("purchases_api", __name__, url_prefix="/api/v1/purchases")
 @require_api("purchases.read")
 def suppliers():
     rows = PurchasesService.list_suppliers(g.access_context)
-    return jsonify(
-        {
-            "suppliers": [
-                {
-                    "id": row.id,
-                    "name": row.name,
-                    "email": row.email,
-                    "phone": row.phone,
-                    "is_active": row.is_active,
-                }
-                for row in rows
-            ]
-        }
-    )
+    return jsonify({"suppliers": [{"id": row.id, "name": row.name, "email": row.email, "phone": row.phone, "is_active": row.is_active} for row in rows]})
 
 
 @api_bp.post("/suppliers")
@@ -34,12 +21,7 @@ def suppliers():
 def create_supplier():
     payload = request.get_json(silent=True) or {}
     try:
-        row = PurchasesService.create_supplier(
-            g.access_context,
-            name=payload.get("name", ""),
-            email=payload.get("email"),
-            phone=payload.get("phone"),
-        )
+        row = PurchasesService.create_supplier(g.access_context, name=payload.get("name", ""), email=payload.get("email"), phone=payload.get("phone"))
         return jsonify({"id": row.id, "name": row.name}), 201
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
@@ -48,27 +30,20 @@ def create_supplier():
 @api_bp.get("/bills")
 @require_api("purchases.read")
 def bills():
-    rows = PurchasesService.list_bills(
-        g.access_context, min(int(request.args.get("limit", 100)), 500)
-    )
-    return jsonify(
-        {
-            "bills": [
-                {
-                    "id": row.id,
-                    "bill_number": row.bill_number,
-                    "supplier_id": row.supplier_id,
-                    "bill_date": row.bill_date.isoformat(),
-                    "due_date": row.due_date.isoformat() if row.due_date else None,
-                    "currency": row.currency,
-                    "status": row.status,
-                    "total": str(row.total),
-                    "posted_journal_id": row.posted_journal_id,
-                }
-                for row in rows
-            ]
-        }
-    )
+    rows = PurchasesService.list_bills(g.access_context, min(int(request.args.get("limit", 100)), 500))
+    return jsonify({"bills": [{
+        "id": row.id,
+        "bill_number": row.bill_number,
+        "supplier_id": row.supplier_id,
+        "bill_date": row.bill_date.isoformat(),
+        "due_date": row.due_date.isoformat() if row.due_date else None,
+        "currency": row.currency,
+        "status": row.status,
+        "total": str(row.total),
+        "allocated": str(PurchasesService.bill_allocated(row.id)),
+        "outstanding": str(PurchasesService.bill_outstanding(row)),
+        "posted_journal_id": row.posted_journal_id,
+    } for row in rows]})
 
 
 @api_bp.post("/bills")
@@ -90,4 +65,71 @@ def create_bill():
         )
         return jsonify({"id": row.id, "status": row.status, "journal_id": row.posted_journal_id}), 201
     except (KeyError, ValueError, PermissionError, LedgerError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/payments")
+@require_api("purchases.read")
+def payments():
+    rows = PurchasesService.list_payments(g.access_context, min(int(request.args.get("limit", 100)), 500))
+    return jsonify({"payments": [{
+        "id": row.id,
+        "supplier_id": row.supplier_id,
+        "date": row.payment_date.isoformat(),
+        "reference": row.reference,
+        "amount": str(row.amount),
+        "allocated": str(PurchasesService.payment_allocated(row.id)),
+        "unallocated": str(row.amount - PurchasesService.payment_allocated(row.id)),
+        "currency": row.currency,
+        "status": row.status,
+        "journal_id": row.journal_id,
+    } for row in rows]})
+
+
+@api_bp.post("/payments")
+@require_api("purchases.write")
+def create_payment():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = PurchasesService.record_payment(
+            g.access_context,
+            supplier_id=payload["supplier_id"],
+            payment_date=date.fromisoformat(payload.get("date") or date.today().isoformat()),
+            amount=payload["amount"],
+            bank_account_id=payload["bank_account_id"],
+            payable_account_id=payload["payable_account_id"],
+            reference=payload.get("reference"),
+            currency=payload.get("currency", "GBP"),
+        )
+        return jsonify({"id": row.id, "journal_id": row.journal_id, "status": row.status}), 201
+    except (KeyError, ValueError, PermissionError, LedgerError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/payments/adopt-journal")
+@require_api("purchases.write")
+def adopt_payment_journal():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = PurchasesService.adopt_payment_journal(
+            g.access_context,
+            supplier_id=payload["supplier_id"],
+            journal_id=payload["journal_id"],
+            payable_account_id=payload["payable_account_id"],
+            currency=payload.get("currency", "GBP"),
+        )
+        return jsonify({"id": row.id, "journal_id": row.journal_id, "amount": str(row.amount), "status": row.status}), 201
+    except (KeyError, ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/payments/<payment_id>/allocate")
+@require_api("purchases.write")
+def allocate_payment(payment_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = PurchasesService.allocate_payment(g.access_context, payment_id, payload.get("allocations") or [])
+        allocated = PurchasesService.payment_allocated(row.id)
+        return jsonify({"id": row.id, "status": row.status, "allocated": str(allocated), "unallocated": str(row.amount - allocated)})
+    except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
