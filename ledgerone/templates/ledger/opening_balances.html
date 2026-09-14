@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Opening balances · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Starting balances' if ui_mode == 'home' else 'Opening balances' }}</h1>
+    <p>{{ 'Enter the balances you already had before starting to use LedgerOne.' if ui_mode == 'home' else 'Post auditable opening balances through the general ledger without editing historical journals.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.accounts') }}">Accounts</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.journals') }}">{{ 'Transactions' if ui_mode == 'home' else 'Journals' }}</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.recurring_journals') }}">{{ 'Repeating entries' if ui_mode == 'home' else 'Recurring journals' }}</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>{{ 'Enter starting balances' if ui_mode == 'home' else 'Opening-balance wizard' }}</h2>
+      <p class="muted">{{ 'Only fill in accounts that already had a balance.' if ui_mode == 'home' else 'Enter debit/credit balances. Any difference can be offset automatically to an equity account.' }}</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field"><label>{{ 'Balance date' if ui_mode == 'home' else 'As-of date' }}</label><input type="date" name="as_of_date" value="{{ today }}" required></div>
+      <div class="field"><label>Reference</label><input name="reference" placeholder="OPEN-2026"></div>
+      <div class="field field-full"><label>Description</label><input name="description" value="Opening balances"></div>
+      <div class="field field-full">
+        <label>{{ 'Balancing account' if ui_mode == 'home' else 'Opening-balance equity account' }}</label>
+        <select name="balancing_account_id">
+          <option value="">Only use if entered balances already balance</option>
+          {% for row in equity_accounts %}<option value="{{ row.id }}" {% if row.code == '3000' %}selected{% endif %}>{{ row.code }} · {{ row.name }}</option>{% endfor %}
+        </select>
+        <div class="help">If debits and credits differ, LedgerOne posts the difference to this equity account.</div>
+      </div>
+
+      <div class="field field-full">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Account</th><th>Type</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead>
+            <tbody>
+            {% for row in accounts %}
+              <tr>
+                <td><strong>{{ row.code }}</strong> · {{ row.name }}</td>
+                <td><span class="badge">{{ row.account_type|title }}</span></td>
+                <td><input class="number" type="number" min="0" step="0.01" name="debit_{{ row.id }}" placeholder="0.00"></td>
+                <td><input class="number" type="number" min="0" step="0.01" name="credit_{{ row.id }}" placeholder="0.00"></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="field-full"><button class="button" type="submit">{{ 'Save starting balances' if ui_mode == 'home' else 'Post opening balances' }}</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>{{ 'Previous starting balances' if ui_mode == 'home' else 'Opening-balance history' }}</h2><span class="badge">{{ batches|length }}</span></div>
+  <div class="table-wrap">
+    {% if batches %}
+    <table>
+      <thead><tr><th>Date</th><th>Reference</th><th>Description</th>{% if ui_mode == 'professional' %}<th>Journal</th><th>Offset account</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for row in batches %}
+        <tr>
+          <td>{{ row.as_of_date.strftime('%d %b %Y') }}</td>
+          <td>{{ row.reference or '—' }}</td>
+          <td>{{ row.description }}</td>
+          {% if ui_mode == 'professional' %}
+          <td><span class="code">{{ row.journal_id[:8] }}…</span></td>
+          <td>{{ (row.balancing_account.code ~ ' · ' ~ row.balancing_account.name) if row.balancing_account else 'Not required' }}</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No opening balances have been posted yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
