@@ -6,7 +6,10 @@
     <h1>{{ 'Income' if ui_mode == 'home' else 'Sales & receivables' }}</h1>
     <p>{{ 'Record people or organisations that pay you, then create income entries.' if ui_mode == 'home' else 'Maintain customers and post sales invoices to receivables, revenue and VAT control accounts.' }}</p>
   </div>
-  <div class="actions"><a class="button button-secondary" href="{{ url_for('sales.payments') }}">{{ 'Money received' if ui_mode == 'home' else 'Customer payments' }}</a></div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('sales_credits.index') }}">{{ 'Refunds & credits' if ui_mode == 'home' else 'Credit notes' }}</a>
+    <a class="button button-secondary" href="{{ url_for('sales.payments') }}">{{ 'Money received' if ui_mode == 'home' else 'Customer payments' }}</a>
+  </div>
 </div>
 
 <div class="grid grid-2">
@@ -46,7 +49,7 @@
   </div>
   <div class="card">
     <div class="card-head"><h2>{{ 'Recent income' if ui_mode == 'home' else 'Sales invoices' }}</h2></div>
-    <div class="table-wrap">{% if invoices %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th>{% if tax_enabled %}<th class="number">VAT</th>{% endif %}<th class="number">Total</th><th class="number">Outstanding</th><th></th></tr></thead><tbody>{% for row in invoices %}<tr><td>{{ row.invoice_number }}</td><td>{{ row.invoice_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status == 'paid' else '' }}">{{ row.status|replace('_',' ')|title }}</span></td>{% if tax_enabled %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td>{% endif %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No sales invoices yet.</div>{% endif %}</div>
+    <div class="table-wrap">{% if invoices %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th>{% if tax_enabled %}<th class="number">VAT</th>{% endif %}<th class="number">Total</th><th class="number">Outstanding</th><th></th></tr></thead><tbody>{% for row in invoices %}<tr><td>{{ row.invoice_number }}</td><td>{{ row.invoice_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status in ['paid', 'credited'] else '' }}">{{ row.status|replace('_',' ')|title }}</span></td>{% if tax_enabled %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td>{% endif %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No sales invoices yet.</div>{% endif %}</div>
   </div>
 </div>
 {% endblock %}
