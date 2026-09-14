@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sign in · LedgerOne{% endblock %}
+{% block public_content %}
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-brand"><span class="brand-mark">L1</span><div><strong>LedgerOne</strong><div class="muted">One ledger, from home to enterprise</div></div></div>
+    <h1>Welcome back</h1>
+    <p>Sign in to your accounting workspace.</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack">{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}</div>
+      {% endif %}
+    {% endwith %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field"><label>Email</label><input type="email" name="email" autocomplete="username" required></div>
+      <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
+      <button class="button" type="submit">Sign in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
