@@ -51,12 +51,13 @@ Status: **complete**
 
 ## v0.3 — Tax and day-to-day business
 
-Status: **next**
+Status: **in progress**
 
-- VAT/tax codes and tax accounts
-- UK VAT return support as first tax implementation
-- credit notes
-- quotes/orders leading to invoices
+- VAT/tax codes and tax accounts — implemented
+- UK VAT return support as first tax implementation — implemented for GB standard VAT accounting
+- credit notes — implemented for sales and purchases
+- sales quotes leading to invoices — implemented
+- sales orders leading to invoices
 - purchase orders leading to bills
 - expense claims
 - payment terms and aged receivables/payables
