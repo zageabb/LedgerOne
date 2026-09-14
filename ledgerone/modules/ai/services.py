@@ -4,10 +4,10 @@ import json
 from typing import Any
 
 import requests
-from flask import current_app
 
 from ledgerone.extensions import db
 from ledgerone.models.audit import AuditEvent
+from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.ai.models import AIInteraction
 from ledgerone.modules.ai.tools import available_tools
 from ledgerone.services.context import AccessContext
@@ -19,47 +19,39 @@ class LocalAIError(RuntimeError):
 
 class LocalAIService:
     @staticmethod
-    def status():
-        if not current_app.config.get("LOCAL_AI_ENABLED", True):
-            return {"enabled": False, "reachable": False, "model": current_app.config.get("LOCAL_AI_MODEL")}
-        base_url = current_app.config["LOCAL_AI_BASE_URL"]
-        try:
-            response = requests.get(f"{base_url}/api/tags", timeout=3)
-            response.raise_for_status()
-            data = response.json()
-            models = [item.get("name") for item in data.get("models", [])]
-            return {
-                "enabled": True,
-                "reachable": True,
-                "model": current_app.config["LOCAL_AI_MODEL"],
-                "models": models,
-                "base_url": base_url,
-            }
-        except Exception as exc:
-            return {
-                "enabled": True,
-                "reachable": False,
-                "model": current_app.config["LOCAL_AI_MODEL"],
-                "base_url": base_url,
-                "error": str(exc),
-            }
+    def status(organisation_id: str):
+        config = AIConfiguration.get(organisation_id)
+        result = AIConfiguration.probe(base_url=config["base_url"], timeout=3)
+        return {
+            "enabled": config["enabled"],
+            "reachable": result["reachable"] if config["enabled"] else False,
+            "model": config["model"],
+            "models": result.get("models", []),
+            "base_url": config["base_url"],
+            "timeout": config["timeout"],
+            "allow_writes": config["allow_writes"],
+            **({"error": result.get("error")} if result.get("error") and config["enabled"] else {}),
+        }
 
     @staticmethod
-    def _call_model(messages: list[dict]) -> str:
-        if not current_app.config.get("LOCAL_AI_ENABLED", True):
+    def _call_model(messages: list[dict], config: dict) -> str:
+        if not config.get("enabled", True):
             raise LocalAIError("Local AI is disabled")
-        response = requests.post(
-            f"{current_app.config['LOCAL_AI_BASE_URL']}/api/chat",
-            json={
-                "model": current_app.config["LOCAL_AI_MODEL"],
-                "messages": messages,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.2},
-            },
-            timeout=current_app.config.get("LOCAL_AI_TIMEOUT", 120),
-        )
-        response.raise_for_status()
+        try:
+            response = requests.post(
+                f"{config['base_url']}/api/chat",
+                json={
+                    "model": config["model"],
+                    "messages": messages,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.2},
+                },
+                timeout=config.get("timeout", 120),
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise LocalAIError(f"Could not reach local AI server: {exc}") from exc
         payload = response.json()
         return payload.get("message", {}).get("content", "")
 
@@ -81,15 +73,20 @@ class LocalAIService:
             return {"message": content, "tool_calls": []}
 
     @staticmethod
-    def _system_prompt(organisation_name: str, tools: dict) -> str:
+    def _system_prompt(organisation_name: str, tools: dict, allow_writes: bool) -> str:
         tool_lines = "\n".join(
             f"- {name} [{'WRITE' if spec.write else 'READ'}]: {spec.description}"
             for name, spec in tools.items()
         )
+        write_policy = (
+            "WRITE SAFETY: You may use WRITE tools only when the user's request explicitly asks you to create, add, record, post or change accounting data. Do not perform writes merely to answer a question. Explain completed changes clearly."
+            if allow_writes
+            else "WRITE SAFETY: This organisation has disabled AI writes. You have read-only tools and must not claim to have changed accounting data."
+        )
         return f"""You are LedgerOne AI, the trusted local accounting assistant for {organisation_name}.
-You have full internal access to enabled LedgerOne modules through the tools below. Never invent database IDs: use a read tool first when an ID is required. Use tools whenever the answer depends on LedgerOne data.
+You have internal access to enabled LedgerOne modules through the tools below. Never invent database IDs: use a read tool first when an ID is required. Use tools whenever the answer depends on LedgerOne data.
 
-WRITE SAFETY: You may use WRITE tools only when the user's request explicitly asks you to create, add, record, post or change accounting data. Do not perform writes merely to answer a question. Explain completed changes clearly.
+{write_policy}
 
 Return ONLY valid JSON in this exact shape:
 {{"message":"brief user-facing response","tool_calls":[{{"name":"tool.name","arguments":{{}}}}]}}
@@ -109,7 +106,13 @@ Read-list tools accept an optional limit where relevant.
 """
 
     @staticmethod
-    def _audit_tool(organisation_id: str, tool_name: str, arguments: dict, result: Any):
+    def _audit_tool(
+        organisation_id: str,
+        model: str,
+        tool_name: str,
+        arguments: dict,
+        result: Any,
+    ):
         serialised = json.dumps(result, default=str)
         if len(serialised) > 5000:
             serialised = serialised[:5000] + "..."
@@ -117,7 +120,7 @@ Read-list tools accept an optional limit where relevant.
             AuditEvent(
                 organisation_id=organisation_id,
                 actor_type="local_ai",
-                actor_id=current_app.config.get("LOCAL_AI_MODEL"),
+                actor_id=model,
                 module_id="ai",
                 action="tool_call",
                 entity_type="tool",
@@ -128,22 +131,42 @@ Read-list tools accept an optional limit where relevant.
         db.session.commit()
 
     @classmethod
-    def chat(cls, *, organisation_id: str, organisation_name: str, user_id: str | None,
-             prompt: str):
-        tools = available_tools(organisation_id)
+    def chat(
+        cls,
+        *,
+        organisation_id: str,
+        organisation_name: str,
+        user_id: str | None,
+        prompt: str,
+    ):
+        config = AIConfiguration.get(organisation_id)
+        if not config["enabled"]:
+            raise LocalAIError("Local AI is disabled")
+
+        tools = available_tools(
+            organisation_id,
+            allow_writes=config["allow_writes"],
+        )
         system_context = AccessContext.system(organisation_id)
         interaction = AIInteraction(
             organisation_id=organisation_id,
             user_id=user_id,
             prompt=prompt,
-            model=current_app.config.get("LOCAL_AI_MODEL"),
+            model=config["model"],
             tool_log=[],
         )
         db.session.add(interaction)
         db.session.commit()
 
         messages = [
-            {"role": "system", "content": cls._system_prompt(organisation_name, tools)},
+            {
+                "role": "system",
+                "content": cls._system_prompt(
+                    organisation_name,
+                    tools,
+                    config["allow_writes"],
+                ),
+            },
             {"role": "user", "content": prompt},
         ]
         tool_log = []
@@ -151,7 +174,7 @@ Read-list tools accept an optional limit where relevant.
 
         try:
             for _ in range(4):
-                content = cls._call_model(messages)
+                content = cls._call_model(messages, config)
                 plan = cls._parse_model_json(content)
                 final_message = str(plan.get("message") or "")
                 calls = plan.get("tool_calls") or []
@@ -164,7 +187,7 @@ Read-list tools accept an optional limit where relevant.
                     arguments = call.get("arguments") or {}
                     spec = tools.get(name)
                     if not spec:
-                        result = {"error": f"Unknown or disabled tool: {name}"}
+                        result = {"error": f"Unknown, disabled or disallowed tool: {name}"}
                     else:
                         try:
                             result = spec.handler(system_context, arguments)
@@ -173,7 +196,13 @@ Read-list tools accept an optional limit where relevant.
                     log_entry = {"tool": name, "arguments": arguments, "result": result}
                     tool_log.append(log_entry)
                     results.append(log_entry)
-                    cls._audit_tool(organisation_id, name or "unknown", arguments, result)
+                    cls._audit_tool(
+                        organisation_id,
+                        config["model"],
+                        name or "unknown",
+                        arguments,
+                        result,
+                    )
 
                 tool_text = json.dumps(results, default=str)
                 if len(tool_text) > 20000:
@@ -192,7 +221,17 @@ Read-list tools accept an optional limit where relevant.
             interaction.tool_log = tool_log
             interaction.success = True
             db.session.commit()
-            return {"message": final_message, "tools": tool_log, "interaction_id": interaction.id}
+            return {
+                "message": final_message,
+                "tools": tool_log,
+                "interaction_id": interaction.id,
+            }
+        except LocalAIError as exc:
+            interaction.success = False
+            interaction.error = str(exc)
+            interaction.tool_log = tool_log
+            db.session.commit()
+            raise
         except Exception as exc:
             interaction.success = False
             interaction.error = str(exc)
