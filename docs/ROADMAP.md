@@ -4,7 +4,7 @@ LedgerOne starts with a production-shaped accounting kernel and modular boundari
 
 ## v0.1 — Foundation
 
-Status: **implemented / hardening**
+Status: **complete**
 
 - Flask application factory and modular registry
 - multi-organisation users/memberships
@@ -19,6 +19,7 @@ Status: **implemented / hardening**
 - versioned REST APIs
 - hashed service/API keys
 - local AI workspace with audited tool access
+- per-organisation local AI settings with Ollama model discovery
 - SQLite and PostgreSQL configuration
 - CashLink legacy recovery/import tooling
 - Flask-Migrate baseline
@@ -26,10 +27,16 @@ Status: **implemented / hardening**
 
 ## v0.2 — Accounting controls
 
-Priority: **next**
+Status: **in progress**
+
+Implemented:
 
 - accounting periods and period locking
 - journal reversal workflow
+- organisation-level AI connection/model/write-safety settings
+
+Next:
+
 - stronger immutable-posting controls
 - opening-balance wizard
 - recurring journals
