@@ -57,7 +57,12 @@ class LedgerService:
                      lines: list[dict], reference: str | None = None,
                      source_module: str = "ledger", source_reference: str | None = None,
                      metadata: dict | None = None, commit: bool = True):
-        if not context.can("ledger.journals.post"):
+        can_post_directly = context.can("ledger.journals.post")
+        can_post_for_module = (
+            source_module not in {"ledger", "api"}
+            and context.can(f"{source_module}.write")
+        )
+        if not (can_post_directly or can_post_for_module):
             raise PermissionError("ledger.journals.post")
         if not context.organisation_id:
             raise LedgerError("An organisation is required")
