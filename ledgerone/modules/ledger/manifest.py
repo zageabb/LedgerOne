@@ -17,5 +17,7 @@ MANIFEST = ModuleManifest(
         "ledger.journals.post",
         "ledger.journals.reverse",
         "ledger.periods.manage",
+        "ledger.opening_balances.manage",
+        "ledger.recurring.manage",
     ),
 )
