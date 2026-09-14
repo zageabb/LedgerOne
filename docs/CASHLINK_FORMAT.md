@@ -64,9 +64,62 @@ Three module password fields are confirmed in the supplied journal snapshots:
 
 They are stored as cleartext Pascal short strings in the legacy data. LedgerOne's migration path does not display, log, CSV-export, or store those secrets as plaintext. It can read each value in memory and immediately convert it to a modern salted scrypt hash, so users can continue using the same password without needing to remember or re-enter it during migration.
 
-CashLink's program also contains explicit references to `SECURITY.DAT`, including `ERROR: opening SECURITY.DAT file`, `Invalid ID and PASSWORD!!`, supervisor-password prompts, operator numbers and access-right messages. This strongly indicates that `SECURITY.EXE` was a management utility while operator IDs/passwords/access rights were normally stored in a separate `SECURITY.DAT` file.
+## SECURITY.EXE and SECURITY.DAT
 
-If only `SECURITY.EXE` survives, it is still valuable: reverse-engineering it may reveal the `SECURITY.DAT` record layout, password comparison/encoding routine, access-right bit fields and whether any defaults or fallback credentials were embedded in the executable.
+Static analysis of the supplied `SECURITY.EXE` confirms it is the standalone CashLink security-management program, identifying itself as:
+
+- `CashLink Security Release 4.1`
+- `Hotelier Plus Security 4.03 UK`
+- Borland/Turbo Pascal-era DOS executable
+
+It explicitly opens/creates `SECURITY.DAT`. The program displays the following warning when the file is absent:
+
+- `WARNING : SECURITY.DAT does not exist.`
+- `Create New File`
+- security features are enabled automatically when a new file is created
+- at least one operator class with access rights must then be configured
+
+The user-list/report screens include `ID`, `Name` and `Password`, and the edit code compares existing passwords to prevent duplicates. This indicates that operator passwords are stored in a recoverable representation rather than a one-way hash.
+
+### Inferred SECURITY.DAT operator record layout
+
+Machine-code analysis of CashLink Security 4.1 gives a strong 128-byte fixed-record layout:
+
+| Offset | Size | Meaning |
+| ---: | ---: | --- |
+| 0 | 4 | Pascal `string[3]` operator ID |
+| 4 | 30 | Pascal `string[29]` operator name |
+| 34 | 10 | Pascal `string[9]` operator password |
+| 44 | 32 | access-rights bitfield / option block |
+| 76 | 2 | default printer number (little-endian word) |
+| 78 | 50 | reserved / future-version fields |
+
+The file creation routine uses a record size of `0x80` (128 bytes), and local work buffers are sized in 128-byte multiples. The executable also appears to provision up to 255 operator slots. These findings are sufficiently strong to support a parser, but should remain marked as inferred until a real `SECURITY.DAT` is available for validation.
+
+`legacy_import/cashlink/security_dat.py` implements this inferred layout. Its normal parse API returns the ID, name, masked-password metadata, access-right bytes and printer number. The plaintext password is exposed only to the trusted in-memory migration function so it can be immediately re-hashed for LedgerOne.
+
+A scan of the supplied `SECURITY.EXE` found no embedded records matching the inferred operator-record structure and no customer-specific operator names. Current evidence therefore indicates that the EXE contains the security program and templates, while live operator records lived in `SECURITY.DAT`.
+
+The security utility allows an alternative path to be entered for `SECURITY.DAT`, so an old live installation may have stored it outside the directory from which these backup files were recovered.
+
+## Other supplied executables
+
+### CASHLINK.COM
+
+`CASHLINK.COM` is a DOS COM bootstrap for the p-System environment. It references:
+
+- `PROGRAM.VOL`
+- `SYSTEM.CONFIG`
+- `SYSTEM.PME.87`
+- `DOSVV.DRV`
+
+and includes a 1989 Cabot Software Ltd. copyright notice. This confirms that CashLink used a DOS-hosted p-System runtime to load the Pascal application volume.
+
+### FIXFIRST.EXE
+
+`FIXFIRST.EXE` is a Borland/Turbo Pascal maintenance utility, with source-unit/debug strings including `FIXFIRST.PAS`. It directly references the CashLink accounting files and many of their Pascal record-field names, including `FIRSTTRANS`, `LASTTRANS`, `NEXT_TRANS`, `PREV_TRANS`, `NOM_TRANS`, purchase/sales/stock transaction structures and `JOBCOST.DAT`.
+
+Its code iterates account/transaction records and manipulates transaction-pointer fields. The strongest interpretation is that it was a repair/conversion utility for rebuilding or resetting first/last transaction links rather than part of normal day-to-day accounting. It is valuable as a reverse-engineering reference because it retains numerous original Pascal field names and record structures.
 
 ## Recovery principle
 
