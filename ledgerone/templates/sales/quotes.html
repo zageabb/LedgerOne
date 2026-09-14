@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Quotes · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Quotes' if ui_mode == 'home' else 'Sales quotes' }}</h1>
+    <p>{{ 'Prepare a price for a customer. Nothing reaches your accounts until you turn the quote into an invoice.' if ui_mode == 'home' else 'Create non-posting commercial quotes, track acceptance and convert approved quotes through the standard sales-invoice posting service.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('sales.index') }}">Back to sales</a></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Create quote</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create">
+        <div class="field"><label>Customer</label><select name="customer_id" required><option value="">Select</option>{% for row in customers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Quote number</label><input name="quote_number" placeholder="QUO-001" required></div>
+        <div class="field"><label>Quote date</label><input type="date" name="quote_date" value="{{ today }}" required></div>
+        <div class="field"><label>Valid until</label><input type="date" name="expiry_date" value="{{ default_expiry }}"></div>
+        <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
+        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select></div>{% endif %}
+        <div class="field field-full"><label>Description</label><input name="description" placeholder="Services / goods quoted" required></div>
+        <div class="field"><label>{{ 'Money owed to you account' if ui_mode == 'home' else 'Receivables account after conversion' }}</label><select name="receivable_account_id" required>{% for row in receivable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>{{ 'Income category' if ui_mode == 'home' else 'Revenue account after conversion' }}</label><select name="revenue_account_id" required>{% for row in revenue_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field-full"><button class="button" type="submit">Create quote</button></div>
+      </form>
+      <p class="help">Creating or changing a quote does not create a journal. Accounting begins only when the quote is converted to an invoice.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'How it works' if ui_mode == 'home' else 'Quote lifecycle' }}</h2></div>
+    <div class="card-body">
+      <p><strong>Draft → Sent → Accepted → Converted</strong></p>
+      <p class="muted">You can also mark a quote rejected. An accepted quote can still convert after its validity date; other expired quotes must be accepted first.</p>
+      <p class="muted">Conversion creates the invoice using the customer, amount, VAT code and ledger accounts stored on the quote.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Quote register</h2><span class="badge">{{ quotes|length }}</span></div>
+  <div class="table-wrap">
+    {% if quotes %}
+    <table>
+      <thead><tr><th>Number</th><th>Customer</th><th>Date</th><th>Valid until</th><th>Status</th><th class="number">Total</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for row in quotes %}
+        <tr>
+          <td><strong>{{ row.quote_number }}</strong></td>
+          <td>{{ row.customer.name }}</td>
+          <td>{{ row.quote_date.strftime('%d %b %Y') }}</td>
+          <td>{{ row.expiry_date.strftime('%d %b %Y') if row.expiry_date else '—' }}</td>
+          <td><span class="badge {{ 'badge-success' if row.status in ['accepted','converted'] else '' }}">{{ row.status|title }}</span></td>
+          <td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td>
+          <td>
+            {% if row.status != 'converted' %}
+            <details>
+              <summary class="button button-small button-secondary">Manage</summary>
+              <div style="min-width:300px;margin-top:.5rem">
+                <form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="status"><input type="hidden" name="quote_id" value="{{ row.id }}">
+                  <div class="field field-full"><label>Status</label><select name="status"><option value="draft" {% if row.status == 'draft' %}selected{% endif %}>Draft</option><option value="sent" {% if row.status == 'sent' %}selected{% endif %}>Sent</option><option value="accepted" {% if row.status == 'accepted' %}selected{% endif %}>Accepted</option><option value="rejected" {% if row.status == 'rejected' %}selected{% endif %}>Rejected</option></select></div>
+                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Update status</button></div>
+                </form>
+                {% if row.status != 'rejected' %}<hr><form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="quote_id" value="{{ row.id }}">
+                  <div class="field field-full"><label>Invoice number</label><input name="invoice_number" placeholder="INV-001" required></div>
+                  <div class="field"><label>Invoice date</label><input type="date" name="invoice_date" value="{{ today }}" required></div>
+                  <div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
+                  <div class="field-full"><button class="button button-small" type="submit">Convert to invoice</button></div>
+                </form>{% endif %}
+              </div>
+            </details>
+            {% else %}<a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.converted_invoice_id) }}">Invoice docs</a>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No quotes yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
