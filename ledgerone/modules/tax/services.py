@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+from sqlalchemy import inspect
+
 from ledgerone.extensions import db
 from ledgerone.models.ledger import Account
 from ledgerone.module_registry import module_registry
@@ -25,6 +27,57 @@ def _money(value) -> Decimal:
 class TaxService:
     TREATMENTS = {"standard", "reduced", "zero", "exempt", "out_of_scope"}
     SCOPES = {"sales", "purchase", "both"}
+
+    @staticmethod
+    def seed_defaults(organisation_id: str):
+        """Seed UK-friendly tax accounts/codes when the tax schema is available."""
+        inspector = inspect(db.engine)
+        if not inspector.has_table("tax_codes") or not inspector.has_table("tax_profiles"):
+            return
+
+        def ensure_account(code: str, name: str, account_type: str):
+            row = Account.query.filter_by(organisation_id=organisation_id, code=code).first()
+            if row is None:
+                row = Account(
+                    organisation_id=organisation_id,
+                    code=code,
+                    name=name,
+                    account_type=account_type,
+                    is_control_account=True,
+                )
+                db.session.add(row)
+                db.session.flush()
+            return row
+
+        input_vat = ensure_account("1300", "VAT Recoverable", "asset")
+        output_vat = ensure_account("2200", "VAT Payable", "liability")
+
+        if TaxProfile.query.filter_by(organisation_id=organisation_id).first() is None:
+            db.session.add(TaxProfile(organisation_id=organisation_id, jurisdiction="GB"))
+
+        defaults = [
+            ("T20", "UK Standard VAT 20%", "20.0000", "standard", True),
+            ("T5", "UK Reduced VAT 5%", "5.0000", "reduced", True),
+            ("T0", "UK Zero-rated VAT", "0.0000", "zero", True),
+            ("EXEMPT", "VAT Exempt", "0.0000", "exempt", True),
+            ("OUT", "Outside scope of VAT", "0.0000", "out_of_scope", False),
+        ]
+        for code, name, rate, treatment, uses_accounts in defaults:
+            if TaxCode.query.filter_by(organisation_id=organisation_id, code=code).first():
+                continue
+            db.session.add(
+                TaxCode(
+                    organisation_id=organisation_id,
+                    code=code,
+                    name=name,
+                    rate_percent=Decimal(rate),
+                    treatment=treatment,
+                    scope="both",
+                    sales_tax_account_id=output_vat.id if uses_accounts else None,
+                    purchase_tax_account_id=input_vat.id if uses_accounts else None,
+                )
+            )
+        db.session.commit()
 
     @staticmethod
     def profile(context: AccessContext):
@@ -82,12 +135,14 @@ class TaxService:
         return row
 
     @staticmethod
-    def list_codes(context: AccessContext, *, active_only: bool = True):
+    def list_codes(context: AccessContext, *, active_only: bool = True, usage: str | None = None):
         if not context.can("tax.read"):
             raise PermissionError("tax.read")
         query = TaxCode.query.filter_by(organisation_id=context.organisation_id)
         if active_only:
             query = query.filter(TaxCode.is_active.is_(True))
+        if usage in {"sales", "purchase"}:
+            query = query.filter(TaxCode.scope.in_([usage, "both"]))
         return query.order_by(TaxCode.code.asc()).all()
 
     @staticmethod
@@ -196,30 +251,50 @@ class TaxService:
             raise PermissionError("tax.read")
         if end_date < start_date:
             raise TaxError("VAT return end date cannot be before start date")
+        profile = TaxProfile.query.filter_by(organisation_id=context.organisation_id).first()
+        if profile and profile.jurisdiction != "GB":
+            raise TaxError("The first VAT return implementation supports GB jurisdiction only")
+        if profile and profile.scheme != "standard":
+            raise TaxError("The first VAT return implementation supports standard VAT accounting only")
 
-        from ledgerone.modules.purchases.models import PurchaseBill
-        from ledgerone.modules.sales.models import SalesInvoice
+        from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine
+        from ledgerone.modules.sales.models import SalesInvoice, SalesInvoiceLine
 
-        sales = SalesInvoice.query.filter(
-            SalesInvoice.organisation_id == context.organisation_id,
-            SalesInvoice.invoice_date >= start_date,
-            SalesInvoice.invoice_date <= end_date,
-            SalesInvoice.posted_journal_id.is_not(None),
-        ).all()
-        purchases = PurchaseBill.query.filter(
-            PurchaseBill.organisation_id == context.organisation_id,
-            PurchaseBill.bill_date >= start_date,
-            PurchaseBill.bill_date <= end_date,
-            PurchaseBill.posted_journal_id.is_not(None),
-        ).all()
-        box_1 = sum((_money(row.tax_total) for row in sales), Decimal("0.00"))
-        box_4 = sum((_money(row.tax_total) for row in purchases), Decimal("0.00"))
-        box_6 = sum((_money(row.subtotal) for row in sales), Decimal("0.00"))
-        box_7 = sum((_money(row.subtotal) for row in purchases), Decimal("0.00"))
+        sales_rows = (
+            db.session.query(SalesInvoice, SalesInvoiceLine, TaxCode)
+            .join(SalesInvoiceLine, SalesInvoiceLine.invoice_id == SalesInvoice.id)
+            .join(TaxCode, TaxCode.id == SalesInvoiceLine.tax_code_id)
+            .filter(
+                SalesInvoice.organisation_id == context.organisation_id,
+                SalesInvoice.invoice_date >= start_date,
+                SalesInvoice.invoice_date <= end_date,
+                SalesInvoice.posted_journal_id.is_not(None),
+            )
+            .all()
+        )
+        purchase_rows = (
+            db.session.query(PurchaseBill, PurchaseBillLine, TaxCode)
+            .join(PurchaseBillLine, PurchaseBillLine.bill_id == PurchaseBill.id)
+            .join(TaxCode, TaxCode.id == PurchaseBillLine.tax_code_id)
+            .filter(
+                PurchaseBill.organisation_id == context.organisation_id,
+                PurchaseBill.bill_date >= start_date,
+                PurchaseBill.bill_date <= end_date,
+                PurchaseBill.posted_journal_id.is_not(None),
+            )
+            .all()
+        )
+
+        box_1 = sum((_money(line.tax_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
+        box_4 = sum((_money(line.tax_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
+        box_6 = sum((_money(line.net_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
+        box_7 = sum((_money(line.net_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
         net = box_1 - box_4
         return {
             "from_date": start_date,
             "to_date": end_date,
+            "vat_registered": bool(profile and profile.is_vat_registered),
+            "registration_number": profile.registration_number if profile else None,
             "box_1_output_vat": box_1,
             "box_2_acquisitions_vat": Decimal("0.00"),
             "box_3_total_vat_due": box_1,
@@ -231,6 +306,6 @@ class TaxService:
             "box_7_purchases_net": box_7,
             "box_8_eu_supplies": Decimal("0.00"),
             "box_9_eu_acquisitions": Decimal("0.00"),
-            "sales_documents": len(sales),
-            "purchase_documents": len(purchases),
+            "sales_documents": len({invoice.id for invoice, _, code in sales_rows if code.treatment != "out_of_scope"}),
+            "purchase_documents": len({bill.id for bill, _, code in purchase_rows if code.treatment != "out_of_scope"}),
         }
