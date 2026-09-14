@@ -96,7 +96,8 @@ class PurchasesService:
     def create_bill(context: AccessContext, *, supplier_id: str, bill_number: str,
                     bill_date, due_date, description: str, amount,
                     payable_account_id: str, expense_account_id: str,
-                    currency: str = "GBP", tax_code_id: str | None = None):
+                    currency: str = "GBP", tax_code_id: str | None = None,
+                    commit: bool = True):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -214,7 +215,10 @@ class PurchasesService:
                     "currency": bill.currency,
                 },
             )
-            db.session.commit()
+            if commit:
+                db.session.commit()
+            else:
+                db.session.flush()
             return bill
         except Exception:
             db.session.rollback()
