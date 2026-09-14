@@ -13,6 +13,7 @@ from ledgerone.modules.sales.models import (
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
+from ledgerone.services.payment_terms import PaymentTermsService
 
 
 def _money(value) -> Decimal:
@@ -28,16 +29,21 @@ class SalesService:
 
     @staticmethod
     def create_customer(context: AccessContext, *, name: str, email: str | None = None,
-                        phone: str | None = None):
+                        phone: str | None = None, payment_terms_days: int | None = None):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         if not name.strip():
             raise ValueError("Customer name is required")
+        if payment_terms_days is not None:
+            payment_terms_days = PaymentTermsService.customer_days(
+                context.organisation_id, payment_terms_days
+            )
         customer = Customer(
             organisation_id=context.organisation_id,
             name=name.strip(),
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
+            payment_terms_days=payment_terms_days,
         )
         db.session.add(customer)
         db.session.flush()
@@ -47,7 +53,11 @@ class SalesService:
             action="customer_created",
             entity_type="customer",
             entity_id=customer.id,
-            detail={"name": customer.name, "email": customer.email},
+            detail={
+                "name": customer.name,
+                "email": customer.email,
+                "payment_terms_days": customer.payment_terms_days,
+            },
         )
         db.session.commit()
         return customer
@@ -110,6 +120,14 @@ class SalesService:
             organisation_id=context.organisation_id, invoice_number=invoice_number
         ).first():
             raise ValueError("Invoice number already exists")
+        if due_date is None:
+            due_date = PaymentTermsService.customer_due_date(
+                context.organisation_id,
+                invoice_date,
+                customer.payment_terms_days,
+            )
+        if due_date < invoice_date:
+            raise ValueError("Invoice due date cannot be before the invoice date")
 
         from ledgerone.modules.tax.services import TaxService
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
@@ -212,6 +230,7 @@ class SalesService:
                     "total": str(total),
                     "tax_code": tax_code.code if tax_code else None,
                     "currency": invoice.currency,
+                    "due_date": invoice.due_date.isoformat(),
                 },
             )
             if commit:
