@@ -13,8 +13,6 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
-from ledgerone.modules.purchases.models import PurchaseBill
-from ledgerone.modules.sales.models import SalesInvoice
 from ledgerone.services.context import AccessContext
 
 
@@ -199,6 +197,8 @@ def _document_pdf(
 class FinancialDocumentPdfService:
     @staticmethod
     def sales_invoice(context: AccessContext, invoice_id: str) -> tuple[bytes, str]:
+        from ledgerone.modules.sales.models import SalesInvoice
+
         if not context.can("sales.read"):
             raise PermissionError("sales.read")
         invoice = db.session.get(SalesInvoice, invoice_id)
@@ -229,6 +229,8 @@ class FinancialDocumentPdfService:
 
     @staticmethod
     def purchase_bill(context: AccessContext, bill_id: str) -> tuple[bytes, str]:
+        from ledgerone.modules.purchases.models import PurchaseBill
+
         if not context.can("purchases.read"):
             raise PermissionError("purchases.read")
         bill = db.session.get(PurchaseBill, bill_id)
