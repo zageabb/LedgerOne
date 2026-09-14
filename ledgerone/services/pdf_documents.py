@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from io import BytesIO
 from xml.sax.saxutils import escape
 
@@ -28,6 +29,11 @@ def _money(currency: str, value) -> str:
 def _quantity(value) -> str:
     text = f"{value:.4f}"
     return text.rstrip("0").rstrip(".") or "0"
+
+
+def _safe_filename(prefix: str, number: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(number or "document")).strip(".-")
+    return f"{prefix}-{safe or 'document'}.pdf"
 
 
 def _address_lines(address) -> list[str]:
@@ -153,7 +159,7 @@ def _document_pdf(
 
     line_table = Table(
         table_rows,
-        colWidths=[66 * mm, 13 * mm, 25 * mm, 25 * mm, 22 * mm, 27 * mm],
+        colWidths=[62 * mm, 13 * mm, 24 * mm, 24 * mm, 22 * mm, 29 * mm],
         repeatRows=1,
     )
     line_table.setStyle(TableStyle([
@@ -219,7 +225,7 @@ class FinancialDocumentPdfService:
             tax_total=invoice.tax_total,
             total=invoice.total,
         )
-        return pdf, f"invoice-{invoice.invoice_number}.pdf"
+        return pdf, _safe_filename("invoice", invoice.invoice_number)
 
     @staticmethod
     def purchase_bill(context: AccessContext, bill_id: str) -> tuple[bytes, str]:
@@ -249,4 +255,4 @@ class FinancialDocumentPdfService:
             tax_total=bill.tax_total,
             total=bill.total,
         )
-        return pdf, f"bill-{bill.bill_number}.pdf"
+        return pdf, _safe_filename("bill", bill.bill_number)
