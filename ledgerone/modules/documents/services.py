@@ -24,6 +24,7 @@ class DocumentService:
         "sales_invoice": "sales",
         "purchase_bill": "purchases",
         "bank_transaction": "banking",
+        "expense_claim": "expense_claims",
     }
 
     @staticmethod
@@ -44,6 +45,10 @@ class DocumentService:
         elif entity_type == "purchase_bill":
             from ledgerone.modules.purchases.models import PurchaseBill
             row = db.session.get(PurchaseBill, entity_id)
+            valid = bool(row and row.organisation_id == context.organisation_id)
+        elif entity_type == "expense_claim":
+            from ledgerone.modules.expense_claims.models import ExpenseClaim
+            row = db.session.get(ExpenseClaim, entity_id)
             valid = bool(row and row.organisation_id == context.organisation_id)
         else:
             from ledgerone.modules.banking.models import BankAccount, BankTransaction
