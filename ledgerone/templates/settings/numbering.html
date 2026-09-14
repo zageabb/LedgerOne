@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Numbering · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Document numbering</h1>
+    <p>{{ 'Choose how LedgerOne numbers invoices, bills, orders, quotes, credits and expense claims when you leave the number blank.' if ui_mode == 'home' else 'Configure organisation-level automatic document sequences. Explicit document numbers remain supported and do not consume a sequence value.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('settings.index') }}">Back to settings</a></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Automatic sequences</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Document</th><th>Prefix</th><th>Suffix</th><th>Next value</th><th>Padding</th><th>Next number</th><th></th></tr></thead>
+      <tbody>
+      {% for row in sequences %}
+        <tr>
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="sequence_key" value="{{ row.key }}">
+            <td><strong>{{ row.label }}</strong></td>
+            <td><input name="prefix" value="{{ row.prefix }}" maxlength="40" style="min-width:90px"></td>
+            <td><input name="suffix" value="{{ row.suffix }}" maxlength="40" style="min-width:80px"></td>
+            <td><input type="number" name="next_value" value="{{ row.next_value }}" min="1" required style="width:100px"></td>
+            <td><input type="number" name="padding" value="{{ row.padding }}" min="1" max="12" required style="width:80px"></td>
+            <td><code>{{ row.next_number }}</code></td>
+            <td><button class="button button-small" type="submit">Save</button></td>
+          </form>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body"><p class="help">Automatic numbers are allocated only when a document number is left blank. Failed or rolled-back financial postings do not consume the allocated number.</p></div>
+</div>
+{% endblock %}
