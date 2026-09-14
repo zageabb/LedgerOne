@@ -151,3 +151,19 @@ class Setting(db.Model):
     key = db.Column(db.String(120), nullable=False)
     value = db.Column(db.JSON, nullable=True)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class NumberSequence(db.Model):
+    __tablename__ = "number_sequences"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "sequence_key", name="uq_number_sequence_org_key"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    sequence_key = db.Column(db.String(80), nullable=False, index=True)
+    prefix = db.Column(db.String(40), nullable=False, default="")
+    suffix = db.Column(db.String(40), nullable=False, default="")
+    next_value = db.Column(db.Integer, nullable=False, default=1)
+    padding = db.Column(db.Integer, nullable=False, default=4)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
