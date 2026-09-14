@@ -13,6 +13,7 @@ from ledgerone.modules.sales.models import (
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
+from ledgerone.services.numbering import NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
 
 
@@ -116,8 +117,9 @@ class SalesService:
         customer = db.session.get(Customer, customer_id)
         if not customer or customer.organisation_id != context.organisation_id:
             raise ValueError("Invalid customer")
-        if SalesInvoice.query.filter_by(
-            organisation_id=context.organisation_id, invoice_number=invoice_number
+        supplied_number = (invoice_number or "").strip()
+        if supplied_number and SalesInvoice.query.filter_by(
+            organisation_id=context.organisation_id, invoice_number=supplied_number
         ).first():
             raise ValueError("Invoice number already exists")
         if due_date is None:
@@ -134,75 +136,87 @@ class SalesService:
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
 
-        invoice = SalesInvoice(
-            organisation_id=context.organisation_id,
-            customer_id=customer.id,
-            invoice_number=invoice_number.strip(),
-            invoice_date=invoice_date,
-            due_date=due_date,
-            currency=currency.upper(),
-            status="posting",
-            subtotal=amount,
-            tax_total=tax_amount,
-            total=total,
-        )
-        db.session.add(invoice)
-        db.session.flush()
-        db.session.add(
-            SalesInvoiceLine(
-                invoice_id=invoice.id,
-                line_number=1,
-                description=description.strip() or "Sales",
-                quantity=1,
-                unit_price=amount,
-                net_amount=amount,
-                tax_amount=tax_amount,
-                tax_code_id=tax_code.id if tax_code else None,
-                revenue_account_id=revenue_account_id,
-            )
-        )
+        try:
+            resolved_number = supplied_number
+            if not resolved_number:
+                for _ in range(1000):
+                    candidate = NumberSequenceService.next_number(context, "sales_invoice")
+                    if not SalesInvoice.query.filter_by(
+                        organisation_id=context.organisation_id, invoice_number=candidate
+                    ).first():
+                        resolved_number = candidate
+                        break
+                if not resolved_number:
+                    raise ValueError("Could not allocate a unique invoice number")
 
-        journal_lines = [
-            {
-                "account_id": receivable_account_id,
-                "debit": total,
-                "credit": 0,
-                "description": customer.name,
-                "currency": currency.upper(),
-                "dimensions": {"customer_id": customer.id, "invoice_id": invoice.id},
-            },
-            {
-                "account_id": revenue_account_id,
-                "debit": 0,
-                "credit": amount,
-                "description": description.strip() or "Sales",
-                "currency": currency.upper(),
-                "dimensions": {
-                    "customer_id": customer.id,
-                    "invoice_id": invoice.id,
-                    "tax_code_id": tax_code.id if tax_code else None,
-                },
-            },
-        ]
-        if tax_amount:
-            if not tax_code or not tax_code.sales_tax_account_id:
-                raise ValueError("Selected tax code has no output VAT account")
-            journal_lines.append(
+            invoice = SalesInvoice(
+                organisation_id=context.organisation_id,
+                customer_id=customer.id,
+                invoice_number=resolved_number,
+                invoice_date=invoice_date,
+                due_date=due_date,
+                currency=currency.upper(),
+                status="posting",
+                subtotal=amount,
+                tax_total=tax_amount,
+                total=total,
+            )
+            db.session.add(invoice)
+            db.session.flush()
+            db.session.add(
+                SalesInvoiceLine(
+                    invoice_id=invoice.id,
+                    line_number=1,
+                    description=description.strip() or "Sales",
+                    quantity=1,
+                    unit_price=amount,
+                    net_amount=amount,
+                    tax_amount=tax_amount,
+                    tax_code_id=tax_code.id if tax_code else None,
+                    revenue_account_id=revenue_account_id,
+                )
+            )
+
+            journal_lines = [
                 {
-                    "account_id": tax_code.sales_tax_account_id,
+                    "account_id": receivable_account_id,
+                    "debit": total,
+                    "credit": 0,
+                    "description": customer.name,
+                    "currency": currency.upper(),
+                    "dimensions": {"customer_id": customer.id, "invoice_id": invoice.id},
+                },
+                {
+                    "account_id": revenue_account_id,
                     "debit": 0,
-                    "credit": tax_amount,
-                    "description": f"{tax_code.code} output VAT",
+                    "credit": amount,
+                    "description": description.strip() or "Sales",
                     "currency": currency.upper(),
                     "dimensions": {
                         "customer_id": customer.id,
                         "invoice_id": invoice.id,
-                        "tax_code_id": tax_code.id,
+                        "tax_code_id": tax_code.id if tax_code else None,
                     },
-                }
-            )
+                },
+            ]
+            if tax_amount:
+                if not tax_code or not tax_code.sales_tax_account_id:
+                    raise ValueError("Selected tax code has no output VAT account")
+                journal_lines.append(
+                    {
+                        "account_id": tax_code.sales_tax_account_id,
+                        "debit": 0,
+                        "credit": tax_amount,
+                        "description": f"{tax_code.code} output VAT",
+                        "currency": currency.upper(),
+                        "dimensions": {
+                            "customer_id": customer.id,
+                            "invoice_id": invoice.id,
+                            "tax_code_id": tax_code.id,
+                        },
+                    }
+                )
 
-        try:
             journal = LedgerService.post_journal(
                 context,
                 journal_date=invoice_date,
