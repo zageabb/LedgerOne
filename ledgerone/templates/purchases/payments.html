@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Supplier Payments · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Money paid out' if ui_mode == 'home' else 'Supplier payments & allocation' }}</h1>
+    <p>{{ 'Record money you paid and match it to bills you owe.' if ui_mode == 'home' else 'Post or adopt supplier payment journals, then allocate payments against outstanding bills.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchases.index') }}">{{ 'Expenses' if ui_mode == 'home' else 'Purchases' }}</a></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Record money paid' if ui_mode == 'home' else 'Post supplier payment' }}</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="record">
+        <div class="field"><label>Supplier</label><select name="supplier_id" required><option value="">Select</option>{% for row in suppliers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Date</label><input type="date" name="payment_date" value="{{ today }}" required></div>
+        <div class="field"><label>Amount</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
+        <div class="field"><label>Reference</label><input name="reference" placeholder="Bank reference"></div>
+        <div class="field"><label>{{ 'Bank / cash account' if ui_mode == 'home' else 'Bank ledger account' }}</label><select name="bank_account_id" required>{% for row in bank_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>{{ 'Money you owe account' if ui_mode == 'home' else 'Payables account' }}</label><select name="payable_account_id" required>{% for row in payable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        <div class="field-full"><button class="button" type="submit">{{ 'Record payment' if ui_mode == 'home' else 'Post payment journal' }}</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Use an existing transaction' if ui_mode == 'home' else 'Adopt existing journal' }}</h2></div>
+    <div class="card-body">
+      <p class="help">Use this when Banking has already created or matched the cash journal. LedgerOne will not post the cash movement again.</p>
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="adopt">
+        <div class="field"><label>Supplier</label><select name="supplier_id" required><option value="">Select</option>{% for row in suppliers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Journal</label><select name="journal_id" required><option value="">Select posted journal</option>{% for row in journals %}<option value="{{ row.id }}">{{ row.journal_date.strftime('%d %b %Y') }} · {{ row.reference or row.id[:8] }} · {{ row.description }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Payables account</label><select name="payable_account_id" required>{% for row in payable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Register existing journal</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>{{ 'Payments to match' if ui_mode == 'home' else 'Supplier payment register' }}</h2><span class="badge">{{ payments|length }}</span></div>
+  <div class="table-wrap">
+    {% if payments %}
+    <table>
+      <thead><tr><th>Date</th><th>Supplier</th><th>Reference</th><th>Status</th><th class="number">Amount</th><th class="number">Unallocated</th><th></th></tr></thead>
+      <tbody>
+      {% for payment in payments %}
+        {% set remaining = payment.amount - allocated[payment.id] %}
+        <tr>
+          <td>{{ payment.payment_date.strftime('%d %b %Y') }}</td>
+          <td>{{ payment.supplier.name }}</td>
+          <td>{{ payment.reference or '—' }}</td>
+          <td><span class="badge {{ 'badge-success' if payment.status == 'allocated' else 'badge-warning' }}">{{ payment.status|replace('_',' ')|title }}</span></td>
+          <td class="number">{{ payment.currency }} {{ '%.2f'|format(payment.amount) }}</td>
+          <td class="number">{{ payment.currency }} {{ '%.2f'|format(remaining) }}</td>
+          <td>
+            {% if remaining > 0 %}
+            <details>
+              <summary class="button button-small">Allocate</summary>
+              <form method="post" class="form-grid" style="min-width:340px;margin-top:.5rem">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="allocate">
+                <input type="hidden" name="payment_id" value="{{ payment.id }}">
+                {% for bill in bills %}
+                  {% if bill.supplier_id == payment.supplier_id and outstanding[bill.id] > 0 %}
+                  <div class="field field-full">
+                    <label>{{ bill.bill_number }} · outstanding {{ bill.currency }} {{ '%.2f'|format(outstanding[bill.id]) }}</label>
+                    <input name="allocate_{{ bill.id }}" inputmode="decimal" placeholder="0.00">
+                  </div>
+                  {% endif %}
+                {% endfor %}
+                <div class="field-full"><button class="button button-small" type="submit">Save allocation</button></div>
+              </form>
+            </details>
+            {% else %}<span class="muted">Fully allocated</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No supplier payments have been recorded yet.</div>{% endif %}
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>{{ 'What you still owe' if ui_mode == 'home' else 'Outstanding payables' }}</h2></div>
+  <div class="table-wrap">
+    <table><thead><tr><th>Bill</th><th>Supplier</th><th>Due</th><th>Status</th><th class="number">Total</th><th class="number">Outstanding</th></tr></thead><tbody>
+    {% for bill in bills %}{% if outstanding[bill.id] > 0 %}<tr><td>{{ bill.bill_number }}</td><td>{{ bill.supplier.name }}</td><td>{{ bill.due_date.strftime('%d %b %Y') if bill.due_date else '—' }}</td><td><span class="badge">{{ bill.status|replace('_',' ')|title }}</span></td><td class="number">{{ bill.currency }} {{ '%.2f'|format(bill.total) }}</td><td class="number">{{ bill.currency }} {{ '%.2f'|format(outstanding[bill.id]) }}</td></tr>{% endif %}{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endblock %}
