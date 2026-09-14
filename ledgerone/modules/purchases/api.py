@@ -39,7 +39,10 @@ def bills():
         "due_date": row.due_date.isoformat() if row.due_date else None,
         "currency": row.currency,
         "status": row.status,
+        "subtotal": str(row.subtotal),
+        "tax_total": str(row.tax_total),
         "total": str(row.total),
+        "tax_code_id": row.lines[0].tax_code_id if row.lines else None,
         "allocated": str(PurchasesService.bill_allocated(row.id)),
         "outstanding": str(PurchasesService.bill_outstanding(row)),
         "posted_journal_id": row.posted_journal_id,
@@ -62,8 +65,16 @@ def create_bill():
             payable_account_id=payload["payable_account_id"],
             expense_account_id=payload["expense_account_id"],
             currency=payload.get("currency", "GBP"),
+            tax_code_id=payload.get("tax_code_id"),
         )
-        return jsonify({"id": row.id, "status": row.status, "journal_id": row.posted_journal_id}), 201
+        return jsonify({
+            "id": row.id,
+            "status": row.status,
+            "subtotal": str(row.subtotal),
+            "tax_total": str(row.tax_total),
+            "total": str(row.total),
+            "journal_id": row.posted_journal_id,
+        }), 201
     except (KeyError, ValueError, PermissionError, LedgerError) as exc:
         return jsonify({"error": str(exc)}), 400
 
