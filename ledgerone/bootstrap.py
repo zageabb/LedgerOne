@@ -91,3 +91,4 @@ def bootstrap_database(*, create_schema: bool = True, seed_defaults: bool = True
     for organisation in Organisation.query.all():
         module_registry.ensure_org_states(organisation.id)
         _seed_chart(organisation.id)
+        module_registry.seed_org_defaults(organisation.id)
