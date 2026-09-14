@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from ledgerone.extensions import db
 from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine, Supplier
+from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
 
@@ -27,6 +28,15 @@ class PurchasesService:
             phone=(phone or "").strip() or None,
         )
         db.session.add(supplier)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="purchases",
+            action="supplier_created",
+            entity_type="supplier",
+            entity_id=supplier.id,
+            detail={"name": supplier.name, "email": supplier.email},
+        )
         db.session.commit()
         return supplier
 
@@ -112,6 +122,20 @@ class PurchasesService:
             )
             bill.posted_journal_id = journal.id
             bill.status = "posted"
+            record_audit_event(
+                context,
+                module_id="purchases",
+                action="bill_posted",
+                entity_type="purchase_bill",
+                entity_id=bill.id,
+                detail={
+                    "bill_number": bill.bill_number,
+                    "supplier_id": supplier.id,
+                    "journal_id": journal.id,
+                    "total": str(amount),
+                    "currency": bill.currency,
+                },
+            )
             db.session.commit()
             return bill
         except Exception:
