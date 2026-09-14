@@ -2,6 +2,7 @@ from datetime import datetime, time, timezone
 
 from flask import Blueprint, g, jsonify, request
 
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import require_api
@@ -122,9 +123,12 @@ def test_ai_settings():
 def set_module(module_id):
     payload = request.get_json(silent=True) or {}
     try:
+        enabled = bool(payload.get("enabled", True))
         state = SettingsService.set_module_enabled(
-            g.access_context, module_id, bool(payload.get("enabled", True))
+            g.access_context, module_id, enabled
         )
+        if enabled:
+            module_registry.seed_module_defaults(g.access_context.organisation_id, module_id)
         return jsonify({"module_id": state.module_id, "enabled": state.enabled})
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
