@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Flask, session
+from flask import Flask, request, session
 from flask_login import current_user
 from dotenv import load_dotenv
 
@@ -9,7 +9,7 @@ def create_app():
     load_dotenv()
 
     from ledgerone.config import get_config
-    from ledgerone.extensions import db, login_manager, migrate
+    from ledgerone.extensions import csrf, db, login_manager, migrate
     from ledgerone.module_registry import module_registry
     from ledgerone.models import User
 
@@ -19,6 +19,7 @@ def create_app():
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
 
     @login_manager.user_loader
     def load_user(user_id: str):
@@ -28,8 +29,13 @@ def create_app():
     module_registry.register_blueprints(app)
 
     @app.before_request
-    def keep_session_alive():
+    def secure_browser_request():
         session.permanent = True
+        if (
+            request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}
+            and not request.path.startswith("/api/")
+        ):
+            csrf.protect()
 
     @app.context_processor
     def inject_ledgerone_context():
