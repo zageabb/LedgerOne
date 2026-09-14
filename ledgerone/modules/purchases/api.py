@@ -63,7 +63,7 @@ def create_bill():
         row = PurchasesService.create_bill(
             g.access_context,
             supplier_id=payload["supplier_id"],
-            bill_number=payload["bill_number"],
+            bill_number=payload.get("bill_number", ""),
             bill_date=date.fromisoformat(payload.get("bill_date") or date.today().isoformat()),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
             description=payload.get("description", "Purchase"),
@@ -75,6 +75,7 @@ def create_bill():
         )
         return jsonify({
             "id": row.id,
+            "bill_number": row.bill_number,
             "status": row.status,
             "due_date": row.due_date.isoformat() if row.due_date else None,
             "subtotal": str(row.subtotal),
