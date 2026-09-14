@@ -43,7 +43,7 @@ def index():
     )
     return render_template(
         "ai/index.html",
-        ai_status=LocalAIService.status(),
+        ai_status=LocalAIService.status(context.organisation_id),
         prompt=prompt,
         answer=answer,
         tool_log=tool_log,
