@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Sales credit notes · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Refunds & credits' if ui_mode == 'home' else 'Sales credit notes' }}</h1>
+    <p>{{ 'Reduce an unpaid invoice without changing the original transaction.' if ui_mode == 'home' else 'Post immutable credit notes against existing sales invoices, including proportional VAT reversal.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('sales.index') }}">Back to sales</a></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Add a credit' if ui_mode == 'home' else 'Post credit note' }}</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field field-full"><label>Invoice</label><select name="invoice_id" required><option value="">Select invoice</option>{% for row in invoices %}<option value="{{ row.id }}">{{ row.invoice_number }} · {{ row.customer.name }} · {{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }} outstanding</option>{% endfor %}</select></div>
+        <div class="field"><label>Credit note number</label><input name="credit_number" placeholder="CN-001" required></div>
+        <div class="field"><label>Date</label><input type="date" name="credit_date" value="{{ today }}" required></div>
+        <div class="field"><label>Net amount to credit</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
+        <div class="field"><label>Description</label><input name="description" placeholder="Returned goods / price adjustment"></div>
+        <div class="field-full"><button class="button" type="submit">Post credit note</button></div>
+      </form>
+      <p class="help">VAT is inherited from the original invoice and reversed proportionally. Credits cannot exceed the current outstanding balance.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Credit note register</h2><span class="badge">{{ credit_notes|length }}</span></div>
+    <div class="table-wrap">
+      {% if credit_notes %}<table><thead><tr><th>Number</th><th>Date</th><th>Invoice</th><th class="number">Net</th><th class="number">VAT</th><th class="number">Total</th></tr></thead><tbody>
+      {% for row in credit_notes %}<tr><td>{{ row.credit_number }}</td><td>{{ row.credit_date.strftime('%d %b %Y') }}</td><td>{{ row.invoice.invoice_number }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.subtotal) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td></tr>{% endfor %}
+      </tbody></table>{% else %}<div class="empty">No sales credit notes yet.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
