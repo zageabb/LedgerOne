@@ -6,22 +6,45 @@
     <h1>{{ 'Transactions' if ui_mode == 'home' else 'Journal register' }}</h1>
     <p>{{ 'Every accounting movement ends up here as a balanced transaction.' if ui_mode == 'home' else 'Posted double-entry journals across all LedgerOne modules.' }}</p>
   </div>
-  <div class="actions"><a class="button" href="{{ url_for('ledger.new_journal') }}">{{ 'Add transaction' if ui_mode == 'home' else 'Post journal' }}</a></div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.periods') }}">{{ 'Lock dates' if ui_mode == 'home' else 'Accounting periods' }}</a>
+    <a class="button" href="{{ url_for('ledger.new_journal') }}">{{ 'Add transaction' if ui_mode == 'home' else 'Post journal' }}</a>
+  </div>
 </div>
 <div class="card">
   <div class="table-wrap">
     {% if journals %}
     <table>
-      <thead><tr><th>Date</th><th>Reference</th><th>Description</th>{% if ui_mode == 'professional' %}<th>Source</th><th>Status</th>{% endif %}<th class="number">Debit</th><th class="number">Credit</th></tr></thead>
+      <thead><tr><th>Date</th><th>Reference</th><th>Description</th>{% if ui_mode == 'professional' %}<th>Source</th><th>Status</th>{% endif %}<th class="number">Debit</th><th class="number">Credit</th><th></th></tr></thead>
       <tbody>
       {% for row in journals %}
         <tr>
           <td>{{ row.journal_date.strftime('%d %b %Y') }}</td>
           <td>{{ row.reference or '—' }}</td>
-          <td>{{ row.description }}</td>
+          <td>
+            {{ row.description }}
+            {% if row.reversal_of_id %}<br><span class="help">Reversal of {{ row.reversal_of_id[:8] }}…</span>{% endif %}
+          </td>
           {% if ui_mode == 'professional' %}<td>{{ row.source_module }}</td><td><span class="badge badge-success">{{ row.status }}</span></td>{% endif %}
           <td class="number">£{{ '%.2f'|format(row.total_debit) }}</td>
           <td class="number">£{{ '%.2f'|format(row.total_credit) }}</td>
+          <td>
+            {% if row.id in reversed_ids %}
+              <span class="badge">{{ 'Undone' if ui_mode == 'home' else 'Reversed' }}</span>
+            {% elif row.reversal_of_id %}
+              <span class="badge">{{ 'Undo entry' if ui_mode == 'home' else 'Reversal' }}</span>
+            {% elif row.status == 'posted' %}
+              <details>
+                <summary class="button button-small button-secondary">{{ 'Undo' if ui_mode == 'home' else 'Reverse' }}</summary>
+                <form method="post" action="{{ url_for('ledger.reverse_journal', journal_id=row.id) }}" class="form-grid" style="min-width:260px;margin-top:.5rem">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <div class="field field-full"><label>{{ 'Date' if ui_mode == 'home' else 'Reversal date' }}</label><input type="date" name="reversal_date" value="{{ today }}" required></div>
+                  <div class="field field-full"><label>{{ 'Reason (optional)' if ui_mode == 'home' else 'Reason / description' }}</label><input name="reason" placeholder="Correction"></div>
+                  <div class="field-full"><button class="button button-small button-danger" type="submit">{{ 'Undo transaction' if ui_mode == 'home' else 'Post reversal' }}</button></div>
+                </form>
+              </details>
+            {% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>
