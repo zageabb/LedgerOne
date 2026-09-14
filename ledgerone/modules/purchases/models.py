@@ -12,6 +12,7 @@ class Supplier(db.Model):
     phone = db.Column(db.String(80), nullable=True)
     tax_id = db.Column(db.String(120), nullable=True)
     address = db.Column(db.JSON, nullable=False, default=dict)
+    payment_terms_days = db.Column(db.Integer, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
