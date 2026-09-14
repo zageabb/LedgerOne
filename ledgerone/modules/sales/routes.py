@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ledgerone.models.ledger import Journal
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.security import browser_context, require_module
 from ledgerone.services.ledger import LedgerError, LedgerService
@@ -44,6 +45,7 @@ def index():
                     receivable_account_id=request.form.get("receivable_account_id", ""),
                     revenue_account_id=request.form.get("revenue_account_id", ""),
                     currency=request.form.get("currency", "GBP"),
+                    tax_code_id=request.form.get("tax_code_id") or None,
                 )
                 flash("Invoice created and posted to the ledger.", "success")
             return redirect(url_for("sales.index"))
@@ -52,6 +54,10 @@ def index():
 
     accounts = LedgerService.list_accounts(context)
     invoices = SalesService.list_invoices(context, 100)
+    tax_codes = []
+    if module_registry.is_enabled(context.organisation_id, "tax") and context.can("tax.read"):
+        from ledgerone.modules.tax.services import TaxService
+        tax_codes = TaxService.list_codes(context, usage="sales")
     return render_template(
         "sales/index.html",
         customers=SalesService.list_customers(context),
@@ -59,6 +65,8 @@ def index():
         outstanding={row.id: SalesService.invoice_outstanding(row) for row in invoices},
         receivable_accounts=[row for row in accounts if row.account_type == "asset"],
         revenue_accounts=[row for row in accounts if row.account_type == "income"],
+        tax_codes=tax_codes,
+        tax_enabled=module_registry.is_enabled(context.organisation_id, "tax"),
         today=date.today().isoformat(),
         default_due=(date.today() + timedelta(days=30)).isoformat(),
     )
