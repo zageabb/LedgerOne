@@ -23,7 +23,7 @@ def _setup():
 
 def test_invoice_and_bill_pdf_generation(app):
     with app.app_context():
-        organisation, context, accounts = _setup()
+        _, context, accounts = _setup()
         customer = SalesService.create_customer(
             context,
             name="PDF Customer",
@@ -84,9 +84,10 @@ def test_invoice_and_bill_pdf_generation(app):
         assert len(bill_pdf) > 1000
         assert invoice_filename == "invoice-INV-2026-001.pdf"
         assert bill_filename == "bill-BILL-2026-001.pdf"
-        assert organisation.name.encode() not in b""  # renderer completed without mutating source data
         assert invoice.invoice_number == "INV/2026:001"
         assert bill.bill_number == "BILL/2026:001"
+        assert customer.address["postcode"] == "ST16 1AA"
+        assert supplier.address["postcode"] == "B1 1AA"
 
 
 def test_pdf_service_enforces_organisation_boundary(app):
