@@ -60,7 +60,7 @@ Status: **in progress**
 - sales orders leading to invoices
 - purchase orders leading to bills — implemented
 - expense claims — implemented
-- payment terms and aged receivables/payables
+- payment terms and aged receivables/payables — implemented
 - invoice/bill PDF output
 - configurable numbering sequences
 - contact/address improvements
