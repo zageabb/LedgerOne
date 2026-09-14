@@ -98,6 +98,33 @@ GET  /api/v1/settings
 GET  /api/v1/ai/status
 ```
 
+## CashLink legacy migration
+
+LedgerOne includes a standalone recovery component for legacy CashLink Accountant data under `legacy_import/cashlink`.
+
+Current capabilities include:
+
+- reading CashLink UCSD p-System volumes
+- listing/extracting embedded logical files
+- decoding purchase, sales and nominal account masters
+- preserving raw source files and fixed records in SQLite
+- source SHA-256 traceability
+- auditing legacy module-password fields without disclosing them
+- converting confirmed CashLink module passwords directly to modern salted scrypt hashes so users can continue using the same passwords after migration
+
+Example commands:
+
+```bash
+python -m legacy_import.cashlink scan JOURNAL.VOL JOURNAL.BAK
+python -m legacy_import.cashlink extract JOURNAL.VOL --out recovered/journal
+python -m legacy_import.cashlink export-accounts JOURNAL.VOL --out recovered/csv
+python -m legacy_import.cashlink security-audit JOURNAL.VOL JOURNAL.BAK JOURNAL.OLD
+python -m legacy_import.cashlink to-sqlite recovered/cashlink.sqlite JOURNAL.VOL JOBCOST.DAT
+python -m legacy_import.cashlink to-sqlite recovered/cashlink.sqlite JOURNAL.VOL --migrate-legacy-passwords
+```
+
+See [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) for the reverse-engineering notes and confirmed record structures.
+
 ## Roadmap
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
