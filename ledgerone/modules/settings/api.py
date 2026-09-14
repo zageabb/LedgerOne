@@ -1,3 +1,5 @@
+from datetime import datetime, time, timezone
+
 from flask import Blueprint, g, jsonify, request
 
 from ledgerone.modules.ai.configuration import AIConfiguration
@@ -5,6 +7,19 @@ from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import require_api
 
 api_bp = Blueprint("settings_api", __name__, url_prefix="/api/v1/settings")
+
+
+def _parse_expiry(value):
+    if value in {None, ""}:
+        return None
+    text = str(value).strip()
+    if len(text) == 10:
+        day = datetime.strptime(text, "%Y-%m-%d").date()
+        return datetime.combine(day, time(23, 59, 59), tzinfo=timezone.utc)
+    parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 @api_bp.get("")
@@ -32,6 +47,7 @@ def get_settings():
                 }
                 for item in modules
             ],
+            "permissions": SettingsService.permission_catalog(),
             "ai": AIConfiguration.get(g.access_context.organisation_id),
         }
     )
@@ -114,6 +130,57 @@ def set_module(module_id):
         return jsonify({"error": str(exc)}), 400
 
 
+@api_bp.get("/members")
+@require_api("settings.read")
+def members():
+    rows = SettingsService.list_members(g.access_context)
+    return jsonify(
+        {
+            "members": [
+                {
+                    "id": row.id,
+                    "user_id": row.user_id,
+                    "name": row.user.name,
+                    "email": row.user.email,
+                    "role": row.role,
+                    "permissions": row.permissions or [],
+                    "is_active": row.is_active,
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@api_bp.post("/members")
+@require_api("settings.manage")
+def save_member():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = SettingsService.save_member(
+            g.access_context,
+            email=payload.get("email", ""),
+            name=payload.get("name", ""),
+            role=payload.get("role", "member"),
+            permissions=payload.get("permissions") or [],
+            password=payload.get("password"),
+            active=bool(payload.get("is_active", True)),
+        )
+        return jsonify({"id": row.id, "user_id": row.user_id, "role": row.role}), 201
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.delete("/members/<membership_id>")
+@require_api("settings.manage")
+def deactivate_member(membership_id):
+    try:
+        row = SettingsService.deactivate_member(g.access_context, membership_id)
+        return jsonify({"id": row.id, "is_active": row.is_active})
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @api_bp.get("/api-keys")
 @require_api("settings.read")
 def api_keys():
@@ -128,6 +195,7 @@ def api_keys():
                     "permissions": row.permissions,
                     "is_active": row.is_active,
                     "created_at": row.created_at.isoformat(),
+                    "expires_at": row.expires_at.isoformat() if row.expires_at else None,
                     "last_used_at": row.last_used_at.isoformat() if row.last_used_at else None,
                 }
                 for row in rows
@@ -146,8 +214,36 @@ def create_api_key():
             name=payload.get("name", "API key"),
             full_access=bool(payload.get("full_access", False)),
             permissions=payload.get("permissions") or [],
+            expires_at=_parse_expiry(payload.get("expires_at")),
         )
-        return jsonify({"id": row.id, "token": token}), 201
+        return jsonify(
+            {
+                "id": row.id,
+                "token": token,
+                "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+            }
+        ), 201
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/api-keys/<key_id>/rotate")
+@require_api("settings.manage")
+def rotate_api_key(key_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row, token = SettingsService.rotate_api_key(
+            g.access_context,
+            key_id,
+            expires_at=_parse_expiry(payload.get("expires_at")),
+        )
+        return jsonify(
+            {
+                "id": row.id,
+                "token": token,
+                "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+            }
+        ), 201
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
 
