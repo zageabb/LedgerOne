@@ -58,7 +58,7 @@ Status: **in progress**
 - credit notes — implemented for sales and purchases
 - sales quotes leading to invoices — implemented
 - sales orders leading to invoices
-- purchase orders leading to bills
+- purchase orders leading to bills — implemented
 - expense claims
 - payment terms and aged receivables/payables
 - invoice/bill PDF output
