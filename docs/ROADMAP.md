@@ -59,7 +59,7 @@ Status: **in progress**
 - sales quotes leading to invoices — implemented
 - sales orders leading to invoices
 - purchase orders leading to bills — implemented
-- expense claims
+- expense claims — implemented
 - payment terms and aged receivables/payables
 - invoice/bill PDF output
 - configurable numbering sequences
