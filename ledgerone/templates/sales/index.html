@@ -7,6 +7,7 @@
     <p>{{ 'Record people or organisations that pay you, then create income entries.' if ui_mode == 'home' else 'Maintain customers and post sales invoices to receivables, revenue and VAT control accounts.' }}</p>
   </div>
   <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('settings.payment_terms') }}">Payment terms</a>
     <a class="button button-secondary" href="{{ url_for('sales_quotes.index') }}">{{ 'Quotes' if ui_mode == 'home' else 'Sales quotes' }}</a>
     <a class="button button-secondary" href="{{ url_for('sales_credits.index') }}">{{ 'Refunds & credits' if ui_mode == 'home' else 'Credit notes' }}</a>
     <a class="button button-secondary" href="{{ url_for('sales.payments') }}">{{ 'Money received' if ui_mode == 'home' else 'Customer payments' }}</a>
@@ -19,7 +20,7 @@
     <div class="card-body">
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="customer">
-        <div class="field"><label>Name</label><input name="name" required></div><div class="field"><label>Email</label><input type="email" name="email"></div><div class="field"><label>Phone</label><input name="phone"></div><div class="field-full"><button class="button" type="submit">{{ 'Add person / customer' if ui_mode == 'home' else 'Create customer' }}</button></div>
+        <div class="field"><label>Name</label><input name="name" required></div><div class="field"><label>Email</label><input type="email" name="email"></div><div class="field"><label>Phone</label><input name="phone"></div><div class="field"><label>Payment terms override (days)</label><input type="number" name="payment_terms_days" min="0" max="365" placeholder="Use organisation default"><div class="help">Leave blank to use the default customer terms.</div></div><div class="field-full"><button class="button" type="submit">{{ 'Add person / customer' if ui_mode == 'home' else 'Create customer' }}</button></div>
       </form>
     </div>
   </div>
@@ -31,7 +32,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="invoice">
         <div class="field"><label>Customer</label><select name="customer_id" required><option value="">Select</option>{% for row in customers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>{{ 'Reference' if ui_mode == 'home' else 'Invoice number' }}</label><input name="invoice_number" placeholder="INV-001" required></div>
-        <div class="field"><label>Date</label><input type="date" name="invoice_date" value="{{ today }}" required></div><div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
+        <div class="field"><label>Date</label><input type="date" name="invoice_date" value="{{ today }}" required></div><div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"><div class="help">Leave blank to use the customer's payment terms.</div></div>
         <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
         {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select><div class="help">The entered amount is net of VAT. LedgerOne calculates VAT and posts it to the configured VAT control account.</div></div>{% endif %}
         <div class="field field-full"><label>Description</label><input name="description" placeholder="Services / income"></div>
@@ -46,11 +47,11 @@
 <div class="grid grid-2 section">
   <div class="card">
     <div class="card-head"><h2>Customers</h2><span class="badge">{{ customers|length }}</span></div>
-    <div class="table-wrap">{% if customers %}<table><thead><tr><th>Name</th><th>Email</th></tr></thead><tbody>{% for row in customers %}<tr><td>{{ row.name }}</td><td>{{ row.email or '—' }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No customers yet.</div>{% endif %}</div>
+    <div class="table-wrap">{% if customers %}<table><thead><tr><th>Name</th><th>Email</th><th>Terms</th></tr></thead><tbody>{% for row in customers %}<tr><td>{{ row.name }}</td><td>{{ row.email or '—' }}</td><td>{{ (row.payment_terms_days|string ~ ' days') if row.payment_terms_days is not none else 'Default' }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No customers yet.</div>{% endif %}</div>
   </div>
   <div class="card">
     <div class="card-head"><h2>{{ 'Recent income' if ui_mode == 'home' else 'Sales invoices' }}</h2></div>
-    <div class="table-wrap">{% if invoices %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th>{% if tax_enabled %}<th class="number">VAT</th>{% endif %}<th class="number">Total</th><th class="number">Outstanding</th><th></th></tr></thead><tbody>{% for row in invoices %}<tr><td>{{ row.invoice_number }}</td><td>{{ row.invoice_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status in ['paid', 'credited'] else '' }}">{{ row.status|replace('_',' ')|title }}</span></td>{% if tax_enabled %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td>{% endif %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No sales invoices yet.</div>{% endif %}</div>
+    <div class="table-wrap">{% if invoices %}<table><thead><tr><th>Number</th><th>Date</th><th>Due</th><th>Status</th>{% if tax_enabled %}<th class="number">VAT</th>{% endif %}<th class="number">Total</th><th class="number">Outstanding</th><th></th></tr></thead><tbody>{% for row in invoices %}<tr><td>{{ row.invoice_number }}</td><td>{{ row.invoice_date.strftime('%d %b %Y') }}</td><td>{{ row.due_date.strftime('%d %b %Y') if row.due_date else '—' }}</td><td><span class="badge {{ 'badge-success' if row.status in ['paid', 'credited'] else '' }}">{{ row.status|replace('_',' ')|title }}</span></td>{% if tax_enabled %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td>{% endif %}<td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='sales_invoice', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No sales invoices yet.</div>{% endif %}</div>
   </div>
 </div>
 {% endblock %}
