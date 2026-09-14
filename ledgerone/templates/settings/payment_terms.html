@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Payment Terms · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Payment Terms</h1>
+    <p>{{ 'Choose how long customers normally have to pay you and how long you normally have to pay suppliers.' if ui_mode == 'home' else 'Set organisation payment-term defaults. Individual customers and suppliers can override these defaults.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('settings.index') }}">Back to settings</a></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Default terms</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field"><label>Customer payment terms (days)</label><input type="number" name="customer_days" min="0" max="365" value="{{ payment_terms.customer_days }}" required><div class="help">Used when an invoice has no explicit due date and the customer has no override.</div></div>
+        <div class="field"><label>Supplier payment terms (days)</label><input type="number" name="supplier_days" min="0" max="365" value="{{ payment_terms.supplier_days }}" required><div class="help">Used when a bill has no explicit due date and the supplier has no override.</div></div>
+        <div class="field-full"><button class="button" type="submit">Save payment terms</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Due-date precedence</h2></div>
+    <div class="card-body">
+      <p><strong>1. Explicit due date</strong> — if entered on an invoice or bill, LedgerOne keeps it.</p>
+      <p><strong>2. Customer / supplier override</strong> — used when the document due date is left blank.</p>
+      <p><strong>3. Organisation default</strong> — used when there is no contact override.</p>
+      <p class="muted">Quotes and purchase orders use the same rules when they are converted to invoices or bills.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
