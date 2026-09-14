@@ -126,6 +126,7 @@ def journals():
                     "status": row.status,
                     "source_module": row.source_module,
                     "reversal_of_id": row.reversal_of_id,
+                    "immutable": True,
                     "debit": _serialise_money(row.total_debit),
                     "credit": _serialise_money(row.total_credit),
                     "lines": [
@@ -162,7 +163,7 @@ def post_journal():
             source_reference=payload.get("source_reference"),
             metadata=payload.get("metadata") or {},
         )
-        return jsonify({"id": journal.id, "status": journal.status}), 201
+        return jsonify({"id": journal.id, "status": journal.status, "immutable": True}), 201
     except (LedgerError, PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -186,9 +187,147 @@ def reverse_journal(journal_id):
                 "reference": row.reference,
                 "reversal_of_id": row.reversal_of_id,
                 "status": row.status,
+                "immutable": True,
             }
         ), 201
     except (LedgerError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/opening-balances")
+@require_api("ledger.read")
+def opening_balance_batches():
+    rows = LedgerService.list_opening_balance_batches(g.access_context)
+    return jsonify(
+        {
+            "batches": [
+                {
+                    "id": row.id,
+                    "as_of_date": row.as_of_date.isoformat(),
+                    "reference": row.reference,
+                    "description": row.description,
+                    "balancing_account_id": row.balancing_account_id,
+                    "journal_id": row.journal_id,
+                    "created_at": row.created_at.isoformat(),
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@api_bp.post("/opening-balances")
+@require_api("ledger.opening_balances.manage")
+def create_opening_balance_batch():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = LedgerService.create_opening_balance_batch(
+            g.access_context,
+            as_of_date=date.fromisoformat(payload.get("as_of_date") or date.today().isoformat()),
+            entries=payload.get("entries") or [],
+            balancing_account_id=payload.get("balancing_account_id"),
+            reference=payload.get("reference"),
+            description=payload.get("description") or "Opening balances",
+        )
+        return jsonify(
+            {
+                "id": row.id,
+                "journal_id": row.journal_id,
+                "reference": row.reference,
+                "as_of_date": row.as_of_date.isoformat(),
+            }
+        ), 201
+    except (LedgerError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/recurring")
+@require_api("ledger.read")
+def recurring_journals():
+    rows = LedgerService.list_recurring_journals(g.access_context)
+    return jsonify(
+        {
+            "recurring": [
+                {
+                    "id": row.id,
+                    "name": row.name,
+                    "description": row.description,
+                    "reference": row.reference,
+                    "frequency": row.frequency,
+                    "next_run_date": row.next_run_date.isoformat(),
+                    "end_date": row.end_date.isoformat() if row.end_date else None,
+                    "is_active": row.is_active,
+                    "last_run_date": row.last_run_date.isoformat() if row.last_run_date else None,
+                    "run_count": row.run_count,
+                    "lines": row.template_lines,
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@api_bp.post("/recurring")
+@require_api("ledger.recurring.manage")
+def create_recurring_journal():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = LedgerService.create_recurring_journal(
+            g.access_context,
+            name=payload.get("name", ""),
+            description=payload.get("description", ""),
+            reference=payload.get("reference"),
+            frequency=payload.get("frequency", "monthly"),
+            next_run_date=date.fromisoformat(payload.get("next_run_date") or date.today().isoformat()),
+            end_date=date.fromisoformat(payload["end_date"]) if payload.get("end_date") else None,
+            lines=payload.get("lines") or [],
+        )
+        return jsonify(
+            {
+                "id": row.id,
+                "name": row.name,
+                "frequency": row.frequency,
+                "next_run_date": row.next_run_date.isoformat(),
+                "is_active": row.is_active,
+            }
+        ), 201
+    except (LedgerError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/recurring/<recurring_id>/run")
+@require_api("ledger.recurring.manage")
+def run_recurring_journal(recurring_id):
+    try:
+        journal, run, schedule = LedgerService.run_recurring_journal(
+            g.access_context,
+            recurring_id,
+        )
+        return jsonify(
+            {
+                "journal_id": journal.id,
+                "run_id": run.id,
+                "scheduled_date": run.scheduled_date.isoformat(),
+                "next_run_date": schedule.next_run_date.isoformat(),
+                "is_active": schedule.is_active,
+            }
+        ), 201
+    except (LedgerError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/recurring/<recurring_id>/active")
+@require_api("ledger.recurring.manage")
+def set_recurring_active(recurring_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = LedgerService.set_recurring_journal_active(
+            g.access_context,
+            recurring_id,
+            active=bool(payload.get("active", True)),
+        )
+        return jsonify({"id": row.id, "is_active": row.is_active})
+    except (LedgerError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
 
 
