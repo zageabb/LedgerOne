@@ -1,6 +1,14 @@
 from ledgerone.models.audit import AuditEvent
 from ledgerone.models.core import ApiKey, Membership, ModuleState, Organisation, Setting, User
-from ledgerone.models.ledger import Account, AccountingPeriod, Journal, JournalLine
+from ledgerone.models.ledger import (
+    Account,
+    AccountingPeriod,
+    Journal,
+    JournalLine,
+    OpeningBalanceBatch,
+    RecurringJournal,
+    RecurringJournalRun,
+)
 
 __all__ = [
     "AuditEvent",
@@ -14,4 +22,7 @@ __all__ = [
     "AccountingPeriod",
     "Journal",
     "JournalLine",
+    "OpeningBalanceBatch",
+    "RecurringJournal",
+    "RecurringJournalRun",
 ]
