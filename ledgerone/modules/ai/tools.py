@@ -178,6 +178,29 @@ def _create_bill(context, args):
     return {"id": row.id, "status": row.status, "journal_id": row.posted_journal_id}
 
 
+def _audit_events(context, args):
+    from ledgerone.modules.audit.services import AuditService
+
+    from_date = date.fromisoformat(args["from_date"]) if args.get("from_date") else None
+    to_date = date.fromisoformat(args["to_date"]) if args.get("to_date") else None
+    rows, total = AuditService.search(
+        context,
+        module_id=args.get("module_id") or None,
+        action=args.get("action") or None,
+        actor_type=args.get("actor_type") or None,
+        entity_type=args.get("entity_type") or None,
+        from_date=from_date,
+        to_date=to_date,
+        text=args.get("text") or None,
+        limit=min(int(args.get("limit", 50)), 200),
+        offset=0,
+    )
+    return {
+        "total": total,
+        "events": [AuditService.serialise(row) for row in rows],
+    }
+
+
 TOOLS = {
     spec.name: spec
     for spec in [
@@ -196,6 +219,7 @@ TOOLS = {
         ToolSpec("purchases.list_bills", "purchases", "List purchase bills.", False, _purchase_bills),
         ToolSpec("purchases.create_supplier", "purchases", "Create a supplier.", True, _create_supplier),
         ToolSpec("purchases.create_bill", "purchases", "Create and post a simple purchase bill.", True, _create_bill),
+        ToolSpec("audit.list_events", "audit", "Search recent LedgerOne audit events. Supports module_id, action, actor_type, entity_type, from_date, to_date, text and limit.", False, _audit_events),
     ]
 }
 
