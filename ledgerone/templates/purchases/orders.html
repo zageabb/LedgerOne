@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Purchase Orders · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Orders to suppliers' if ui_mode == 'home' else 'Purchase orders' }}</h1>
+    <p>{{ 'Plan what you are buying before it becomes an expense or bill.' if ui_mode == 'home' else 'Create non-posting purchase orders, approve them and convert approved orders through the standard purchase-bill posting service.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchases.index') }}">Back to purchases</a></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Create purchase order</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create">
+        <div class="field"><label>Supplier</label><select name="supplier_id" required><option value="">Select</option>{% for row in suppliers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>PO number</label><input name="order_number" placeholder="PO-001" required></div>
+        <div class="field"><label>Order date</label><input type="date" name="order_date" value="{{ today }}" required></div>
+        <div class="field"><label>Expected date</label><input type="date" name="expected_date" value="{{ default_expected }}"></div>
+        <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
+        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select></div>{% endif %}
+        <div class="field field-full"><label>Description</label><input name="description" placeholder="Goods / services ordered" required></div>
+        <div class="field"><label>{{ 'Money you owe account' if ui_mode == 'home' else 'Payables account after conversion' }}</label><select name="payable_account_id" required>{% for row in payable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>{{ 'Expense category' if ui_mode == 'home' else 'Expense account after conversion' }}</label><select name="expense_account_id" required>{% for row in expense_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field-full"><button class="button" type="submit">Create purchase order</button></div>
+      </form>
+      <p class="help">Creating, sending or approving a purchase order does not create a journal. Accounting starts only when an approved PO is converted to a bill.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'How it works' if ui_mode == 'home' else 'Purchase order lifecycle' }}</h2></div>
+    <div class="card-body">
+      <p><strong>Draft → Sent → Approved → Converted</strong></p>
+      <p class="muted">A purchase order can also be cancelled. Only approved orders can be converted into a supplier bill.</p>
+      <p class="muted">Conversion reuses the supplier, amount, VAT code and ledger accounts stored on the PO and posts through the normal purchase service.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Purchase order register</h2><span class="badge">{{ orders|length }}</span></div>
+  <div class="table-wrap">
+    {% if orders %}
+    <table>
+      <thead><tr><th>PO</th><th>Supplier</th><th>Date</th><th>Expected</th><th>Status</th><th class="number">Total</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for row in orders %}
+        <tr>
+          <td><strong>{{ row.order_number }}</strong></td>
+          <td>{{ row.supplier.name }}</td>
+          <td>{{ row.order_date.strftime('%d %b %Y') }}</td>
+          <td>{{ row.expected_date.strftime('%d %b %Y') if row.expected_date else '—' }}</td>
+          <td><span class="badge {{ 'badge-success' if row.status in ['approved','converted'] else '' }}">{{ row.status|title }}</span></td>
+          <td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td>
+          <td>
+            {% if row.status != 'converted' %}
+            <details>
+              <summary class="button button-small button-secondary">Manage</summary>
+              <div style="min-width:300px;margin-top:.5rem">
+                <form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="status"><input type="hidden" name="order_id" value="{{ row.id }}">
+                  <div class="field field-full"><label>Status</label><select name="status"><option value="draft" {% if row.status == 'draft' %}selected{% endif %}>Draft</option><option value="sent" {% if row.status == 'sent' %}selected{% endif %}>Sent</option><option value="approved" {% if row.status == 'approved' %}selected{% endif %}>Approved</option><option value="cancelled" {% if row.status == 'cancelled' %}selected{% endif %}>Cancelled</option></select></div>
+                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Update status</button></div>
+                </form>
+                {% if row.status == 'approved' %}<hr><form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="order_id" value="{{ row.id }}">
+                  <div class="field field-full"><label>Supplier bill number</label><input name="bill_number" placeholder="BILL-001" required></div>
+                  <div class="field"><label>Bill date</label><input type="date" name="bill_date" value="{{ today }}" required></div>
+                  <div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
+                  <div class="field-full"><button class="button button-small" type="submit">Convert to bill</button></div>
+                </form>{% endif %}
+              </div>
+            </details>
+            {% else %}<a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='purchase_bill', entity_id=row.converted_bill_id) }}">Bill docs</a>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No purchase orders yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
