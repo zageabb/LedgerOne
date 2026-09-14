@@ -1,13 +1,14 @@
 from datetime import date
 from decimal import Decimal
 
-from ledgerone.extensions import db
-from ledgerone.models.core import ModuleState, Organisation
+from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.purchases.credits import PurchaseCreditService
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.modules.sales.credits import SalesCreditService
 from ledgerone.modules.sales.services import SalesService
+from ledgerone.modules.settings.services import SettingsService
 from ledgerone.modules.tax.models import TaxCode
 from ledgerone.modules.tax.services import TaxService
 from ledgerone.services.context import AccessContext
@@ -16,12 +17,9 @@ from ledgerone.services.context import AccessContext
 def test_credit_notes_reduce_standard_vat_return_boxes(app):
     with app.app_context():
         organisation = Organisation.query.one()
-        state = ModuleState.query.filter_by(
-            organisation_id=organisation.id, module_id="tax"
-        ).one()
-        state.enabled = True
-        db.session.commit()
         context = AccessContext.system(organisation.id)
+        SettingsService.set_module_enabled(context, "tax", True)
+        module_registry.seed_module_defaults(organisation.id, "tax")
         accounts = {
             row.code: row.id
             for row in Account.query.filter_by(organisation_id=organisation.id).all()
