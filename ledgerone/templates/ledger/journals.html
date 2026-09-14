@@ -23,14 +23,12 @@
         <tr>
           <td>{{ row.journal_date.strftime('%d %b %Y') }}</td>
           <td>{{ row.reference or '—' }}</td>
-          <td>
-            {{ row.description }}
-            {% if row.reversal_of_id %}<br><span class="help">Reversal of {{ row.reversal_of_id[:8] }}…</span>{% endif %}
-          </td>
+          <td>{{ row.description }}{% if row.reversal_of_id %}<br><span class="help">Reversal of {{ row.reversal_of_id[:8] }}…</span>{% endif %}</td>
           {% if ui_mode == 'professional' %}<td>{{ row.source_module }}</td><td><span class="badge badge-success">{{ row.status }}</span></td>{% endif %}
           <td class="number">£{{ '%.2f'|format(row.total_debit) }}</td>
           <td class="number">£{{ '%.2f'|format(row.total_credit) }}</td>
           <td>
+            <a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='journal', entity_id=row.id) }}">{{ 'Docs' if ui_mode == 'home' else 'Documents' }}</a>
             {% if row.id in reversed_ids %}
               <span class="badge">{{ 'Undone' if ui_mode == 'home' else 'Reversed' }}</span>
             {% elif row.reversal_of_id %}
