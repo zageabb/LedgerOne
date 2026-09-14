@@ -9,6 +9,7 @@
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('ledger.journals') }}">{{ 'Transactions' if ui_mode == 'home' else 'Journals' }}</a>
     <a class="button button-secondary" href="{{ url_for('ledger.trial_balance') }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.periods') }}">{{ 'Lock dates' if ui_mode == 'home' else 'Accounting periods' }}</a>
   </div>
 </div>
 
