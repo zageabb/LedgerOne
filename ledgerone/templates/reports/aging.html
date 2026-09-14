@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Aged Balances · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Who owes what' if ui_mode == 'home' else 'Aged receivables & payables' }}</h1>
+    <p>{{ 'See unpaid customer and supplier amounts grouped by how overdue they are.' if ui_mode == 'home' else 'Outstanding receivables and payables reconstructed as of the selected date using dated payments, credit notes and allocations.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.index') }}">Back to reports</a></div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="get" class="form-grid">
+      <div class="field"><label>As of</label><input type="date" name="as_of" value="{{ as_of.isoformat() }}"></div>
+      <div class="field" style="align-self:end"><button class="button" type="submit">Refresh aging</button></div>
+    </form>
+  </div>
+</div>
+
+{% macro totals_table(title, report) %}
+<div class="card">
+  <div class="card-head"><h2>{{ title }}</h2></div>
+  <div class="table-wrap">
+    {% if report.totals_by_currency %}
+    <table><thead><tr><th>Currency</th><th class="number">Current</th><th class="number">1–30</th><th class="number">31–60</th><th class="number">61–90</th><th class="number">90+</th><th class="number">Total</th></tr></thead><tbody>
+      {% for currency, totals in report.totals_by_currency.items() %}
+      <tr><td><strong>{{ currency }}</strong></td><td class="number">{{ '%.2f'|format(totals.current) }}</td><td class="number">{{ '%.2f'|format(totals['1_30']) }}</td><td class="number">{{ '%.2f'|format(totals['31_60']) }}</td><td class="number">{{ '%.2f'|format(totals['61_90']) }}</td><td class="number">{{ '%.2f'|format(totals['90_plus']) }}</td><td class="number"><strong>{{ '%.2f'|format(totals.total) }}</strong></td></tr>
+      {% endfor %}
+    </tbody></table>
+    {% else %}<div class="empty">Nothing outstanding.</div>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+<div class="grid grid-2 section">
+  {{ totals_table('Aged receivables', receivables) }}
+  {{ totals_table('Aged payables', payables) }}
+</div>
+
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Customers who owe you' if ui_mode == 'home' else 'Receivable detail' }}</h2><span class="badge">{{ receivables.rows|length }}</span></div>
+    <div class="table-wrap">{% if receivables.rows %}<table><thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th>Age</th><th>Bucket</th><th class="number">Outstanding</th></tr></thead><tbody>{% for row in receivables.rows %}<tr><td>{{ row.number }}</td><td>{{ row.party_name }}</td><td>{{ row.due_date.strftime('%d %b %Y') }}</td><td>{{ row.days_overdue }}d</td><td>{{ row.bucket|replace('_','–')|replace('plus','+') }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.outstanding) }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No outstanding customer balances.</div>{% endif %}</div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Suppliers you still owe' if ui_mode == 'home' else 'Payable detail' }}</h2><span class="badge">{{ payables.rows|length }}</span></div>
+    <div class="table-wrap">{% if payables.rows %}<table><thead><tr><th>Bill</th><th>Supplier</th><th>Due</th><th>Age</th><th>Bucket</th><th class="number">Outstanding</th></tr></thead><tbody>{% for row in payables.rows %}<tr><td>{{ row.number }}</td><td>{{ row.party_name }}</td><td>{{ row.due_date.strftime('%d %b %Y') }}</td><td>{{ row.days_overdue }}d</td><td>{{ row.bucket|replace('_','–')|replace('plus','+') }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.outstanding) }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No outstanding supplier balances.</div>{% endif %}</div>
+  </div>
+</div>
+{% endblock %}
