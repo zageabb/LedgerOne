@@ -127,6 +127,8 @@ class SettingsService:
             detail={"name": manifest.name, "before": before, "after": bool(enabled)},
         )
         db.session.commit()
+        if enabled:
+            module_registry.seed_module_defaults(context.organisation_id, module_id)
         return state
 
     @staticmethod
