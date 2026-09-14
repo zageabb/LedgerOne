@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Bank reconciliation · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Match bank activity' if ui_mode == 'home' else 'Bank reconciliation' }}</h1>
+    <p>{{ 'Match each bank transaction to something already recorded, or create the missing entry.' if ui_mode == 'home' else 'Match imported bank transactions to posted journals or create and reconcile the required journal atomically.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('banking.index') }}">Banking</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.journals') }}">{{ 'Transactions' if ui_mode == 'home' else 'Journal register' }}</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'To match' if ui_mode == 'home' else 'Unreconciled transactions' }}</h2><span class="badge">{{ unreconciled|length }}</span></div>
+    <div class="table-wrap">
+      {% if unreconciled %}
+      <table>
+        <thead><tr><th>Date</th><th>Description</th><th class="number">Amount</th><th></th></tr></thead>
+        <tbody>
+        {% for row in unreconciled %}
+          <tr>
+            <td>{{ row.transaction_date.strftime('%d %b %Y') }}</td>
+            <td>{{ row.description }}<br><span class="help">{{ row.bank_account.name }}</span></td>
+            <td class="number">{{ row.bank_account.currency }} {{ '%.2f'|format(row.amount) }}</td>
+            <td><a class="button button-small {{ '' if selected and selected.id == row.id else 'button-secondary' }}" href="{{ url_for('banking.reconcile', transaction_id=row.id) }}">{{ 'Choose' if ui_mode == 'home' else 'Reconcile' }}</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">Everything is reconciled.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Match this item' if ui_mode == 'home' else 'Reconciliation detail' }}</h2></div>
+    <div class="card-body">
+      {% if selected %}
+        <p><strong>{{ selected.description }}</strong><br>{{ selected.transaction_date.strftime('%d %b %Y') }} · {{ selected.bank_account.currency }} {{ '%.2f'|format(selected.amount) }}</p>
+        <p class="help">Linked ledger account: {{ selected.bank_account.ledger_account.code ~ ' · ' ~ selected.bank_account.ledger_account.name if selected.bank_account.ledger_account else 'Not linked' }}</p>
+
+        {% if candidate_error %}<div class="flash flash-warning">{{ candidate_error }}</div>{% endif %}
+
+        <h3>{{ 'Possible matches' if ui_mode == 'home' else 'Candidate journals' }}</h3>
+        {% if candidates %}
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th></th></tr></thead>
+              <tbody>
+              {% for journal in candidates %}
+                <tr>
+                  <td>{{ journal.journal_date.strftime('%d %b %Y') }}</td>
+                  <td>{{ journal.reference or '—' }}</td>
+                  <td>{{ journal.description }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('banking.match_transaction', transaction_id=selected.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="journal_id" value="{{ journal.id }}">
+                      <button class="button button-small" type="submit">Match</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}<p class="muted">No matching posted journal was found within seven days.</p>{% endif %}
+
+        <hr>
+        <h3>{{ 'Create the missing entry' if ui_mode == 'home' else 'Post and reconcile' }}</h3>
+        <form method="post" action="{{ url_for('banking.post_and_match', transaction_id=selected.id) }}" class="form-grid">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="field field-full"><label>{{ 'Other account/category' if ui_mode == 'home' else 'Offset ledger account' }}</label><select name="offset_account_id" required><option value="">Select account</option>{% for account in ledger_accounts %}{% if not selected.bank_account.ledger_account_id or account.id != selected.bank_account.ledger_account_id %}<option value="{{ account.id }}">{{ account.code }} · {{ account.name }}</option>{% endif %}{% endfor %}</select></div>
+          <div class="field"><label>Reference (optional)</label><input name="reference" value="{{ selected.external_id or '' }}"></div>
+          <div class="field"><label>Description</label><input name="description" value="{{ selected.description }}"></div>
+          <div class="field-full"><button class="button" type="submit">{{ 'Create and match' if ui_mode == 'home' else 'Post journal and reconcile' }}</button></div>
+        </form>
+        <p class="help">The journal uses the bank transaction date, so a locked accounting period will block posting.</p>
+      {% else %}
+        <div class="empty">Select an unreconciled bank transaction to begin.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>{{ 'Recently matched' if ui_mode == 'home' else 'Recent reconciliations' }}</h2></div>
+  <div class="table-wrap">
+    {% if reconciled %}
+    <table>
+      <thead><tr><th>Date</th><th>Description</th><th class="number">Amount</th><th>Journal</th><th></th></tr></thead>
+      <tbody>
+      {% for row in reconciled %}
+        <tr>
+          <td>{{ row.transaction_date.strftime('%d %b %Y') }}</td>
+          <td>{{ row.description }}</td>
+          <td class="number">{{ row.bank_account.currency }} {{ '%.2f'|format(row.amount) }}</td>
+          <td><span class="code">{{ row.matched_journal_id[:8] }}…</span></td>
+          <td>
+            {% if row.matched_journal and not (row.matched_journal.source_module == 'banking' and row.matched_journal.source_reference == row.id) %}
+            <form method="post" action="{{ url_for('banking.unmatch_transaction', transaction_id=row.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button button-small button-secondary" type="submit">Unmatch</button>
+            </form>
+            {% else %}<span class="help">Posted by reconciliation</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No reconciled bank transactions yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
