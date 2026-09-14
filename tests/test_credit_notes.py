@@ -4,14 +4,16 @@ from decimal import Decimal
 import pytest
 
 from ledgerone.extensions import db
-from ledgerone.models.core import ModuleState, Organisation
+from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account, Journal
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.purchases.credits import PurchaseCreditService
 from ledgerone.modules.purchases.models import PurchasePayment
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.modules.sales.credits import SalesCreditService
 from ledgerone.modules.sales.models import SalesPayment
 from ledgerone.modules.sales.services import SalesService
+from ledgerone.modules.settings.services import SettingsService
 from ledgerone.modules.tax.models import TaxCode
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerError, LedgerService
@@ -19,12 +21,9 @@ from ledgerone.services.ledger import LedgerError, LedgerService
 
 def _setup(app):
     organisation = Organisation.query.one()
-    tax_state = ModuleState.query.filter_by(
-        organisation_id=organisation.id, module_id="tax"
-    ).one()
-    tax_state.enabled = True
-    db.session.commit()
     context = AccessContext.system(organisation.id)
+    SettingsService.set_module_enabled(context, "tax", True)
+    module_registry.seed_module_defaults(organisation.id, "tax")
     accounts = {
         row.code: row.id
         for row in Account.query.filter_by(organisation_id=organisation.id).all()
