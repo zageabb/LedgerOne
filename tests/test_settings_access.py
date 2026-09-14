@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from ledgerone.extensions import db
-from ledgerone.models.core import ApiKey, Membership, Organisation, User
+from ledgerone.models.core import ApiKey, Membership, Organisation
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.services.context import AccessContext
 
@@ -112,7 +112,18 @@ def test_rotating_api_key_revokes_old_token_and_preserves_scope(client, app):
     assert allowed.status_code == 200
 
 
-def test_settings_page_contains_team_and_key_lifecycle_controls(client):
+def test_settings_page_contains_team_and_key_lifecycle_controls(client, app):
+    with app.app_context():
+        organisation = Organisation.query.one()
+        key, _ = ApiKey.issue(
+            name="UI rotation test",
+            organisation_id=organisation.id,
+            permissions=["ledger.read"],
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+        )
+        db.session.add(key)
+        db.session.commit()
+
     login = client.post(
         "/auth/login",
         data={"email": "test-admin@ledgerone.local", "password": "test-password"},
