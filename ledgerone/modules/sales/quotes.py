@@ -169,37 +169,43 @@ class SalesQuoteService:
         if len(quote.lines) != 1:
             raise ValueError("The current quote conversion supports single-line quotes")
         line = quote.lines[0]
-        invoice = SalesService.create_invoice(
-            context,
-            customer_id=quote.customer_id,
-            invoice_number=invoice_number,
-            invoice_date=invoice_date,
-            due_date=due_date,
-            description=line.description,
-            amount=line.net_amount,
-            receivable_account_id=quote.receivable_account_id,
-            revenue_account_id=line.revenue_account_id,
-            currency=quote.currency,
-            tax_code_id=line.tax_code_id,
-        )
-        quote.status = "converted"
-        quote.converted_invoice_id = invoice.id
-        invoice.metadata_json = {
-            **(invoice.metadata_json or {}),
-            "source_quote_id": quote.id,
-            "source_quote_number": quote.quote_number,
-        }
-        record_audit_event(
-            context,
-            module_id="sales",
-            action="quote_converted",
-            entity_type="sales_quote",
-            entity_id=quote.id,
-            detail={
-                "quote_number": quote.quote_number,
-                "invoice_id": invoice.id,
-                "invoice_number": invoice.invoice_number,
-            },
-        )
-        db.session.commit()
-        return invoice, quote
+
+        try:
+            invoice = SalesService.create_invoice(
+                context,
+                customer_id=quote.customer_id,
+                invoice_number=invoice_number,
+                invoice_date=invoice_date,
+                due_date=due_date,
+                description=line.description,
+                amount=line.net_amount,
+                receivable_account_id=quote.receivable_account_id,
+                revenue_account_id=line.revenue_account_id,
+                currency=quote.currency,
+                tax_code_id=line.tax_code_id,
+                commit=False,
+            )
+            quote.status = "converted"
+            quote.converted_invoice_id = invoice.id
+            invoice.metadata_json = {
+                **(invoice.metadata_json or {}),
+                "source_quote_id": quote.id,
+                "source_quote_number": quote.quote_number,
+            }
+            record_audit_event(
+                context,
+                module_id="sales",
+                action="quote_converted",
+                entity_type="sales_quote",
+                entity_id=quote.id,
+                detail={
+                    "quote_number": quote.quote_number,
+                    "invoice_id": invoice.id,
+                    "invoice_number": invoice.invoice_number,
+                },
+            )
+            db.session.commit()
+            return invoice, quote
+        except Exception:
+            db.session.rollback()
+            raise
