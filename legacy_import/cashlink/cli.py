@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .exporter import export_accounts_csv, export_to_sqlite
 from .security import audit_volume_security
+from .security_dat import parse_security_dat
 from .volume import CashLinkVolume
 
 
@@ -46,8 +47,14 @@ def build_parser() -> argparse.ArgumentParser:
     accounts.add_argument("source", type=Path)
     accounts.add_argument("--out", required=True, type=Path)
 
-    security = sub.add_parser("security-audit", help="Report password presence without disclosing secrets")
+    security = sub.add_parser("security-audit", help="Report module-password presence without disclosing secrets")
     security.add_argument("sources", nargs="+", type=Path)
+
+    security_dat = sub.add_parser(
+        "security-dat-audit",
+        help="Inspect a recovered SECURITY.DAT using the reconstructed CashLink 4.1 record layout",
+    )
+    security_dat.add_argument("source", type=Path)
 
     sqlite_cmd = sub.add_parser("to-sqlite", help="Preserve raw data and decoded fields in SQLite")
     sqlite_cmd.add_argument("output", type=Path)
@@ -81,6 +88,9 @@ def main(argv: list[str] | None = None) -> int:
             volume = CashLinkVolume(source)
             findings.extend(finding.to_dict() for finding in audit_volume_security(volume))
         print(json.dumps(findings, indent=2))
+        return 0
+    if args.command == "security-dat-audit":
+        print(json.dumps([row.to_dict() for row in parse_security_dat(args.source)], indent=2))
         return 0
     if args.command == "to-sqlite":
         export_to_sqlite(
