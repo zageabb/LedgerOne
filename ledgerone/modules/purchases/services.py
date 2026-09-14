@@ -13,6 +13,7 @@ from ledgerone.modules.purchases.models import (
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
+from ledgerone.services.payment_terms import PaymentTermsService
 
 
 def _money(value) -> Decimal:
@@ -28,16 +29,21 @@ class PurchasesService:
 
     @staticmethod
     def create_supplier(context: AccessContext, *, name: str, email: str | None = None,
-                        phone: str | None = None):
+                        phone: str | None = None, payment_terms_days: int | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         if not name.strip():
             raise ValueError("Supplier name is required")
+        if payment_terms_days is not None:
+            payment_terms_days = PaymentTermsService.supplier_days(
+                context.organisation_id, payment_terms_days
+            )
         supplier = Supplier(
             organisation_id=context.organisation_id,
             name=name.strip(),
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
+            payment_terms_days=payment_terms_days,
         )
         db.session.add(supplier)
         db.session.flush()
@@ -47,7 +53,11 @@ class PurchasesService:
             action="supplier_created",
             entity_type="supplier",
             entity_id=supplier.id,
-            detail={"name": supplier.name, "email": supplier.email},
+            detail={
+                "name": supplier.name,
+                "email": supplier.email,
+                "payment_terms_days": supplier.payment_terms_days,
+            },
         )
         db.session.commit()
         return supplier
@@ -110,6 +120,14 @@ class PurchasesService:
             organisation_id=context.organisation_id, bill_number=bill_number
         ).first():
             raise ValueError("Bill number already exists")
+        if due_date is None:
+            due_date = PaymentTermsService.supplier_due_date(
+                context.organisation_id,
+                bill_date,
+                supplier.payment_terms_days,
+            )
+        if due_date < bill_date:
+            raise ValueError("Bill due date cannot be before the bill date")
 
         from ledgerone.modules.tax.services import TaxService
         tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
@@ -213,6 +231,7 @@ class PurchasesService:
                     "total": str(total),
                     "tax_code": tax_code.code if tax_code else None,
                     "currency": bill.currency,
+                    "due_date": bill.due_date.isoformat(),
                 },
             )
             if commit:
