@@ -1,4 +1,4 @@
-from ledgerone.modules.purchases import models  # noqa: F401
+from ledgerone.modules.purchases import credit_models, models  # noqa: F401
 from ledgerone.modules.purchases.api import api_bp
 from ledgerone.modules.purchases.routes import bp
 
