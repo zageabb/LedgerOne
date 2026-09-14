@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}LedgerOne AI{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Ask LedgerOne' if ui_mode == 'home' else 'AI workspace' }}</h1>
+    <p>{{ 'Ask questions about your accounts or tell LedgerOne to record something for you.' if ui_mode == 'home' else 'Local AI orchestration over audited LedgerOne module tools using a trusted full-access system identity.' }}</p>
+  </div>
+  <div class="actions"><span class="badge {{ 'badge-success' if ai_status.reachable else 'badge-warning' }}">{{ ai_status.model }} · {{ 'Online' if ai_status.reachable else 'Offline' }}</span></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Conversation</h2></div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field"><label>What would you like LedgerOne to do?</label><textarea name="prompt" placeholder="Examples: What did I spend the most on? Show my trial balance. Create a customer called Acme Ltd..." required>{{ prompt }}</textarea></div>
+        <br><button class="button" type="submit">Ask LedgerOne AI</button>
+      </form>
+      <p class="help">The built-in local AI can use enabled module services with full internal access. Tool calls are logged. It does not require an unauthenticated HTTP endpoint.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Response</h2></div>
+    <div class="card-body">
+      {% if answer %}<div class="ai-answer">{{ answer }}</div>{% elif not ai_status.reachable %}<div class="flash flash-warning">Local AI is not reachable at {{ ai_status.base_url }}. Check Ollama/local model settings.</div>{% else %}<div class="empty">Ask a question to start.</div>{% endif %}
+      {% if tool_log %}
+      <div class="tool-log section"><strong>Tool activity</strong>
+        {% for item in tool_log %}<details><summary>{{ item.tool }}</summary><pre>{{ item.arguments|tojson(indent=2) }}</pre><pre>{{ item.result|tojson(indent=2) }}</pre></details>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Recent AI activity</h2></div>
+  <div class="table-wrap">
+    {% if history %}
+    <table><thead><tr><th>When</th><th>Request</th><th>Result</th><th>Tools</th></tr></thead><tbody>
+    {% for row in history %}<tr><td>{{ row.created_at.strftime('%d %b %H:%M') }}</td><td>{{ row.prompt[:180] }}</td><td>{{ row.response[:220] if row.response else (row.error or '—') }}</td><td>{{ row.tool_log|length }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<div class="empty">No AI interactions yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
