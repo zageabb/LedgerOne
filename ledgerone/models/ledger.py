@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from sqlalchemy import event, inspect as sa_inspect
+
 from ledgerone.extensions import db
 from ledgerone.models.core import new_id, utcnow
 
@@ -94,3 +96,73 @@ class JournalLine(db.Model):
 
     journal = db.relationship("Journal", back_populates="lines")
     account = db.relationship("Account")
+
+
+class OpeningBalanceBatch(db.Model):
+    __tablename__ = "opening_balance_batches"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    as_of_date = db.Column(db.Date, nullable=False, index=True)
+    reference = db.Column(db.String(120), nullable=True)
+    description = db.Column(db.String(500), nullable=False, default="Opening balances")
+    balancing_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=True)
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, unique=True)
+    created_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    journal = db.relationship("Journal", foreign_keys=[journal_id])
+    balancing_account = db.relationship("Account", foreign_keys=[balancing_account_id])
+
+
+class RecurringJournal(db.Model):
+    __tablename__ = "recurring_journals"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    reference = db.Column(db.String(120), nullable=True)
+    frequency = db.Column(db.String(20), nullable=False, index=True)
+    next_run_date = db.Column(db.Date, nullable=False, index=True)
+    end_date = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    template_lines = db.Column(db.JSON, nullable=False, default=list)
+    last_run_date = db.Column(db.Date, nullable=True)
+    run_count = db.Column(db.Integer, nullable=False, default=0)
+    created_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    runs = db.relationship("RecurringJournalRun", back_populates="recurring_journal", cascade="all, delete-orphan")
+
+
+class RecurringJournalRun(db.Model):
+    __tablename__ = "recurring_journal_runs"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "recurring_journal_id",
+            "scheduled_date",
+            name="uq_recurring_journal_scheduled_date",
+        ),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    recurring_journal_id = db.Column(db.String(36), db.ForeignKey("recurring_journals.id", ondelete="CASCADE"), nullable=False, index=True)
+    scheduled_date = db.Column(db.Date, nullable=False, index=True)
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    recurring_journal = db.relationship("RecurringJournal", back_populates="runs")
+    journal = db.relationship("Journal")
+
+
+def _reject_posted_mutation(mapper, connection, target):
+    state = sa_inspect(target)
+    if state.persistent:
+        raise RuntimeError("Posted journals are immutable; use a reversal instead of editing or deleting them")
+
+
+for _immutable_model in (Journal, JournalLine):
+    event.listen(_immutable_model, "before_update", _reject_posted_mutation)
+    event.listen(_immutable_model, "before_delete", _reject_posted_mutation)
