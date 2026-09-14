@@ -20,9 +20,6 @@ def _enable_tax(app):
         organisation = Organisation.query.one()
         context = AccessContext.system(organisation.id)
         SettingsService.set_module_enabled(context, "tax", True)
-        # The service-level enable flow is expected to seed module defaults.
-        if not TaxCode.query.filter_by(organisation_id=organisation.id).first():
-            TaxService.seed_defaults(organisation.id)
         accounts = {
             row.code: row.id
             for row in Account.query.filter_by(organisation_id=organisation.id).all()
