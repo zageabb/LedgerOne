@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
@@ -21,11 +21,13 @@ def index():
         action = request.form.get("action")
         try:
             if action == "supplier":
+                terms_raw = (request.form.get("payment_terms_days") or "").strip()
                 PurchasesService.create_supplier(
                     context,
                     name=request.form.get("name", ""),
                     email=request.form.get("email"),
                     phone=request.form.get("phone"),
+                    payment_terms_days=int(terms_raw) if terms_raw else None,
                 )
                 flash("Supplier added.", "success")
             elif action == "bill":
@@ -68,7 +70,7 @@ def index():
         tax_codes=tax_codes,
         tax_enabled=module_registry.is_enabled(context.organisation_id, "tax"),
         today=date.today().isoformat(),
-        default_due=(date.today() + timedelta(days=30)).isoformat(),
+        default_due="",
     )
 
 
