@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Recurring journals · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Repeating entries' if ui_mode == 'home' else 'Recurring journals' }}</h1>
+    <p>{{ 'Set up regular transactions once, then post each due entry when you are ready.' if ui_mode == 'home' else 'Maintain balanced recurring journal templates with controlled posting dates and audit history.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.accounts') }}">Accounts</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.opening_balances') }}">{{ 'Starting balances' if ui_mode == 'home' else 'Opening balances' }}</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.journals') }}">{{ 'Transactions' if ui_mode == 'home' else 'Journals' }}</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>{{ 'Add a repeating entry' if ui_mode == 'home' else 'Create recurring journal' }}</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field"><label>Name</label><input name="name" placeholder="Monthly rent" required></div>
+      <div class="field"><label>Reference prefix</label><input name="reference" placeholder="RENT"></div>
+      <div class="field field-full"><label>Description</label><input name="description" placeholder="Monthly rent charge" required></div>
+      <div class="field"><label>Frequency</label><select name="frequency">{% for value in frequencies %}<option value="{{ value }}" {% if value == 'monthly' %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></div>
+      <div class="field"><label>{{ 'First date' if ui_mode == 'home' else 'Next run date' }}</label><input type="date" name="next_run_date" value="{{ today }}" required></div>
+      <div class="field"><label>End date (optional)</label><input type="date" name="end_date"></div>
+
+      <div class="field field-full">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Account</th><th>Description</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead>
+            <tbody>
+            {% for index in range(1, 7) %}
+              <tr>
+                <td><select name="line_{{ index }}_account"><option value="">Select account</option>{% for row in accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></td>
+                <td><input name="line_{{ index }}_description" placeholder="Optional"></td>
+                <td><input class="number" type="number" min="0" step="0.01" name="line_{{ index }}_debit" placeholder="0.00"></td>
+                <td><input class="number" type="number" min="0" step="0.01" name="line_{{ index }}_credit" placeholder="0.00"></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="field-full"><button class="button" type="submit">{{ 'Save repeating entry' if ui_mode == 'home' else 'Create recurring journal' }}</button></div>
+    </form>
+    <p class="help">Templates must balance before they can be saved. Posting a run still checks accounting-period locks.</p>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>{{ 'Repeating entries' if ui_mode == 'home' else 'Recurring journal schedules' }}</h2><span class="badge">{{ recurring|length }}</span></div>
+  <div class="table-wrap">
+    {% if recurring %}
+    <table>
+      <thead><tr><th>Name</th><th>Frequency</th><th>{{ 'Next date' if ui_mode == 'home' else 'Next run' }}</th>{% if ui_mode == 'professional' %}<th>Last run</th><th>Runs</th>{% endif %}<th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for row in recurring %}
+        <tr>
+          <td><strong>{{ row.name }}</strong><br><span class="help">{{ row.description }}</span></td>
+          <td>{{ row.frequency|title }}</td>
+          <td>{{ row.next_run_date.strftime('%d %b %Y') }}</td>
+          {% if ui_mode == 'professional' %}<td>{{ row.last_run_date.strftime('%d %b %Y') if row.last_run_date else '—' }}</td><td>{{ row.run_count }}</td>{% endif %}
+          <td><span class="badge {{ 'badge-success' if row.is_active else '' }}">{{ 'Active' if row.is_active else 'Paused' }}</span></td>
+          <td>
+            <div class="actions">
+              {% if row.is_active %}
+              <form method="post" action="{{ url_for('ledger.run_recurring_journal', recurring_id=row.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-small" type="submit">{{ 'Post next' if ui_mode == 'home' else 'Post next run' }}</button>
+              </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('ledger.set_recurring_active', recurring_id=row.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="active" value="{{ '0' if row.is_active else '1' }}">
+                <button class="button button-small button-secondary" type="submit">{{ 'Pause' if row.is_active else 'Resume' }}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No recurring journals have been created yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
