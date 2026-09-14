@@ -81,6 +81,20 @@ class ModuleRegistry:
                 )
         db.session.commit()
 
+    def seed_org_defaults(self, organisation_id: str):
+        """Let modules seed organisation-scoped defaults after the core chart exists.
+
+        A module may expose ``seed_defaults(organisation_id)`` from its package. This
+        keeps optional domain defaults out of the core bootstrap while preserving a
+        frictionless first-run experience.
+        """
+        for manifest in self.manifests:
+            package = self._packages[manifest.id]
+            seed_defaults = getattr(package, "seed_defaults", None)
+            if callable(seed_defaults):
+                seed_defaults(organisation_id)
+        db.session.commit()
+
     def is_enabled(self, organisation_id: str | None, module_id: str) -> bool:
         manifest = self.get(module_id)
         if not manifest:
