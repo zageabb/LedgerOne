@@ -6,6 +6,7 @@
     <h1>{{ 'Money & bank' if ui_mode == 'home' else 'Banking & reconciliation' }}</h1>
     <p>{{ 'Connect your real-world bank accounts to the accounts LedgerOne uses.' if ui_mode == 'home' else 'Maintain bank accounts, imported transactions and reconciliation links.' }}</p>
   </div>
+  <div class="actions"><a class="button" href="{{ url_for('banking.reconcile') }}">{{ 'Match bank activity' if ui_mode == 'home' else 'Reconcile transactions' }}</a></div>
 </div>
 
 <div class="grid grid-2">
@@ -40,7 +41,7 @@
   <div class="table-wrap">
     {% if transactions %}
     <table><thead><tr><th>Date</th><th>Description</th><th class="number">Amount</th><th>Status</th></tr></thead><tbody>
-    {% for row in transactions %}<tr><td>{{ row.transaction_date.strftime('%d %b %Y') }}</td><td>{{ row.description }}</td><td class="number">£{{ '%.2f'|format(row.amount) }}</td><td><span class="badge {{ 'badge-success' if row.status == 'reconciled' else 'badge-warning' }}">{{ row.status }}</span></td></tr>{% endfor %}
+    {% for row in transactions %}<tr><td>{{ row.transaction_date.strftime('%d %b %Y') }}</td><td>{{ row.description }}</td><td class="number">{{ row.bank_account.currency }} {{ '%.2f'|format(row.amount) }}</td><td><span class="badge {{ 'badge-success' if row.status == 'reconciled' else 'badge-warning' }}">{{ row.status }}</span></td></tr>{% endfor %}
     </tbody></table>
     {% else %}<div class="empty">No imported bank transactions yet. The Banking API is ready for file-import or bank-feed modules later.</div>{% endif %}
   </div>
