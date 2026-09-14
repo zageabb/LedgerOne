@@ -1,5 +1,6 @@
 from flask import Blueprint, g, jsonify, request
 
+from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import require_api
 
@@ -31,6 +32,7 @@ def get_settings():
                 }
                 for item in modules
             ],
+            "ai": AIConfiguration.get(g.access_context.organisation_id),
         }
     )
 
@@ -52,6 +54,51 @@ def update_settings():
         return jsonify({"id": updated.id, "name": updated.name})
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/ai")
+@require_api("settings.read")
+def get_ai_settings():
+    config = AIConfiguration.get(g.access_context.organisation_id)
+    probe = AIConfiguration.probe(base_url=config["base_url"], timeout=3)
+    return jsonify({"settings": config, "connection": probe})
+
+
+@api_bp.patch("/ai")
+@require_api("settings.manage")
+def update_ai_settings():
+    payload = request.get_json(silent=True) or {}
+    current = AIConfiguration.get(g.access_context.organisation_id)
+    try:
+        updated = AIConfiguration.update(
+            g.access_context,
+            enabled=payload.get("enabled", current["enabled"]),
+            base_url=payload.get("base_url", current["base_url"]),
+            model=payload.get("model", current["model"]),
+            timeout=payload.get("timeout", current["timeout"]),
+            allow_writes=payload.get("allow_writes", current["allow_writes"]),
+        )
+        return jsonify({"settings": updated})
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/ai/test")
+@require_api("settings.manage")
+def test_ai_settings():
+    payload = request.get_json(silent=True) or {}
+    current = AIConfiguration.get(g.access_context.organisation_id)
+    base_url = payload.get("base_url", current["base_url"])
+    try:
+        base_url, _, _ = AIConfiguration._validate(
+            base_url=base_url,
+            model=payload.get("model", current["model"]),
+            timeout=payload.get("timeout", current["timeout"]),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    result = AIConfiguration.probe(base_url=base_url, timeout=3)
+    return jsonify(result), 200 if result["reachable"] else 502
 
 
 @api_bp.post("/modules/<module_id>")
