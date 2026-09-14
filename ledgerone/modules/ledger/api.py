@@ -2,8 +2,9 @@ from datetime import date
 from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import or_
 
-from ledgerone.models.ledger import Journal
+from ledgerone.models.ledger import Account, Journal
 from ledgerone.security import require_api
 from ledgerone.services.ledger import LedgerError, LedgerService
 
@@ -14,10 +15,55 @@ def _serialise_money(value):
     return str(Decimal(value or 0).quantize(Decimal("0.01")))
 
 
+def _page_args(default_per_page=100, max_per_page=500):
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        per_page = max(1, min(int(request.args.get("per_page", default_per_page)), max_per_page))
+    except (TypeError, ValueError):
+        per_page = default_per_page
+    return page, per_page
+
+
+def _pagination(page, per_page, total):
+    pages = max(1, (total + per_page - 1) // per_page) if total else 0
+    return {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "pages": pages,
+        "has_previous": page > 1,
+        "has_next": page < pages,
+    }
+
+
 @api_bp.get("/accounts")
 @require_api("ledger.read")
 def accounts():
-    rows = LedgerService.list_accounts(g.access_context)
+    context = g.access_context
+    query = Account.query.filter_by(organisation_id=context.organisation_id)
+    account_type = (request.args.get("account_type") or "").strip().lower()
+    if account_type:
+        query = query.filter(Account.account_type == account_type)
+    active = (request.args.get("active") or "").strip().lower()
+    if active in {"1", "true", "yes"}:
+        query = query.filter(Account.is_active.is_(True))
+    elif active in {"0", "false", "no"}:
+        query = query.filter(Account.is_active.is_(False))
+    text = (request.args.get("q") or "").strip()
+    if text:
+        pattern = f"%{text}%"
+        query = query.filter(or_(Account.code.ilike(pattern), Account.name.ilike(pattern)))
+    total = query.count()
+    page, per_page = _page_args()
+    rows = (
+        query.order_by(Account.code.asc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
     return jsonify(
         {
             "accounts": [
@@ -30,7 +76,9 @@ def accounts():
                     "is_active": row.is_active,
                 }
                 for row in rows
-            ]
+            ],
+            "pagination": _pagination(page, per_page, total),
+            "filters": {"q": text or None, "account_type": account_type or None, "active": active or None},
         }
     )
 
@@ -109,10 +157,42 @@ def set_period_lock(period_id):
 @require_api("ledger.read")
 def journals():
     context = g.access_context
+    query = Journal.query.filter_by(organisation_id=context.organisation_id)
+    source_module = (request.args.get("source_module") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    reference = (request.args.get("reference") or "").strip()
+    text = (request.args.get("q") or "").strip()
+    if source_module:
+        query = query.filter(Journal.source_module == source_module)
+    if status:
+        query = query.filter(Journal.status == status)
+    if reference:
+        query = query.filter(Journal.reference.ilike(f"%{reference}%"))
+    if request.args.get("from_date"):
+        try:
+            query = query.filter(Journal.journal_date >= date.fromisoformat(request.args["from_date"]))
+        except ValueError:
+            return jsonify({"error": "from_date must be YYYY-MM-DD"}), 400
+    if request.args.get("to_date"):
+        try:
+            query = query.filter(Journal.journal_date <= date.fromisoformat(request.args["to_date"]))
+        except ValueError:
+            return jsonify({"error": "to_date must be YYYY-MM-DD"}), 400
+    if text:
+        pattern = f"%{text}%"
+        query = query.filter(
+            or_(
+                Journal.reference.ilike(pattern),
+                Journal.description.ilike(pattern),
+                Journal.source_reference.ilike(pattern),
+            )
+        )
+    total = query.count()
+    page, per_page = _page_args()
     rows = (
-        Journal.query.filter_by(organisation_id=context.organisation_id)
-        .order_by(Journal.journal_date.desc(), Journal.created_at.desc())
-        .limit(min(int(request.args.get("limit", 100)), 500))
+        query.order_by(Journal.journal_date.desc(), Journal.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
         .all()
     )
     return jsonify(
@@ -125,6 +205,7 @@ def journals():
                     "description": row.description,
                     "status": row.status,
                     "source_module": row.source_module,
+                    "source_reference": row.source_reference,
                     "reversal_of_id": row.reversal_of_id,
                     "immutable": True,
                     "debit": _serialise_money(row.total_debit),
@@ -142,7 +223,16 @@ def journals():
                     ],
                 }
                 for row in rows
-            ]
+            ],
+            "pagination": _pagination(page, per_page, total),
+            "filters": {
+                "q": text or None,
+                "source_module": source_module or None,
+                "status": status or None,
+                "reference": reference or None,
+                "from_date": request.args.get("from_date"),
+                "to_date": request.args.get("to_date"),
+            },
         }
     )
 
@@ -176,9 +266,7 @@ def reverse_journal(journal_id):
         row = LedgerService.reverse_journal(
             g.access_context,
             journal_id,
-            reversal_date=date.fromisoformat(
-                payload.get("date") or date.today().isoformat()
-            ),
+            reversal_date=date.fromisoformat(payload.get("date") or date.today().isoformat()),
             reason=payload.get("reason"),
         )
         return jsonify(
@@ -299,10 +387,7 @@ def create_recurring_journal():
 @require_api("ledger.recurring.manage")
 def run_recurring_journal(recurring_id):
     try:
-        journal, run, schedule = LedgerService.run_recurring_journal(
-            g.access_context,
-            recurring_id,
-        )
+        journal, run, schedule = LedgerService.run_recurring_journal(g.access_context, recurring_id)
         return jsonify(
             {
                 "journal_id": journal.id,
