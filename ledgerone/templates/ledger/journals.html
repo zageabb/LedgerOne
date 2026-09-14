@@ -4,9 +4,11 @@
 <div class="page-head">
   <div>
     <h1>{{ 'Transactions' if ui_mode == 'home' else 'Journal register' }}</h1>
-    <p>{{ 'Every accounting movement ends up here as a balanced transaction.' if ui_mode == 'home' else 'Posted double-entry journals across all LedgerOne modules.' }}</p>
+    <p>{{ 'Every accounting movement ends up here as a balanced transaction.' if ui_mode == 'home' else 'Posted double-entry journals across all LedgerOne modules. Posted journals are immutable; corrections are made by reversal.' }}</p>
   </div>
   <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.opening_balances') }}">{{ 'Starting balances' if ui_mode == 'home' else 'Opening balances' }}</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.recurring_journals') }}">{{ 'Repeating entries' if ui_mode == 'home' else 'Recurring journals' }}</a>
     <a class="button button-secondary" href="{{ url_for('ledger.periods') }}">{{ 'Lock dates' if ui_mode == 'home' else 'Accounting periods' }}</a>
     <a class="button" href="{{ url_for('ledger.new_journal') }}">{{ 'Add transaction' if ui_mode == 'home' else 'Post journal' }}</a>
   </div>
