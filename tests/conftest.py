@@ -19,6 +19,8 @@ def app(tmp_path):
             "WTF_CSRF_ENABLED": False,
             "LOCAL_AI_ENABLED": False,
             "LOCAL_AI_ALLOW_WRITES": False,
+            "DOCUMENT_STORAGE_DIR": str(tmp_path / "documents"),
+            "DOCUMENT_MAX_BYTES": 1024 * 1024,
             "ADMIN_EMAIL": "test-admin@ledgerone.local",
             "ADMIN_PASSWORD": "test-password",
             "ADMIN_NAME": "LedgerOne Test Admin",
