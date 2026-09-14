@@ -71,5 +71,5 @@ def index():
         tax_enabled=tax_enabled,
         today=date.today().isoformat(),
         default_expiry=(date.today() + timedelta(days=30)).isoformat(),
-        default_due=(date.today() + timedelta(days=30)).isoformat(),
+        default_due="",
     )
