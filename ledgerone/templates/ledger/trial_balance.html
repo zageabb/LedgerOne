@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Trial balance · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</h1>
+    <p>{{ 'A check of what has been recorded in each account.' if ui_mode == 'home' else 'Debit and credit balances for all ledger accounts.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.index') }}">{{ 'Reports' if ui_mode == 'home' else 'Financial statements' }}</a></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Balance</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr><td><span class="code">{{ row.code }}</span></td><td>{{ row.name }}</td><td>{{ row.account_type|title }}</td><td class="number">£{{ '%.2f'|format(row.debit) }}</td><td class="number">£{{ '%.2f'|format(row.credit) }}</td><td class="number">£{{ '%.2f'|format(row.balance) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
