@@ -7,6 +7,7 @@ from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context
+from ledgerone.services.numbering import NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -170,4 +171,31 @@ def payment_terms():
     return render_template(
         "settings/payment_terms.html",
         payment_terms=PaymentTermsService.get(context.organisation_id),
+    )
+
+
+@bp.route("/numbering", methods=["GET", "POST"])
+@login_required
+def numbering():
+    context = browser_context()
+    if request.method == "POST":
+        try:
+            NumberSequenceService.update(
+                context,
+                request.form.get("sequence_key", ""),
+                prefix=request.form.get("prefix", ""),
+                suffix=request.form.get("suffix", ""),
+                next_value=request.form.get("next_value", 1),
+                padding=request.form.get("padding", 4),
+            )
+            flash("Numbering sequence updated.", "success")
+            return redirect(url_for("settings.numbering"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "settings/numbering.html",
+        sequences=[
+            NumberSequenceService.serialise(row)
+            for row in NumberSequenceService.list_sequences(context.organisation_id)
+        ],
     )
