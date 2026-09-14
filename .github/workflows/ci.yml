@@ -51,4 +51,4 @@ jobs:
           flask --app run.py db check
 
       - name: Run tests
-        run: pytest -q
+        run: python -m pytest -q
