@@ -92,16 +92,15 @@ Only the accounting kernel owns general-ledger posting. Financial modules reques
 
 For a domain document that posts financially:
 
-1. Validate module-specific data.
+1. Validate module-specific data and its own module permission.
 2. Create/flush the module document.
-3. Call `LedgerService.post_journal(..., commit=False, enforce_permission=False)` only after the module has already checked its own posting permission.
-4. Link the returned journal to the domain document.
-5. Commit the entire transaction once.
-6. On any error, roll back everything.
+3. Call `LedgerService.post_journal(..., source_module="<module-id>", commit=False)`.
+4. `LedgerService` accepts the posting when the context has either `ledger.journals.post` or the matching `<module-id>.write` capability.
+5. Link the returned journal to the domain document.
+6. Commit the entire transaction once.
+7. On any error, roll back everything.
 
-This prevents an invoice, bill, payroll run or asset depreciation record from existing without its accounting entry—or vice versa.
-
-Do not grant a Sales clerk arbitrary manual-journal permission just because Sales needs to create accounting entries internally.
+This prevents an invoice, bill, payroll run or asset depreciation record from existing without its accounting entry—or vice versa. The public manual-journal API is separately protected by `ledger.journals.post`, so a Sales or Purchases user cannot turn module posting rights into arbitrary manual-journal access.
 
 ## Models and organisation isolation
 
