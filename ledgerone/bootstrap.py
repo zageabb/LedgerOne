@@ -42,8 +42,19 @@ def _seed_chart(organisation_id: str):
     db.session.commit()
 
 
-def bootstrap_database():
-    db.create_all()
+def bootstrap_database(*, create_schema: bool = True, seed_defaults: bool = True):
+    """Prepare a development/local database after the app and modules are loaded.
+
+    Production deployments should normally set ``AUTO_CREATE_SCHEMA=false`` and run
+    ``flask db upgrade`` before starting the web process.  Keeping schema creation
+    separate from seeding prevents ``db.create_all()`` from silently replacing the
+    migration workflow while retaining a frictionless SQLite first run.
+    """
+    if create_schema:
+        db.create_all()
+
+    if not seed_defaults:
+        return
 
     if not User.query.first():
         user = User(
