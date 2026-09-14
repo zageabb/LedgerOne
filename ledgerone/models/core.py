@@ -94,8 +94,16 @@ class ApiKey(db.Model):
         return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
     @classmethod
-    def issue(cls, *, name: str, organisation_id: str | None, full_access: bool = False,
-              permissions: list[str] | None = None, created_by_user_id: str | None = None):
+    def issue(
+        cls,
+        *,
+        name: str,
+        organisation_id: str | None,
+        full_access: bool = False,
+        permissions: list[str] | None = None,
+        created_by_user_id: str | None = None,
+        expires_at: datetime | None = None,
+    ):
         record_id = new_id()
         secret = secrets.token_urlsafe(32)
         token = f"lo_{record_id}_{secret}"
@@ -107,6 +115,7 @@ class ApiKey(db.Model):
             full_access=full_access,
             permissions=permissions or [],
             created_by_user_id=created_by_user_id,
+            expires_at=expires_at,
         )
         return record, token
 
