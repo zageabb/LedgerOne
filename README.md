@@ -7,7 +7,7 @@ LedgerOne is a modular Flask/Python accounting platform designed to scale from p
 - **One accounting kernel** — double-entry journals are the source of truth at every scale.
 - **Standalone modules** — each business capability is a Flask Blueprint with its own manifest, routes, API, permissions, services, templates and optional models.
 - **Two user experiences** — switch between **Home / Apprentice** and **Professional** UI without changing the underlying ledger.
-- **API-first modules** — every functional module exposes versioned API routes under `/api/v1/...`.
+- **API-first modules** — functional modules expose versioned API routes under `/api/v1/...`.
 - **Secure external API** — service-key/session authentication and role/permission checks.
 - **Trusted local AI** — the built-in AI uses the same service layer with a system identity. No unauthenticated HTTP back door is required.
 - **Scale-ready persistence** — SQLite is supported for easy local deployment; PostgreSQL can be selected through `DATABASE_URL` for larger installations.
@@ -16,14 +16,16 @@ LedgerOne is a modular Flask/Python accounting platform designed to scale from p
 ## Current modules
 
 - Core platform / dashboard
-- Identity, authentication, organisations and memberships
-- Ledger / chart of accounts / journals / trial balance
-- Banking / bank accounts / imported transactions
-- Sales / customers / invoices
-- Purchases / suppliers / bills
+- Identity, authentication, organisations, memberships and role/permission administration
+- Ledger / chart of accounts / immutable journals / periods / opening balances / recurring journals
+- Banking / bank accounts / imported transactions / reconciliation
+- Sales / customers / invoices / customer payments and allocations
+- Purchases / suppliers / bills / supplier payments and allocations
 - Reports
-- Settings / module controls / API keys
-- LedgerOne AI workspace and audited tool access
+- Audit Trail with filters, API and CSV export
+- Source Documents with file uploads, hashes and external evidence references
+- Settings / module controls / API key expiry, rotation and revocation
+- LedgerOne AI workspace, organisation-level Ollama settings and audited tool access
 - API authentication and discovery
 
 Banking, Sales and Purchases own their own domain records but do not create a parallel accounting engine. Financial effects are posted through the central `LedgerService`.
@@ -92,31 +94,31 @@ External integrations use service keys in the `Authorization` header:
 Authorization: Bearer <service-key>
 ```
 
-Human browser/API sessions are authenticated separately. Service keys are stored hashed in the database and can be scoped to an organisation and permission set.
+Human browser/API sessions are authenticated separately. Service keys are stored hashed in the database, can be scoped to an organisation/permission set, can have an expiry date and can be rotated without changing their access scope. Revoked or expired keys are rejected automatically.
 
-The built-in local AI does **not** need to authenticate back into LedgerOne over HTTP; it receives a trusted system context and calls the same Python service layer as the API. If an out-of-process local AI is required, create a dedicated full-access service key and restrict the listener/network appropriately.
+The built-in local AI does **not** need to authenticate back into LedgerOne over HTTP; it receives a trusted system context and calls the same Python service layer as the API. If an out-of-process local AI is required, create a dedicated service key and restrict its permissions/network exposure appropriately.
 
 ## Example API endpoints
 
 ```text
 GET  /api/v1/system/health
 GET  /api/v1/system/modules
-GET  /api/v1/ledger/accounts
+GET  /api/v1/ledger/accounts?q=bank&account_type=asset&page=1&per_page=50
 POST /api/v1/ledger/accounts
-GET  /api/v1/ledger/journals
+GET  /api/v1/ledger/journals?source_module=sales&from_date=2026-09-01
 POST /api/v1/ledger/journals
 GET  /api/v1/ledger/trial-balance
 GET  /api/v1/banking/accounts
-POST /api/v1/banking/accounts
-GET  /api/v1/sales/customers
-POST /api/v1/sales/customers
+GET  /api/v1/banking/transactions
 GET  /api/v1/sales/invoices
-POST /api/v1/sales/invoices
-GET  /api/v1/purchases/suppliers
-POST /api/v1/purchases/suppliers
 GET  /api/v1/purchases/bills
-POST /api/v1/purchases/bills
-GET  /api/v1/settings
+GET  /api/v1/audit
+GET  /api/v1/audit/export
+GET  /api/v1/documents
+POST /api/v1/documents/upload
+POST /api/v1/documents/reference
+GET  /api/v1/settings/members
+POST /api/v1/settings/api-keys/<key-id>/rotate
 GET  /api/v1/ai/status
 ```
 
@@ -131,7 +133,18 @@ LOCAL_AI_MODEL=qwen3:14b
 LOCAL_AI_ALLOW_WRITES=true
 ```
 
-The in-process AI uses explicit LedgerOne tools and services rather than direct unrestricted SQL. Set `LOCAL_AI_ALLOW_WRITES=false` when an installation should use the AI for analysis only.
+These defaults can be overridden per organisation from **Settings → LedgerOne AI** without restarting Flask. The model list is discovered from the configured Ollama-compatible server. When AI writes are disabled, write tools are removed from the AI tool registry rather than merely hidden in the UI.
+
+## Source document storage
+
+Supporting files are stored outside the accounting database. The database stores only metadata, linkage, size and SHA-256 integrity information.
+
+```dotenv
+LEDGERONE_DOCUMENT_STORAGE_DIR=./data/documents
+LEDGERONE_DOCUMENT_MAX_BYTES=26214400
+```
+
+Files and external references can be attached to journals, sales invoices, purchase bills and imported bank transactions. The module validates organisation ownership before creating a link.
 
 ## Testing
 
@@ -139,20 +152,27 @@ Install development dependencies and run the suite:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+python -m pytest -q
 ```
 
-The committed smoke tests cover:
+The committed tests cover the accounting/security invariants and major workflows, including:
 
-- fresh app/database bootstrap;
+- fresh app/database bootstrap and migration drift;
 - login and UI-mode switching;
-- API authentication;
-- balanced and rejected unbalanced journals;
-- cross-organisation account isolation;
-- scoped Sales and Purchases posting into the ledger;
+- API authentication, expiry and key rotation;
+- organisation members, role/permission controls and last-owner protection;
+- balanced/unbalanced journals and cross-organisation isolation;
+- accounting period locks, reversals and immutable postings;
+- opening balances and recurring journals;
+- Sales/Purchases posting and payment allocations;
+- banking reconciliation;
+- audit trail and CSV export;
+- ledger API pagination/filtering;
+- source-document upload/download/reference isolation;
+- local AI configuration and read-only tool enforcement;
 - CashLink legacy importer behaviour.
 
-GitHub Actions also compiles the source, upgrades a clean database from Alembic revision `0001_initial`, checks for migration drift and runs pytest.
+GitHub Actions compiles the source, upgrades a clean database through every committed Alembic revision, checks for migration drift and runs pytest.
 
 ## CashLink legacy migration
 
