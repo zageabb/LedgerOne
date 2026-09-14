@@ -96,7 +96,7 @@ class PurchasesService:
     def create_bill(context: AccessContext, *, supplier_id: str, bill_number: str,
                     bill_date, due_date, description: str, amount,
                     payable_account_id: str, expense_account_id: str,
-                    currency: str = "GBP"):
+                    currency: str = "GBP", tax_code_id: str | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -110,6 +110,11 @@ class PurchasesService:
         ).first():
             raise ValueError("Bill number already exists")
 
+        from ledgerone.modules.tax.services import TaxService
+        tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
+        tax_amount = TaxService.tax_amount(amount, tax_code)
+        total = amount + tax_amount
+
         bill = PurchaseBill(
             organisation_id=context.organisation_id,
             supplier_id=supplier.id,
@@ -119,7 +124,8 @@ class PurchasesService:
             currency=currency.upper(),
             status="posting",
             subtotal=amount,
-            total=amount,
+            tax_total=tax_amount,
+            total=total,
         )
         db.session.add(bill)
         db.session.flush()
@@ -131,9 +137,52 @@ class PurchasesService:
                 quantity=1,
                 unit_price=amount,
                 net_amount=amount,
+                tax_amount=tax_amount,
+                tax_code_id=tax_code.id if tax_code else None,
                 expense_account_id=expense_account_id,
             )
         )
+
+        journal_lines = [
+            {
+                "account_id": expense_account_id,
+                "debit": amount,
+                "credit": 0,
+                "description": description.strip() or "Purchase",
+                "currency": currency.upper(),
+                "dimensions": {
+                    "supplier_id": supplier.id,
+                    "bill_id": bill.id,
+                    "tax_code_id": tax_code.id if tax_code else None,
+                },
+            },
+            {
+                "account_id": payable_account_id,
+                "debit": 0,
+                "credit": total,
+                "description": supplier.name,
+                "currency": currency.upper(),
+                "dimensions": {"supplier_id": supplier.id, "bill_id": bill.id},
+            },
+        ]
+        if tax_amount:
+            if not tax_code or not tax_code.purchase_tax_account_id:
+                raise ValueError("Selected tax code has no input VAT account")
+            journal_lines.insert(
+                1,
+                {
+                    "account_id": tax_code.purchase_tax_account_id,
+                    "debit": tax_amount,
+                    "credit": 0,
+                    "description": f"{tax_code.code} input VAT",
+                    "currency": currency.upper(),
+                    "dimensions": {
+                        "supplier_id": supplier.id,
+                        "bill_id": bill.id,
+                        "tax_code_id": tax_code.id,
+                    },
+                },
+            )
 
         try:
             journal = LedgerService.post_journal(
@@ -143,24 +192,7 @@ class PurchasesService:
                 reference=bill.bill_number,
                 source_module="purchases",
                 source_reference=bill.id,
-                lines=[
-                    {
-                        "account_id": expense_account_id,
-                        "debit": amount,
-                        "credit": 0,
-                        "description": description.strip() or "Purchase",
-                        "currency": currency.upper(),
-                        "dimensions": {"supplier_id": supplier.id, "bill_id": bill.id},
-                    },
-                    {
-                        "account_id": payable_account_id,
-                        "debit": 0,
-                        "credit": amount,
-                        "description": supplier.name,
-                        "currency": currency.upper(),
-                        "dimensions": {"supplier_id": supplier.id, "bill_id": bill.id},
-                    },
-                ],
+                lines=journal_lines,
                 commit=False,
             )
             bill.posted_journal_id = journal.id
@@ -175,7 +207,10 @@ class PurchasesService:
                     "bill_number": bill.bill_number,
                     "supplier_id": supplier.id,
                     "journal_id": journal.id,
-                    "total": str(amount),
+                    "subtotal": str(amount),
+                    "tax_total": str(tax_amount),
+                    "total": str(total),
+                    "tax_code": tax_code.code if tax_code else None,
                     "currency": bill.currency,
                 },
             )
