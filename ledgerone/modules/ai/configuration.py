@@ -7,6 +7,7 @@ from flask import current_app
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Setting
+from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 
 
@@ -70,6 +71,7 @@ class AIConfiguration:
     ) -> dict:
         if not context.can("settings.manage"):
             raise PermissionError("settings.manage")
+        before = cls.get(context.organisation_id)
         base_url, model, timeout = cls._validate(
             base_url=base_url,
             model=model,
@@ -97,6 +99,14 @@ class AIConfiguration:
             db.session.add(row)
         else:
             row.value = value
+        record_audit_event(
+            context,
+            module_id="ai",
+            action="configuration_updated",
+            entity_type="setting",
+            entity_id=cls.KEY,
+            detail={"before": before, "after": value},
+        )
         db.session.commit()
         return value
 
