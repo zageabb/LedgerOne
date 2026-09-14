@@ -42,6 +42,9 @@ class SalesInvoice(db.Model):
     customer = db.relationship("Customer")
     posted_journal = db.relationship("Journal")
     lines = db.relationship("SalesInvoiceLine", back_populates="invoice", cascade="all, delete-orphan", lazy="selectin")
+    payment_allocations = db.relationship(
+        "SalesPaymentAllocation", back_populates="invoice", cascade="all, delete-orphan", lazy="selectin"
+    )
 
 
 class SalesInvoiceLine(db.Model):
@@ -60,3 +63,43 @@ class SalesInvoiceLine(db.Model):
 
     invoice = db.relationship("SalesInvoice", back_populates="lines")
     revenue_account = db.relationship("Account")
+
+
+class SalesPayment(db.Model):
+    __tablename__ = "sales_payments"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "journal_id", name="uq_sales_payment_org_journal"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    customer_id = db.Column(db.String(36), db.ForeignKey("customers.id"), nullable=False, index=True)
+    payment_date = db.Column(db.Date, nullable=False, index=True)
+    reference = db.Column(db.String(120), nullable=True, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False, default="unallocated", index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    customer = db.relationship("Customer")
+    journal = db.relationship("Journal")
+    allocations = db.relationship(
+        "SalesPaymentAllocation", back_populates="payment", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class SalesPaymentAllocation(db.Model):
+    __tablename__ = "sales_payment_allocations"
+    __table_args__ = (
+        db.UniqueConstraint("payment_id", "invoice_id", name="uq_sales_payment_invoice"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    payment_id = db.Column(db.String(36), db.ForeignKey("sales_payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    invoice_id = db.Column(db.String(36), db.ForeignKey("sales_invoices.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    payment = db.relationship("SalesPayment", back_populates="allocations")
+    invoice = db.relationship("SalesInvoice", back_populates="payment_allocations")
