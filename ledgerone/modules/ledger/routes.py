@@ -43,7 +43,15 @@ def journals():
         .limit(200)
         .all()
     )
-    return render_template("ledger/journals.html", journals=rows)
+    reversed_ids = {
+        row.reversal_of_id for row in rows if row.reversal_of_id
+    }
+    return render_template(
+        "ledger/journals.html",
+        journals=rows,
+        reversed_ids=reversed_ids,
+        today=date.today().isoformat(),
+    )
 
 
 @bp.route("/journals/new", methods=["GET", "POST"])
@@ -92,6 +100,64 @@ def new_journal():
         accounts=accounts,
         today=date.today().isoformat(),
     )
+
+
+@bp.post("/journals/<journal_id>/reverse")
+@login_required
+@require_module("ledger")
+def reverse_journal(journal_id):
+    context = browser_context()
+    try:
+        reversal_date = date.fromisoformat(
+            request.form.get("reversal_date") or date.today().isoformat()
+        )
+        reversal = LedgerService.reverse_journal(
+            context,
+            journal_id,
+            reversal_date=reversal_date,
+            reason=request.form.get("reason") or None,
+        )
+        flash(f"Journal reversed with {reversal.reference}.", "success")
+    except (LedgerError, PermissionError, ValueError) as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("ledger.journals"))
+
+
+@bp.route("/periods", methods=["GET", "POST"])
+@login_required
+@require_module("ledger")
+def periods():
+    context = browser_context()
+    if request.method == "POST":
+        try:
+            LedgerService.create_period(
+                context,
+                name=request.form.get("name", ""),
+                start_date=date.fromisoformat(request.form.get("start_date", "")),
+                end_date=date.fromisoformat(request.form.get("end_date", "")),
+            )
+            flash("Accounting period created.", "success")
+            return redirect(url_for("ledger.periods"))
+        except (LedgerError, PermissionError, ValueError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "ledger/periods.html",
+        periods=LedgerService.list_periods(context),
+    )
+
+
+@bp.post("/periods/<period_id>/lock")
+@login_required
+@require_module("ledger")
+def set_period_lock(period_id):
+    context = browser_context()
+    try:
+        locked = request.form.get("locked") == "1"
+        period = LedgerService.set_period_locked(context, period_id, locked=locked)
+        flash(f"{period.name} is now {period.status}.", "success")
+    except (LedgerError, PermissionError) as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("ledger.periods"))
 
 
 @bp.get("/trial-balance")
