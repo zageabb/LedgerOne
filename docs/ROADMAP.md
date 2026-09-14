@@ -33,17 +33,20 @@ Implemented:
 
 - accounting periods and period locking
 - journal reversal workflow
+- immutable posted journals and journal lines
+- opening-balance wizard
+- recurring journals
 - organisation-level AI connection/model/write-safety settings
+- bank reconciliation workflow
+- customer/supplier payment allocation with partial settlement
+- adoption of existing bank/reconciliation journals without duplicate cash posting
+- outstanding receivable/payable balances
+- audit viewer, filters, API and CSV export
+- broader audit coverage across ledger, sales, purchases, banking, settings and AI configuration
 
 Next:
 
-- stronger immutable-posting controls
-- opening-balance wizard
-- recurring journals
 - attachments and source-document references
-- customer/supplier payment allocation
-- bank reconciliation workflow
-- audit viewer and export
 - permission/role administration UI
 - API key expiry/rotation UI
 - pagination/filtering on ledger APIs
