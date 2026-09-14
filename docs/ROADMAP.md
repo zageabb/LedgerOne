@@ -57,7 +57,7 @@ Status: **in progress**
 - UK VAT return support as first tax implementation — implemented for GB standard VAT accounting
 - credit notes — implemented for sales and purchases
 - sales quotes leading to invoices — implemented
-- sales orders leading to invoices
+- sales orders leading to invoices — implemented
 - purchase orders leading to bills — implemented
 - expense claims — implemented
 - payment terms and aged receivables/payables — implemented

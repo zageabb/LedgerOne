@@ -9,6 +9,7 @@
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('settings.payment_terms') }}">Payment terms</a>
     <a class="button button-secondary" href="{{ url_for('sales_quotes.index') }}">{{ 'Quotes' if ui_mode == 'home' else 'Sales quotes' }}</a>
+    <a class="button button-secondary" href="{{ url_for('sales_orders.index') }}">{{ 'Orders' if ui_mode == 'home' else 'Sales orders' }}</a>
     <a class="button button-secondary" href="{{ url_for('sales_credits.index') }}">{{ 'Refunds & credits' if ui_mode == 'home' else 'Credit notes' }}</a>
     <a class="button button-secondary" href="{{ url_for('sales.payments') }}">{{ 'Money received' if ui_mode == 'home' else 'Customer payments' }}</a>
   </div>
