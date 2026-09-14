@@ -8,24 +8,25 @@ LedgerOne is a modular Flask/Python accounting platform designed to scale from p
 - **Standalone modules** — each business capability is a Flask Blueprint with its own manifest, routes, API, permissions, services, templates and optional models.
 - **Two user experiences** — switch between **Home / Apprentice** and **Professional** UI without changing the underlying ledger.
 - **API-first modules** — every functional module exposes versioned API routes under `/api/v1/...`.
-- **Secure external API** — password/service-key authentication and role/permission checks.
+- **Secure external API** — service-key/session authentication and role/permission checks.
 - **Trusted local AI** — the built-in AI uses the same service layer with a system identity. No unauthenticated HTTP back door is required.
 - **Scale-ready persistence** — SQLite is supported for easy local deployment; PostgreSQL can be selected through `DATABASE_URL` for larger installations.
+- **Migration-controlled production schema** — Flask-Migrate/Alembic is the production upgrade path.
 
-## Initial modules
+## Current modules
 
 - Core platform / dashboard
-- Identity and authentication
-- Organisations and memberships
-- Ledger / chart of accounts / journals
-- Banking
-- Sales
-- Purchases
-- Settings
-- AI workspace
+- Identity, authentication, organisations and memberships
+- Ledger / chart of accounts / journals / trial balance
+- Banking / bank accounts / imported transactions
+- Sales / customers / invoices
+- Purchases / suppliers / bills
+- Reports
+- Settings / module controls / API keys
+- LedgerOne AI workspace and audited tool access
 - API authentication and discovery
 
-The Banking, Sales and Purchases modules currently provide clean extension points and API/module shells; all accounting postings should flow into the central Ledger service.
+Banking, Sales and Purchases own their own domain records but do not create a parallel accounting engine. Financial effects are posted through the central `LedgerService`.
 
 ## Quick start
 
@@ -39,7 +40,7 @@ python run.py
 
 Then open `http://127.0.0.1:5000`.
 
-On the first run LedgerOne creates the database and a development administrator using the values from `.env`.
+In development, `AUTO_CREATE_SCHEMA=true` gives a zero-setup first run. LedgerOne creates an empty schema and seeds the development administrator and initial chart of accounts from `.env`.
 
 ## Default development credentials
 
@@ -52,6 +53,17 @@ LEDGERONE_ADMIN_PASSWORD=change-me-now
 
 Do not expose a deployment using the example password.
 
+## Production database setup
+
+Production defaults to `AUTO_CREATE_SCHEMA=false`. Apply migrations before starting the web process:
+
+```bash
+export FLASK_ENV=production
+flask --app run.py db upgrade
+```
+
+After the schema exists, normal startup can seed the initial organisation/admin when `AUTO_SEED_DEFAULTS=true`. For an established installation, manage users/organisations explicitly and set that flag to suit the deployment process.
+
 ## Module contract
 
 Modules live under `ledgerone/modules/<module_name>/` and are registered by the module registry. A module normally contains:
@@ -63,12 +75,14 @@ module_name/
 ├── routes.py
 ├── api.py
 ├── services.py
-├── permissions.py
-├── models.py          # optional
+├── permissions.py       # optional
+├── models.py            # optional
 └── templates/
 ```
 
-A module manifest declares its identity, navigation, permissions and whether it is enabled by default. This allows later modules such as Payroll, Assets, Inventory, Projects, VAT/Tax, Expenses and Procurement to be added without modifying the accounting kernel.
+A module manifest declares its identity, navigation, permissions and dependencies. This allows later modules such as Payroll, Assets, Inventory, Projects, VAT/Tax, Expenses and Procurement to be added without modifying the accounting kernel.
+
+See [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) for the full contract.
 
 ## API security
 
@@ -78,7 +92,7 @@ External integrations use service keys in the `Authorization` header:
 Authorization: Bearer <service-key>
 ```
 
-Human browser/API sessions are authenticated separately. Service keys are stored hashed in the database.
+Human browser/API sessions are authenticated separately. Service keys are stored hashed in the database and can be scoped to an organisation and permission set.
 
 The built-in local AI does **not** need to authenticate back into LedgerOne over HTTP; it receives a trusted system context and calls the same Python service layer as the API. If an out-of-process local AI is required, create a dedicated full-access service key and restrict the listener/network appropriately.
 
@@ -91,12 +105,54 @@ GET  /api/v1/ledger/accounts
 POST /api/v1/ledger/accounts
 GET  /api/v1/ledger/journals
 POST /api/v1/ledger/journals
+GET  /api/v1/ledger/trial-balance
 GET  /api/v1/banking/accounts
-GET  /api/v1/sales/status
-GET  /api/v1/purchases/status
+POST /api/v1/banking/accounts
+GET  /api/v1/sales/customers
+POST /api/v1/sales/customers
+GET  /api/v1/sales/invoices
+POST /api/v1/sales/invoices
+GET  /api/v1/purchases/suppliers
+POST /api/v1/purchases/suppliers
+GET  /api/v1/purchases/bills
+POST /api/v1/purchases/bills
 GET  /api/v1/settings
 GET  /api/v1/ai/status
 ```
+
+## Local AI
+
+The local AI endpoint is Ollama-compatible by default:
+
+```dotenv
+LOCAL_AI_ENABLED=true
+LOCAL_AI_BASE_URL=http://127.0.0.1:11434
+LOCAL_AI_MODEL=qwen3:14b
+LOCAL_AI_ALLOW_WRITES=true
+```
+
+The in-process AI uses explicit LedgerOne tools and services rather than direct unrestricted SQL. Set `LOCAL_AI_ALLOW_WRITES=false` when an installation should use the AI for analysis only.
+
+## Testing
+
+Install development dependencies and run the suite:
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+The committed smoke tests cover:
+
+- fresh app/database bootstrap;
+- login and UI-mode switching;
+- API authentication;
+- balanced and rejected unbalanced journals;
+- cross-organisation account isolation;
+- scoped Sales and Purchases posting into the ledger;
+- CashLink legacy importer behaviour.
+
+GitHub Actions also compiles the source, upgrades a clean database from Alembic revision `0001_initial`, checks for migration drift and runs pytest.
 
 ## CashLink legacy migration
 
@@ -104,13 +160,13 @@ LedgerOne includes a standalone recovery component for legacy CashLink Accountan
 
 Current capabilities include:
 
-- reading CashLink UCSD p-System volumes
-- listing/extracting embedded logical files
-- decoding purchase, sales and nominal account masters
-- preserving raw source files and fixed records in SQLite
-- source SHA-256 traceability
-- auditing legacy module-password fields without disclosing them
-- converting confirmed CashLink module passwords directly to modern salted scrypt hashes so users can continue using the same passwords after migration
+- reading CashLink UCSD p-System volumes;
+- listing/extracting embedded logical files;
+- decoding purchase, sales and nominal account masters;
+- preserving raw source files and fixed records in SQLite;
+- source SHA-256 traceability;
+- auditing legacy module-password fields without disclosing them;
+- converting confirmed CashLink module passwords directly to modern salted scrypt hashes so users can continue using the same passwords after migration.
 
 Example commands:
 
@@ -125,6 +181,9 @@ python -m legacy_import.cashlink to-sqlite recovered/cashlink.sqlite JOURNAL.VOL
 
 See [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) for the reverse-engineering notes and confirmed record structures.
 
-## Roadmap
+## Documentation
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — platform layers, security, persistence and accounting invariants.
+- [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — standalone module/API/service contract.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path from the v0.1 foundation to enterprise capabilities.
+- [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) — legacy CashLink reverse-engineering notes.
