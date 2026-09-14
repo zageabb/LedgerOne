@@ -6,6 +6,7 @@
     <h1>{{ 'Expenses' if ui_mode == 'home' else 'Purchases & payables' }}</h1>
     <p>{{ 'Record who you pay and what you spend money on.' if ui_mode == 'home' else 'Maintain suppliers and post purchase bills to payables and expense accounts.' }}</p>
   </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchases.payments') }}">{{ 'Money paid' if ui_mode == 'home' else 'Supplier payments' }}</a></div>
 </div>
 
 <div class="grid grid-2">
@@ -51,7 +52,7 @@
   </div>
   <div class="card">
     <div class="card-head"><h2>{{ 'Recent expenses' if ui_mode == 'home' else 'Purchase bills' }}</h2></div>
-    <div class="table-wrap">{% if bills %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th><th class="number">Total</th></tr></thead><tbody>{% for row in bills %}<tr><td>{{ row.bill_number }}</td><td>{{ row.bill_date.strftime('%d %b %Y') }}</td><td><span class="badge badge-success">{{ row.status }}</span></td><td class="number">£{{ '%.2f'|format(row.total) }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No purchase bills yet.</div>{% endif %}</div>
+    <div class="table-wrap">{% if bills %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th><th class="number">Total</th><th class="number">Outstanding</th></tr></thead><tbody>{% for row in bills %}<tr><td>{{ row.bill_number }}</td><td>{{ row.bill_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status == 'paid' else '' }}">{{ row.status|replace('_',' ')|title }}</span></td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No purchase bills yet.</div>{% endif %}</div>
   </div>
 </div>
 {% endblock %}
