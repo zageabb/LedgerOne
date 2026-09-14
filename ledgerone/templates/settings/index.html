@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Settings</h1>
-    <p>{{ 'Choose how LedgerOne is set up and which features you want to use.' if ui_mode == 'home' else 'Organisation configuration, module lifecycle, AI and API security.' }}</p>
+    <p>{{ 'Choose how LedgerOne is set up and which features you want to use.' if ui_mode == 'home' else 'Organisation configuration, access control, AI and API security.' }}</p>
   </div>
 </div>
 
@@ -50,9 +50,7 @@
   <div class="card-body">
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="field field-full">
-        <label><input style="width:auto" type="checkbox" name="ai_enabled" value="1" {% if ai_settings.enabled %}checked{% endif %}> Enable LedgerOne AI</label>
-      </div>
+      <div class="field field-full"><label><input style="width:auto" type="checkbox" name="ai_enabled" value="1" {% if ai_settings.enabled %}checked{% endif %}> Enable LedgerOne AI</label></div>
       <div class="field field-full">
         <label>Ollama / local AI server</label>
         <input name="ai_base_url" value="{{ ai_settings.base_url }}" placeholder="http://192.168.1.249:11434" required>
@@ -61,34 +59,22 @@
       <div class="field">
         <label>Model</label>
         <select name="ai_model" required>
-          {% if ai_settings.model and ai_settings.model not in ai_probe.models %}
-          <option value="{{ ai_settings.model }}" selected>{{ ai_settings.model }} (configured)</option>
-          {% endif %}
-          {% for model in ai_probe.models %}
-          <option value="{{ model }}" {% if model == ai_settings.model %}selected{% endif %}>{{ model }}</option>
-          {% endfor %}
+          {% if ai_settings.model and ai_settings.model not in ai_probe.models %}<option value="{{ ai_settings.model }}" selected>{{ ai_settings.model }} (configured)</option>{% endif %}
+          {% for model in ai_probe.models %}<option value="{{ model }}" {% if model == ai_settings.model %}selected{% endif %}>{{ model }}</option>{% endfor %}
           {% if not ai_probe.models and not ai_settings.model %}<option value="">No models found</option>{% endif %}
         </select>
-        <div class="help">Models are discovered directly from the configured server.</div>
       </div>
-      <div class="field">
-        <label>Request timeout (seconds)</label>
-        <input type="number" name="ai_timeout" min="5" max="600" value="{{ ai_settings.timeout }}" required>
-      </div>
+      <div class="field"><label>Request timeout (seconds)</label><input type="number" name="ai_timeout" min="5" max="600" value="{{ ai_settings.timeout }}" required></div>
       <div class="field field-full">
         <label><input style="width:auto" type="checkbox" name="ai_allow_writes" value="1" {% if ai_settings.allow_writes %}checked{% endif %}> Allow AI to create or post accounting data</label>
-        <div class="help">When off, write tools are removed from the AI tool registry. The AI can still inspect and explain LedgerOne data.</div>
+        <div class="help">When off, write tools are removed from the AI tool registry.</div>
       </div>
       <div class="field-full">
         <button class="button button-secondary" type="submit" name="action" value="ai_test">Test connection / refresh models</button>
         <button class="button" type="submit" name="action" value="ai_save">Save AI settings</button>
       </div>
     </form>
-    {% if ai_probe.reachable %}
-      <p class="help"><strong>Server reachable.</strong> {{ ai_probe.models|length }} installed model(s) returned.</p>
-    {% elif ai_probe.error %}
-      <p class="help"><strong>Connection detail:</strong> {{ ai_probe.error }}</p>
-    {% endif %}
+    {% if ai_probe.reachable %}<p class="help"><strong>Server reachable.</strong> {{ ai_probe.models|length }} installed model(s) returned.</p>{% elif ai_probe.error %}<p class="help"><strong>Connection detail:</strong> {{ ai_probe.error }}</p>{% endif %}
   </div>
 </div>
 
@@ -104,13 +90,7 @@
         <td><span class="badge {{ 'badge-success' if item.enabled else '' }}">{{ 'Enabled' if item.enabled else 'Disabled' }}</span></td>
         <td>
           {% if not item.manifest.always_on %}
-          <form method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="module">
-            <input type="hidden" name="module_id" value="{{ item.manifest.id }}">
-            <input type="hidden" name="enabled" value="{{ '0' if item.enabled else '1' }}">
-            <button class="button button-small button-secondary" type="submit">{{ 'Disable' if item.enabled else 'Enable' }}</button>
-          </form>
+          <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="module"><input type="hidden" name="module_id" value="{{ item.manifest.id }}"><input type="hidden" name="enabled" value="{{ '0' if item.enabled else '1' }}"><button class="button button-small button-secondary" type="submit">{{ 'Disable' if item.enabled else 'Enable' }}</button></form>
           {% else %}<span class="muted">Core</span>{% endif %}
         </td>
       </tr>
@@ -119,33 +99,86 @@
   </div>
 </div>
 
+<div class="card section">
+  <div class="card-head"><div><h2>Team access</h2><p class="muted">Owners and admins have full access. Members can be given specific permissions; viewers receive read-only permissions automatically.</p></div><span class="badge">{{ members|length }}</span></div>
+  <div class="card-body">
+    <details>
+      <summary class="button button-secondary">Add member</summary>
+      <form method="post" class="form-grid" style="margin-top:1rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="member_save"><input type="hidden" name="member_active" value="1">
+        <div class="field"><label>Name</label><input name="member_name" required></div>
+        <div class="field"><label>Email</label><input type="email" name="member_email" required></div>
+        <div class="field"><label>Role</label><select name="member_role"><option value="member">Member</option><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="owner">Owner</option></select></div>
+        <div class="field"><label>Temporary password</label><input type="password" name="member_password" minlength="8" required><div class="help">Required only when creating a new LedgerOne user.</div></div>
+        <div class="field field-full"><label>Member permissions</label><div class="grid grid-2">{% for permission in permission_catalog %}<label><input style="width:auto" type="checkbox" name="member_permissions" value="{{ permission }}"> <span class="code">{{ permission }}</span></label>{% endfor %}</div></div>
+        <div class="field-full"><button class="button" type="submit">Add member</button></div>
+      </form>
+    </details>
+  </div>
+  <div class="table-wrap">
+    <table><thead><tr><th>Person</th><th>Role</th><th>Permissions</th><th>Status</th><th></th></tr></thead><tbody>
+      {% for row in members %}
+      <tr>
+        <td><strong>{{ row.user.name }}</strong><br><span class="help">{{ row.user.email }}</span></td>
+        <td>{{ row.role|title }}</td>
+        <td>{% if row.role in ['owner','admin'] %}<span class="badge">Full access</span>{% elif row.role == 'viewer' %}<span class="badge">Read only</span>{% else %}{{ row.permissions|join(', ') or 'None' }}{% endif %}</td>
+        <td><span class="badge {{ 'badge-success' if row.is_active else '' }}">{{ 'Active' if row.is_active else 'Inactive' }}</span></td>
+        <td>
+          <details>
+            <summary class="button button-small button-secondary">Edit</summary>
+            <form method="post" class="form-grid" style="min-width:360px;margin-top:.5rem">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="member_save"><input type="hidden" name="member_active" value="{{ '1' if row.is_active else '0' }}">
+              <div class="field"><label>Name</label><input name="member_name" value="{{ row.user.name }}" required></div>
+              <div class="field"><label>Email</label><input type="email" name="member_email" value="{{ row.user.email }}" readonly></div>
+              <div class="field"><label>Role</label><select name="member_role">{% for role in ['owner','admin','member','viewer'] %}<option value="{{ role }}" {% if role == row.role %}selected{% endif %}>{{ role|title }}</option>{% endfor %}</select></div>
+              <div class="field"><label>Reset password (optional)</label><input type="password" name="member_password" minlength="8"></div>
+              <div class="field field-full"><label>Permissions</label><div class="grid grid-2">{% for permission in permission_catalog %}<label><input style="width:auto" type="checkbox" name="member_permissions" value="{{ permission }}" {% if permission in (row.permissions or []) %}checked{% endif %}> <span class="code">{{ permission }}</span></label>{% endfor %}</div></div>
+              <div class="field-full"><button class="button" type="submit">Save access</button></div>
+            </form>
+          </details>
+          {% if row.is_active %}<form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="member_deactivate"><input type="hidden" name="membership_id" value="{{ row.id }}"><button class="button button-small button-danger" type="submit">Deactivate</button></form>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
 <div class="grid grid-2 section">
   <div class="card">
     <div class="card-head"><h2>API access</h2></div>
     <div class="card-body">
-      {% if new_api_token %}
-      <div class="flash flash-warning"><strong>Copy this key now.</strong> LedgerOne stores only its hash and cannot show it again.</div>
-      <div class="token-box"><input id="new-api-token" readonly value="{{ new_api_token }}"><button class="button button-secondary" type="button" data-copy-target="#new-api-token">Copy</button></div>
-      <br>
-      {% endif %}
+      {% if new_api_token %}<div class="flash flash-warning"><strong>Copy this key now.</strong> LedgerOne stores only its hash and cannot show it again.</div><div class="token-box"><input id="new-api-token" readonly value="{{ new_api_token }}"><button class="button button-secondary" type="button" data-copy-target="#new-api-token">Copy</button></div><br>{% endif %}
       <form method="post" class="form-grid">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="api_key">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="api_key">
         <div class="field field-full"><label>Key name</label><input name="key_name" placeholder="Reporting integration" required></div>
-        <div class="field field-full"><label>Permissions (comma separated)</label><input name="permissions" placeholder="ledger.read,reports.read"><div class="help">Leave permissions blank only if Full access is selected.</div></div>
-        <div class="field field-full"><label><input style="width:auto" type="checkbox" name="full_access" value="1"> Full access</label></div>
+        <div class="field field-full"><label>Permissions (comma separated)</label><input name="permissions" placeholder="ledger.read,reports.read"><div class="help">Leave blank only if Full access is selected.</div></div>
+        <div class="field"><label>Expires on (optional)</label><input type="date" name="expires_on"></div>
+        <div class="field"><label><input style="width:auto" type="checkbox" name="full_access" value="1"> Full access</label></div>
         <div class="field-full"><button class="button" type="submit">Create API key</button></div>
       </form>
-      <p class="help">Use as <span class="code">Authorization: Bearer &lt;key&gt;</span>. Built-in LedgerOne AI does not need an HTTP key; it uses a trusted internal system identity.</p>
+      <p class="help">Use as <span class="code">Authorization: Bearer &lt;key&gt;</span>. Expired and revoked keys are rejected automatically.</p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>Active API keys</h2></div>
+    <div class="card-head"><h2>API keys</h2></div>
     <div class="table-wrap">
       {% if api_keys %}
-      <table><thead><tr><th>Name</th><th>Access</th><th>Status</th><th></th></tr></thead><tbody>
-      {% for row in api_keys %}<tr><td>{{ row.name }}<br><span class="code">{{ row.id[:8] }}…</span></td><td>{{ 'Full' if row.full_access else (row.permissions|join(', ') or 'None') }}</td><td><span class="badge {{ 'badge-success' if row.is_active else '' }}">{{ 'Active' if row.is_active else 'Revoked' }}</span></td><td>{% if row.is_active %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="revoke_api_key"><input type="hidden" name="key_id" value="{{ row.id }}"><button class="button button-small button-danger" type="submit">Revoke</button></form>{% endif %}</td></tr>{% endfor %}
+      <table><thead><tr><th>Name</th><th>Access</th><th>Lifecycle</th><th></th></tr></thead><tbody>
+      {% for row in api_keys %}
+      <tr>
+        <td><strong>{{ row.name }}</strong><br><span class="code">{{ row.id[:8] }}…</span></td>
+        <td>{{ 'Full' if row.full_access else (row.permissions|join(', ') or 'None') }}</td>
+        <td><span class="badge {{ 'badge-success' if row.is_active else '' }}">{{ 'Active' if row.is_active else 'Revoked' }}</span><br><span class="help">Expires: {{ row.expires_at.strftime('%d %b %Y') if row.expires_at else 'Never' }}<br>Last used: {{ row.last_used_at.strftime('%d %b %Y %H:%M') if row.last_used_at else 'Never' }}</span></td>
+        <td>
+          {% if row.is_active %}
+          <details><summary class="button button-small button-secondary">Rotate</summary><form method="post" style="min-width:220px;margin-top:.5rem"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="rotate_api_key"><input type="hidden" name="key_id" value="{{ row.id }}"><label>New expiry (optional)<input type="date" name="rotate_expires_on"></label><button class="button button-small" type="submit">Rotate key</button></form></details>
+          <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="revoke_api_key"><input type="hidden" name="key_id" value="{{ row.id }}"><button class="button button-small button-danger" type="submit">Revoke</button></form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
       </tbody></table>
       {% else %}<div class="empty">No API keys have been created.</div>{% endif %}
     </div>
