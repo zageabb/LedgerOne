@@ -21,12 +21,16 @@ class Config:
     LOCAL_AI_BASE_URL = os.getenv("LOCAL_AI_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
     LOCAL_AI_MODEL = os.getenv("LOCAL_AI_MODEL", "qwen3:14b")
     LOCAL_AI_TIMEOUT = int(os.getenv("LOCAL_AI_TIMEOUT", "120"))
+    LOCAL_AI_ALLOW_WRITES = os.getenv("LOCAL_AI_ALLOW_WRITES", "true").lower() in {"1", "true", "yes"}
 
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 24 * 30
+
+    # Browser forms are protected explicitly; API routes rely on auth tokens/session.
+    WTF_CSRF_CHECK_DEFAULT = False
 
 
 class DevelopmentConfig(Config):
