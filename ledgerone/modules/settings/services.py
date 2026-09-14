@@ -1,6 +1,7 @@
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, ModuleState, Organisation
 from ledgerone.module_registry import module_registry
+from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 
 
@@ -18,11 +19,33 @@ class SettingsService:
         org = SettingsService.organisation(context)
         if not org:
             raise ValueError("Organisation not found")
+        before = {
+            "name": org.name,
+            "base_currency": org.base_currency,
+            "country_code": org.country_code,
+            "fiscal_year_start_month": org.fiscal_year_start_month,
+            "fiscal_year_start_day": org.fiscal_year_start_day,
+        }
         org.name = name.strip() or org.name
         org.base_currency = (base_currency or "GBP").upper()[:3]
         org.country_code = (country_code or "GB").upper()[:2]
         org.fiscal_year_start_month = max(1, min(int(fiscal_year_start_month), 12))
         org.fiscal_year_start_day = max(1, min(int(fiscal_year_start_day), 31))
+        after = {
+            "name": org.name,
+            "base_currency": org.base_currency,
+            "country_code": org.country_code,
+            "fiscal_year_start_month": org.fiscal_year_start_month,
+            "fiscal_year_start_day": org.fiscal_year_start_day,
+        }
+        record_audit_event(
+            context,
+            module_id="settings",
+            action="organisation_updated",
+            entity_type="organisation",
+            entity_id=org.id,
+            detail={"before": before, "after": after},
+        )
         db.session.commit()
         return org
 
@@ -72,6 +95,9 @@ class SettingsService:
         state = ModuleState.query.filter_by(
             organisation_id=context.organisation_id, module_id=module_id
         ).first()
+        before = True if manifest.always_on else (
+            state.enabled if state else manifest.default_enabled
+        )
         if not state:
             state = ModuleState(
                 organisation_id=context.organisation_id,
@@ -81,6 +107,14 @@ class SettingsService:
             db.session.add(state)
         else:
             state.enabled = enabled
+        record_audit_event(
+            context,
+            module_id="settings",
+            action="module_enabled" if enabled else "module_disabled",
+            entity_type="module",
+            entity_id=module_id,
+            detail={"name": manifest.name, "before": before, "after": bool(enabled)},
+        )
         db.session.commit()
         return state
 
@@ -105,6 +139,19 @@ class SettingsService:
             created_by_user_id=context.user_id,
         )
         db.session.add(record)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="settings",
+            action="api_key_created",
+            entity_type="api_key",
+            entity_id=record.id,
+            detail={
+                "name": record.name,
+                "full_access": record.full_access,
+                "permissions": list(record.permissions or []),
+            },
+        )
         db.session.commit()
         return record, token
 
@@ -116,5 +163,13 @@ class SettingsService:
         if not record or record.organisation_id != context.organisation_id:
             raise ValueError("API key not found")
         record.is_active = False
+        record_audit_event(
+            context,
+            module_id="settings",
+            action="api_key_revoked",
+            entity_type="api_key",
+            entity_id=record.id,
+            detail={"name": record.name},
+        )
         db.session.commit()
         return record
