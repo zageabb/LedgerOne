@@ -53,6 +53,58 @@ def create_account():
         return jsonify({"error": str(exc)}), 400
 
 
+@api_bp.get("/periods")
+@require_api("ledger.read")
+def periods():
+    rows = LedgerService.list_periods(g.access_context)
+    return jsonify(
+        {
+            "periods": [
+                {
+                    "id": row.id,
+                    "name": row.name,
+                    "start_date": row.start_date.isoformat(),
+                    "end_date": row.end_date.isoformat(),
+                    "status": row.status,
+                    "locked_at": row.locked_at.isoformat() if row.locked_at else None,
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@api_bp.post("/periods")
+@require_api("ledger.periods.manage")
+def create_period():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = LedgerService.create_period(
+            g.access_context,
+            name=payload.get("name", ""),
+            start_date=date.fromisoformat(payload["start_date"]),
+            end_date=date.fromisoformat(payload["end_date"]),
+        )
+        return jsonify({"id": row.id, "name": row.name, "status": row.status}), 201
+    except (KeyError, LedgerError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/periods/<period_id>/lock")
+@require_api("ledger.periods.manage")
+def set_period_lock(period_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = LedgerService.set_period_locked(
+            g.access_context,
+            period_id,
+            locked=bool(payload.get("locked", True)),
+        )
+        return jsonify({"id": row.id, "status": row.status})
+    except (LedgerError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @api_bp.get("/journals")
 @require_api("ledger.read")
 def journals():
@@ -73,6 +125,7 @@ def journals():
                     "description": row.description,
                     "status": row.status,
                     "source_module": row.source_module,
+                    "reversal_of_id": row.reversal_of_id,
                     "debit": _serialise_money(row.total_debit),
                     "credit": _serialise_money(row.total_credit),
                     "lines": [
@@ -110,6 +163,31 @@ def post_journal():
             metadata=payload.get("metadata") or {},
         )
         return jsonify({"id": journal.id, "status": journal.status}), 201
+    except (LedgerError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/journals/<journal_id>/reverse")
+@require_api("ledger.journals.reverse")
+def reverse_journal(journal_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = LedgerService.reverse_journal(
+            g.access_context,
+            journal_id,
+            reversal_date=date.fromisoformat(
+                payload.get("date") or date.today().isoformat()
+            ),
+            reason=payload.get("reason"),
+        )
+        return jsonify(
+            {
+                "id": row.id,
+                "reference": row.reference,
+                "reversal_of_id": row.reversal_of_id,
+                "status": row.status,
+            }
+        ), 201
     except (LedgerError, PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
 
