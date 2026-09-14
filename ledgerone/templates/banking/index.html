@@ -2,46 +2,19 @@
 {% block title %}Banking · LedgerOne{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <h1>{{ 'Money & bank' if ui_mode == 'home' else 'Banking & reconciliation' }}</h1>
-    <p>{{ 'Connect your real-world bank accounts to the accounts LedgerOne uses.' if ui_mode == 'home' else 'Maintain bank accounts, imported transactions and reconciliation links.' }}</p>
-  </div>
+  <div><h1>{{ 'Money & bank' if ui_mode == 'home' else 'Banking & reconciliation' }}</h1><p>{{ 'Connect your real-world bank accounts to the accounts LedgerOne uses.' if ui_mode == 'home' else 'Maintain bank accounts, imported transactions and reconciliation links.' }}</p></div>
   <div class="actions"><a class="button" href="{{ url_for('banking.reconcile') }}">{{ 'Match bank activity' if ui_mode == 'home' else 'Reconcile transactions' }}</a></div>
 </div>
-
 <div class="grid grid-2">
-  <div class="card">
-    <div class="card-head"><h2>Add bank account</h2></div>
-    <div class="card-body">
-      <form method="post" class="form-grid">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="field"><label>Name</label><input name="name" placeholder="Main current account" required></div>
-        <div class="field"><label>Bank / institution</label><input name="institution" placeholder="Optional"></div>
-        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
-        <div class="field"><label>{{ 'Ledger account to link' if ui_mode == 'home' else 'Linked GL account' }}</label><select name="ledger_account_id"><option value="">Not linked yet</option>{% for row in ledger_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field-full"><button class="button" type="submit">Add bank account</button></div>
-      </form>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head"><h2>{{ 'Your bank accounts' if ui_mode == 'home' else 'Bank account register' }}</h2></div>
-    <div class="table-wrap">
-      {% if bank_accounts %}
-      <table><thead><tr><th>Name</th><th>Institution</th><th>Currency</th>{% if ui_mode == 'professional' %}<th>GL account</th>{% endif %}</tr></thead><tbody>
-      {% for row in bank_accounts %}<tr><td>{{ row.name }}</td><td>{{ row.institution or '—' }}</td><td>{{ row.currency }}</td>{% if ui_mode == 'professional' %}<td>{{ row.ledger_account.code ~ ' · ' ~ row.ledger_account.name if row.ledger_account else 'Unlinked' }}</td>{% endif %}</tr>{% endfor %}
-      </tbody></table>
-      {% else %}<div class="empty">No bank accounts have been added yet.</div>{% endif %}
-    </div>
-  </div>
+  <div class="card"><div class="card-head"><h2>Add bank account</h2></div><div class="card-body"><form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="field"><label>Name</label><input name="name" placeholder="Main current account" required></div><div class="field"><label>Bank / institution</label><input name="institution" placeholder="Optional"></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div><div class="field"><label>{{ 'Ledger account to link' if ui_mode == 'home' else 'Linked GL account' }}</label><select name="ledger_account_id"><option value="">Not linked yet</option>{% for row in ledger_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div><div class="field-full"><button class="button" type="submit">Add bank account</button></div></form></div></div>
+  <div class="card"><div class="card-head"><h2>{{ 'Your bank accounts' if ui_mode == 'home' else 'Bank account register' }}</h2></div><div class="table-wrap">{% if bank_accounts %}<table><thead><tr><th>Name</th><th>Institution</th><th>Currency</th>{% if ui_mode == 'professional' %}<th>GL account</th>{% endif %}</tr></thead><tbody>{% for row in bank_accounts %}<tr><td>{{ row.name }}</td><td>{{ row.institution or '—' }}</td><td>{{ row.currency }}</td>{% if ui_mode == 'professional' %}<td>{{ row.ledger_account.code ~ ' · ' ~ row.ledger_account.name if row.ledger_account else 'Unlinked' }}</td>{% endif %}</tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No bank accounts have been added yet.</div>{% endif %}</div></div>
 </div>
-
 <div class="card section">
   <div class="card-head"><h2>{{ 'Recent bank activity' if ui_mode == 'home' else 'Imported bank transactions' }}</h2><span class="badge">{{ transactions|length }}</span></div>
   <div class="table-wrap">
     {% if transactions %}
-    <table><thead><tr><th>Date</th><th>Description</th><th class="number">Amount</th><th>Status</th></tr></thead><tbody>
-    {% for row in transactions %}<tr><td>{{ row.transaction_date.strftime('%d %b %Y') }}</td><td>{{ row.description }}</td><td class="number">{{ row.bank_account.currency }} {{ '%.2f'|format(row.amount) }}</td><td><span class="badge {{ 'badge-success' if row.status == 'reconciled' else 'badge-warning' }}">{{ row.status }}</span></td></tr>{% endfor %}
+    <table><thead><tr><th>Date</th><th>Description</th><th class="number">Amount</th><th>Status</th><th></th></tr></thead><tbody>
+    {% for row in transactions %}<tr><td>{{ row.transaction_date.strftime('%d %b %Y') }}</td><td>{{ row.description }}</td><td class="number">{{ row.bank_account.currency }} {{ '%.2f'|format(row.amount) }}</td><td><span class="badge {{ 'badge-success' if row.status == 'reconciled' else 'badge-warning' }}">{{ row.status }}</span></td><td><a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='bank_transaction', entity_id=row.id) }}">Docs</a></td></tr>{% endfor %}
     </tbody></table>
     {% else %}<div class="empty">No imported bank transactions yet. The Banking API is ready for file-import or bank-feed modules later.</div>{% endif %}
   </div>
