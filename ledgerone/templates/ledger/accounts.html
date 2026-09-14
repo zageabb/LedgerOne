@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Accounts · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Accounts & categories' if ui_mode == 'home' else 'Chart of accounts' }}</h1>
+    <p>{{ 'These are the buckets LedgerOne uses to organise your money.' if ui_mode == 'home' else 'Maintain ledger accounts used by journals and module postings.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('ledger.journals') }}">{{ 'Transactions' if ui_mode == 'home' else 'Journals' }}</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.trial_balance') }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Add an account' if ui_mode == 'home' else 'Create account' }}</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field"><label>{{ 'Number / code' if ui_mode == 'home' else 'Account code' }}</label><input name="code" placeholder="5400" required></div>
+        <div class="field"><label>Name</label><input name="name" placeholder="Insurance" required></div>
+        <div class="field"><label>{{ 'Type' if ui_mode == 'home' else 'Account type' }}</label><select name="account_type"><option value="asset">Asset</option><option value="liability">Liability</option><option value="equity">Equity</option><option value="income">Income</option><option value="expense" selected>Expense</option></select></div>
+        <div class="field"><label>Currency (optional)</label><input name="currency" maxlength="3" placeholder="GBP"></div>
+        <div class="field field-full"><label>Parent account (optional)</label><select name="parent_id"><option value="">None</option>{% for row in accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field-full"><button class="button" type="submit">Create account</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ 'Your accounts' if ui_mode == 'home' else 'Active accounts' }}</h2><span class="badge">{{ accounts|length }}</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% if ui_mode == 'professional' %}<th>Code</th>{% endif %}<th>Name</th><th>Type</th><th>Currency</th></tr></thead>
+        <tbody>
+        {% for row in accounts %}
+          <tr>{% if ui_mode == 'professional' %}<td><span class="code">{{ row.code }}</span></td>{% endif %}<td>{{ row.name }}</td><td><span class="badge">{{ row.account_type|title }}</span></td><td>{{ row.currency or current_organisation.base_currency }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
