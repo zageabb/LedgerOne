@@ -114,7 +114,10 @@ def payments():
 
     accounts = LedgerService.list_accounts(context)
     invoices = SalesService.list_invoices(context, 250)
-    payment_rows = SalesService.list_payments(context, 100)
+    payment_rows = [
+        row for row in SalesService.list_payments(context, 200)
+        if getattr(row, "settlement_type", "payment") == "payment"
+    ][:100]
     journals = (
         Journal.query.filter_by(organisation_id=context.organisation_id, status="posted")
         .order_by(Journal.journal_date.desc(), Journal.created_at.desc())
