@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Tax & VAT · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ 'VAT' if ui_mode == 'home' else 'Tax & VAT' }}</h1><p>{{ 'Set up the VAT rates you use on money in and money out.' if ui_mode == 'home' else 'Configure organisation tax registration, tax codes and input/output VAT accounts.' }}</p></div>
+  <div class="actions"><a class="button" href="{{ url_for('tax.vat_return') }}">VAT return summary</a></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Tax profile</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="profile">
+        <div class="field"><label>Jurisdiction</label><input name="jurisdiction" value="{{ profile.jurisdiction }}" maxlength="10"></div>
+        <div class="field"><label>VAT registration number</label><input name="registration_number" value="{{ profile.registration_number or '' }}"></div>
+        <div class="field field-full"><label><input style="width:auto" type="checkbox" name="is_vat_registered" value="1" {% if profile.is_vat_registered %}checked{% endif %}> VAT registered</label></div>
+        <div class="field"><label>Scheme</label><select name="scheme"><option value="standard" {% if profile.scheme == 'standard' %}selected{% endif %}>Standard</option><option value="cash" {% if profile.scheme == 'cash' %}selected{% endif %}>Cash accounting</option><option value="flat_rate" {% if profile.scheme == 'flat_rate' %}selected{% endif %}>Flat Rate</option></select></div>
+        <div class="field"><label>Return frequency</label><select name="return_frequency"><option value="monthly" {% if profile.return_frequency == 'monthly' %}selected{% endif %}>Monthly</option><option value="quarterly" {% if profile.return_frequency == 'quarterly' %}selected{% endif %}>Quarterly</option><option value="annual" {% if profile.return_frequency == 'annual' %}selected{% endif %}>Annual</option></select></div>
+        <div class="field-full"><button class="button" type="submit">Save tax profile</button></div>
+      </form>
+      <p class="help">LedgerOne records the scheme now; the first return calculation in this phase is transaction-date based and is not an HMRC filing/submission service.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Create tax code</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="code">
+        <div class="field"><label>Code</label><input name="code" placeholder="VAT20" required></div><div class="field"><label>Name</label><input name="name" placeholder="Standard rate 20%" required></div>
+        <div class="field"><label>Rate %</label><input name="rate_percent" inputmode="decimal" value="20.00" required></div>
+        <div class="field"><label>Treatment</label><select name="treatment"><option value="standard">Standard</option><option value="reduced">Reduced</option><option value="zero">Zero-rated</option><option value="exempt">Exempt</option><option value="out_of_scope">Out of scope</option></select></div>
+        <div class="field"><label>Use for</label><select name="scope"><option value="both">Sales & purchases</option><option value="sales">Sales only</option><option value="purchase">Purchases only</option></select></div><div></div>
+        <div class="field"><label>Output VAT / sales account</label><select name="sales_tax_account_id"><option value="">None</option>{% for row in liability_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Input VAT / purchase account</label><select name="purchase_tax_account_id"><option value="">None</option>{% for row in asset_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field-full"><button class="button" type="submit">Create tax code</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Tax codes</h2><span class="badge">{{ tax_codes|length }}</span></div>
+  <div class="table-wrap">
+    {% if tax_codes %}<table><thead><tr><th>Code</th><th>Name</th><th>Rate</th><th>Treatment</th><th>Scope</th><th>Output VAT</th><th>Input VAT</th></tr></thead><tbody>{% for row in tax_codes %}<tr><td><strong>{{ row.code }}</strong></td><td>{{ row.name }}</td><td>{{ '%.2f'|format(row.rate_percent) }}%</td><td>{{ row.treatment|replace('_',' ')|title }}</td><td>{{ row.scope|title }}</td><td>{{ row.sales_tax_account.code ~ ' · ' ~ row.sales_tax_account.name if row.sales_tax_account else '—' }}</td><td>{{ row.purchase_tax_account.code ~ ' · ' ~ row.purchase_tax_account.name if row.purchase_tax_account else '—' }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No tax codes yet. Create VAT20, VAT5, VAT0 or your own organisation-specific codes.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
