@@ -2,6 +2,7 @@ from flask import Blueprint, g, jsonify, request
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
+from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.ai.services import LocalAIError, LocalAIService
 from ledgerone.modules.ai.tools import available_tools
 from ledgerone.security import require_api
@@ -12,13 +13,17 @@ api_bp = Blueprint("ai_api", __name__, url_prefix="/api/v1/ai")
 @api_bp.get("/status")
 @require_api("ai.read")
 def status():
-    return jsonify(LocalAIService.status())
+    return jsonify(LocalAIService.status(g.access_context.organisation_id))
 
 
 @api_bp.get("/tools")
 @require_api("ai.read")
 def tools():
-    rows = available_tools(g.access_context.organisation_id)
+    config = AIConfiguration.get(g.access_context.organisation_id)
+    rows = available_tools(
+        g.access_context.organisation_id,
+        allow_writes=config["allow_writes"],
+    )
     return jsonify(
         {
             "tools": [
