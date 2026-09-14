@@ -58,11 +58,13 @@ class SalesInvoiceLine(db.Model):
     unit_price = db.Column(db.Numeric(18, 4), nullable=False, default=0)
     net_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     tax_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    tax_code_id = db.Column(db.String(36), db.ForeignKey("tax_codes.id"), nullable=True, index=True)
     revenue_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=False)
     dimensions = db.Column(db.JSON, nullable=False, default=dict)
 
     invoice = db.relationship("SalesInvoice", back_populates="lines")
     revenue_account = db.relationship("Account")
+    tax_code = db.relationship("TaxCode")
 
 
 class SalesPayment(db.Model):
