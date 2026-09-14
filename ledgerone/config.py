@@ -30,6 +30,11 @@ class Config:
     LOCAL_AI_TIMEOUT = int(os.getenv("LOCAL_AI_TIMEOUT", "120"))
     LOCAL_AI_ALLOW_WRITES = _env_bool("LOCAL_AI_ALLOW_WRITES", True)
 
+    DOCUMENT_STORAGE_DIR = os.getenv(
+        "LEDGERONE_DOCUMENT_STORAGE_DIR", str(BASE_DIR / "data" / "documents")
+    )
+    DOCUMENT_MAX_BYTES = int(os.getenv("LEDGERONE_DOCUMENT_MAX_BYTES", str(25 * 1024 * 1024)))
+
     # Development and single-user installs can auto-create an empty schema. Production
     # defaults to Alembic/Flask-Migrate so schema changes are explicit and repeatable.
     AUTO_CREATE_SCHEMA = _env_bool("AUTO_CREATE_SCHEMA", True)
