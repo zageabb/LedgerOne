@@ -1,0 +1,54 @@
+name: LedgerOne CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q ledgerone legacy_import tests
+
+      - name: Validate clean database migration
+        env:
+          FLASK_ENV: production
+          SECRET_KEY: ci-only-secret
+          DATABASE_URL: sqlite:///ci-migration.db
+          AUTO_CREATE_SCHEMA: "false"
+          AUTO_SEED_DEFAULTS: "true"
+          SESSION_COOKIE_SECURE: "false"
+          LEDGERONE_ADMIN_EMAIL: ci-admin@ledgerone.local
+          LEDGERONE_ADMIN_PASSWORD: ci-test-password
+          LEDGERONE_ORG_NAME: CI Ledger
+          LOCAL_AI_ENABLED: "false"
+        run: |
+          flask --app run.py db upgrade
+          flask --app run.py db check
+
+      - name: Run tests
+        run: pytest -q
