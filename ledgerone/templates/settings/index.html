@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Settings</h1>
-    <p>{{ 'Choose how LedgerOne is set up and which features you want to use.' if ui_mode == 'home' else 'Organisation configuration, module lifecycle and API security.' }}</p>
+    <p>{{ 'Choose how LedgerOne is set up and which features you want to use.' if ui_mode == 'home' else 'Organisation configuration, module lifecycle, AI and API security.' }}</p>
   </div>
 </div>
 
@@ -36,6 +36,59 @@
         <button class="button button-secondary" type="submit">Switch to {{ 'Professional' if ui_mode == 'home' else 'Home / Apprentice' }}</button>
       </form>
     </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head">
+    <div>
+      <h2>LedgerOne AI</h2>
+      <p class="muted">Configure the local Ollama-compatible server used by this organisation. Environment variables remain the defaults until settings are saved here.</p>
+    </div>
+    <span class="badge {{ 'badge-success' if ai_probe.reachable else '' }}">{{ 'Connected' if ai_probe.reachable else 'Not connected' }}</span>
+  </div>
+  <div class="card-body">
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field field-full">
+        <label><input style="width:auto" type="checkbox" name="ai_enabled" value="1" {% if ai_settings.enabled %}checked{% endif %}> Enable LedgerOne AI</label>
+      </div>
+      <div class="field field-full">
+        <label>Ollama / local AI server</label>
+        <input name="ai_base_url" value="{{ ai_settings.base_url }}" placeholder="http://192.168.1.249:11434" required>
+        <div class="help">LedgerOne checks <span class="code">/api/tags</span> and sends chat requests to <span class="code">/api/chat</span>.</div>
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <select name="ai_model" required>
+          {% if ai_settings.model and ai_settings.model not in ai_probe.models %}
+          <option value="{{ ai_settings.model }}" selected>{{ ai_settings.model }} (configured)</option>
+          {% endif %}
+          {% for model in ai_probe.models %}
+          <option value="{{ model }}" {% if model == ai_settings.model %}selected{% endif %}>{{ model }}</option>
+          {% endfor %}
+          {% if not ai_probe.models and not ai_settings.model %}<option value="">No models found</option>{% endif %}
+        </select>
+        <div class="help">Models are discovered directly from the configured server.</div>
+      </div>
+      <div class="field">
+        <label>Request timeout (seconds)</label>
+        <input type="number" name="ai_timeout" min="5" max="600" value="{{ ai_settings.timeout }}" required>
+      </div>
+      <div class="field field-full">
+        <label><input style="width:auto" type="checkbox" name="ai_allow_writes" value="1" {% if ai_settings.allow_writes %}checked{% endif %}> Allow AI to create or post accounting data</label>
+        <div class="help">When off, write tools are removed from the AI tool registry. The AI can still inspect and explain LedgerOne data.</div>
+      </div>
+      <div class="field-full">
+        <button class="button button-secondary" type="submit" name="action" value="ai_test">Test connection / refresh models</button>
+        <button class="button" type="submit" name="action" value="ai_save">Save AI settings</button>
+      </div>
+    </form>
+    {% if ai_probe.reachable %}
+      <p class="help"><strong>Server reachable.</strong> {{ ai_probe.models|length }} installed model(s) returned.</p>
+    {% elif ai_probe.error %}
+      <p class="help"><strong>Connection detail:</strong> {{ ai_probe.error }}</p>
+    {% endif %}
   </div>
 </div>
 
