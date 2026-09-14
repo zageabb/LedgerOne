@@ -56,7 +56,7 @@ class LedgerService:
     def post_journal(context: AccessContext, *, journal_date: date, description: str,
                      lines: list[dict], reference: str | None = None,
                      source_module: str = "ledger", source_reference: str | None = None,
-                     metadata: dict | None = None):
+                     metadata: dict | None = None, commit: bool = True):
         if not context.can("ledger.journals.post"):
             raise PermissionError("ledger.journals.post")
         if not context.organisation_id:
@@ -120,7 +120,10 @@ class LedgerService:
                 )
             )
 
-        db.session.commit()
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
         return journal
 
     @staticmethod
