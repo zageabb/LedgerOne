@@ -13,7 +13,7 @@ api_bp = Blueprint("purchases_api", __name__, url_prefix="/api/v1/purchases")
 @require_api("purchases.read")
 def suppliers():
     rows = PurchasesService.list_suppliers(g.access_context)
-    return jsonify({"suppliers": [{"id": row.id, "name": row.name, "email": row.email, "phone": row.phone, "is_active": row.is_active} for row in rows]})
+    return jsonify({"suppliers": [{"id": row.id, "name": row.name, "email": row.email, "phone": row.phone, "payment_terms_days": row.payment_terms_days, "is_active": row.is_active} for row in rows]})
 
 
 @api_bp.post("/suppliers")
@@ -21,8 +21,14 @@ def suppliers():
 def create_supplier():
     payload = request.get_json(silent=True) or {}
     try:
-        row = PurchasesService.create_supplier(g.access_context, name=payload.get("name", ""), email=payload.get("email"), phone=payload.get("phone"))
-        return jsonify({"id": row.id, "name": row.name}), 201
+        row = PurchasesService.create_supplier(
+            g.access_context,
+            name=payload.get("name", ""),
+            email=payload.get("email"),
+            phone=payload.get("phone"),
+            payment_terms_days=payload.get("payment_terms_days"),
+        )
+        return jsonify({"id": row.id, "name": row.name, "payment_terms_days": row.payment_terms_days}), 201
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -70,6 +76,7 @@ def create_bill():
         return jsonify({
             "id": row.id,
             "status": row.status,
+            "due_date": row.due_date.isoformat() if row.due_date else None,
             "subtotal": str(row.subtotal),
             "tax_total": str(row.tax_total),
             "total": str(row.total),
