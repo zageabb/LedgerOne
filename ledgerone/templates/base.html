@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LedgerOne{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ledgerone.css') }}">
+</head>
+<body class="mode-{{ ui_mode }}">
+{% if current_user.is_authenticated %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="{{ url_for('core.dashboard') }}">
+      <span class="brand-mark">L1</span>
+      <span><strong>LedgerOne</strong><small>Accounting, one ledger</small></span>
+    </a>
+
+    <nav class="main-nav" aria-label="Main navigation">
+      {% for module in ledgerone_modules %}
+        {% if module.route_endpoint %}
+          <a class="nav-item {% if request.endpoint and request.endpoint.startswith(module.id ~ '.') %}active{% endif %}"
+             href="{{ url_for(module.route_endpoint) }}">
+            <span class="nav-icon">{{ module.display_name(ui_mode)[:1] }}</span>
+            <span>{{ module.display_name(ui_mode) }}</span>
+          </a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="mode-card">
+        <div>
+          <strong>{{ 'Home / Apprentice' if ui_mode == 'home' else 'Professional' }}</strong>
+          <small>{{ 'Simple labels and guided screens' if ui_mode == 'home' else 'Accounting terminology and detail' }}</small>
+        </div>
+        <form method="post" action="{{ url_for('auth.ui_mode') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode" value="{{ 'professional' if ui_mode == 'home' else 'home' }}">
+          <button class="switch-button" type="submit" title="Switch interface mode">
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span>Switch</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">{{ 'Personal / learning view' if ui_mode == 'home' else 'Professional accounting workspace' }}</div>
+        <strong>{{ current_organisation.name if current_organisation else 'LedgerOne' }}</strong>
+      </div>
+      <div class="topbar-actions">
+        {% if current_memberships|length > 1 %}
+        <form method="post" action="{{ url_for('auth.switch_organisation') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="organisation_id" onchange="this.form.submit()" aria-label="Organisation">
+            {% for membership in current_memberships %}
+              <option value="{{ membership.organisation.id }}" {% if current_organisation and membership.organisation.id == current_organisation.id %}selected{% endif %}>{{ membership.organisation.name }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        {% endif %}
+        <span class="user-chip">{{ current_user.name }}</span>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button-ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+  {% block public_content %}{% endblock %}
+{% endif %}
+<script src="{{ url_for('static', filename='js/ledgerone.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
