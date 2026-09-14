@@ -81,6 +81,7 @@ class SalesPayment(db.Model):
     amount = db.Column(db.Numeric(18, 2), nullable=False)
     currency = db.Column(db.String(3), nullable=False, default="GBP")
     journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, index=True)
+    settlement_type = db.Column(db.String(30), nullable=False, default="payment", index=True)
     status = db.Column(db.String(30), nullable=False, default="unallocated", index=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
