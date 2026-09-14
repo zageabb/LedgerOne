@@ -6,6 +6,7 @@ from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import require_api
+from ledgerone.services.payment_terms import PaymentTermsService
 
 api_bp = Blueprint("settings_api", __name__, url_prefix="/api/v1/settings")
 
@@ -38,6 +39,7 @@ def get_settings():
                 "fiscal_year_start_month": org.fiscal_year_start_month,
                 "fiscal_year_start_day": org.fiscal_year_start_day,
             },
+            "payment_terms": PaymentTermsService.get(g.access_context.organisation_id),
             "modules": [
                 {
                     "id": item["manifest"].id,
@@ -69,6 +71,28 @@ def update_settings():
             fiscal_year_start_day=payload.get("fiscal_year_start_day", org.fiscal_year_start_day),
         )
         return jsonify({"id": updated.id, "name": updated.name})
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/payment-terms")
+@require_api("settings.read")
+def get_payment_terms():
+    return jsonify(PaymentTermsService.get(g.access_context.organisation_id))
+
+
+@api_bp.patch("/payment-terms")
+@require_api("settings.manage")
+def update_payment_terms():
+    payload = request.get_json(silent=True) or {}
+    current = PaymentTermsService.get(g.access_context.organisation_id)
+    try:
+        updated = PaymentTermsService.update(
+            g.access_context,
+            customer_days=payload.get("customer_days", current["customer_days"]),
+            supplier_days=payload.get("supplier_days", current["supplier_days"]),
+        )
+        return jsonify(updated)
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
 
