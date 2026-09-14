@@ -82,5 +82,6 @@ def index():
         tax_enabled=tax_enabled,
         tax_codes=tax_codes,
         claimant_name=current_user.name,
+        can_approve=context.can("expense_claims.approve"),
         today=date.today().isoformat(),
     )
