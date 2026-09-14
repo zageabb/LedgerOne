@@ -7,6 +7,7 @@ from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context
+from ledgerone.services.payment_terms import PaymentTermsService
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
 
@@ -47,6 +48,13 @@ def index():
                     fiscal_year_start_day=int(request.form.get("fiscal_year_start_day", 1)),
                 )
                 flash("Organisation settings updated.", "success")
+            elif action == "payment_terms":
+                PaymentTermsService.update(
+                    context,
+                    customer_days=request.form.get("customer_payment_terms_days", 30),
+                    supplier_days=request.form.get("supplier_payment_terms_days", 30),
+                )
+                flash("Default payment terms updated.", "success")
             elif action == "module":
                 module_id = request.form.get("module_id", "")
                 enabled = request.form.get("enabled") == "1"
@@ -133,6 +141,7 @@ def index():
     return render_template(
         "settings/index.html",
         organisation=SettingsService.organisation(context),
+        payment_terms=PaymentTermsService.get(context.organisation_id),
         module_states=SettingsService.module_states(context),
         members=SettingsService.list_members(context),
         permission_catalog=SettingsService.permission_catalog(),
