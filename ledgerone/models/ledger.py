@@ -26,6 +26,29 @@ class Account(db.Model):
     parent = db.relationship("Account", remote_side=[id], backref="children")
 
 
+class AccountingPeriod(db.Model):
+    __tablename__ = "accounting_periods"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "organisation_id",
+            "start_date",
+            "end_date",
+            name="uq_accounting_period_org_dates",
+        ),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    start_date = db.Column(db.Date, nullable=False, index=True)
+    end_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="open", index=True)
+    locked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    locked_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+
 class Journal(db.Model):
     __tablename__ = "journals"
 
@@ -44,7 +67,7 @@ class Journal(db.Model):
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
     lines = db.relationship("JournalLine", back_populates="journal", cascade="all, delete-orphan", lazy="selectin")
-    reversal_of = db.relationship("Journal", remote_side=[id])
+    reversal_of = db.relationship("Journal", remote_side=[id], foreign_keys=[reversal_of_id])
 
     @property
     def total_debit(self) -> Decimal:
