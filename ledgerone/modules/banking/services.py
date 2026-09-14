@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from ledgerone.extensions import db
 from ledgerone.modules.banking.models import BankAccount, BankTransaction
+from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 
 
@@ -25,6 +26,20 @@ class BankingService:
             ledger_account_id=ledger_account_id or None,
         )
         db.session.add(row)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="banking",
+            action="bank_account_created",
+            entity_type="bank_account",
+            entity_id=row.id,
+            detail={
+                "name": row.name,
+                "institution": row.institution,
+                "currency": row.currency,
+                "ledger_account_id": row.ledger_account_id,
+            },
+        )
         db.session.commit()
         return row
 
@@ -56,5 +71,20 @@ class BankingService:
             raw_payload=raw_payload or {},
         )
         db.session.add(row)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="banking",
+            action="bank_transaction_added",
+            entity_type="bank_transaction",
+            entity_id=row.id,
+            detail={
+                "bank_account_id": account.id,
+                "transaction_date": str(row.transaction_date),
+                "description": row.description,
+                "amount": str(row.amount),
+                "external_id": row.external_id,
+            },
+        )
         db.session.commit()
         return row
