@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Expense Claims · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Expense Claims</h1>
+    <p>{{ 'Record money you have spent, attach receipts, then submit it for approval.' if ui_mode == 'home' else 'Capture employee expenses, attach source evidence, approve claims and post them to expense, VAT and reimbursement-control accounts.' }}</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Create claim</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="create">
+        <div class="field"><label>Claimant</label><input name="claimant_name" value="{{ claimant_name }}" required></div>
+        <div class="field"><label>Claim number</label><input name="claim_number" placeholder="EXP-001" required></div>
+        <div class="field"><label>Claim date</label><input type="date" name="claim_date" value="{{ today }}" required></div>
+        <div class="field"><label>Expense date</label><input type="date" name="expense_date" value="{{ today }}" required></div>
+        <div class="field"><label>Merchant</label><input name="merchant" placeholder="Hotel / fuel / train"></div>
+        <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
+        <div class="field field-full"><label>Description</label><input name="description" placeholder="Reason for the expense" required></div>
+        <div class="field"><label>Expense account</label><select name="expense_account_id" required>{% for row in expense_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Reimbursement account</label><select name="reimbursement_account_id" required>{% for row in reimbursement_accounts %}<option value="{{ row.id }}" {% if row.code == '2150' %}selected{% endif %}>{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+        {% if tax_enabled %}<div class="field"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select></div>{% endif %}
+        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
+        <div class="field-full"><button class="button" type="submit">Create draft claim</button></div>
+      </form>
+      <p class="help">Draft claims do not affect the ledger. Add receipts and any extra lines before submitting.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Workflow</h2></div>
+    <div class="card-body">
+      <p><strong>Draft → Submitted → Approved & posted</strong></p>
+      <p class="muted">A reviewer can reject a submitted claim without creating any accounting entry.</p>
+      <p class="muted">When approved, LedgerOne debits the expense and recoverable VAT accounts and credits Employee Reimbursements. Accounting-period locks still apply.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Claims</h2><span class="badge">{{ claims|length }}</span></div>
+  <div class="table-wrap">
+    {% if claims %}
+    <table>
+      <thead><tr><th>Claim</th><th>Claimant</th><th>Date</th><th>Lines</th><th>Status</th><th class="number">VAT</th><th class="number">Total</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for row in claims %}
+      <tr>
+        <td><strong>{{ row.claim_number }}</strong></td>
+        <td>{{ row.claimant_name }}</td>
+        <td>{{ row.claim_date.strftime('%d %b %Y') }}</td>
+        <td>{{ row.lines|length }}</td>
+        <td><span class="badge {{ 'badge-success' if row.status == 'posted' else '' }}">{{ row.status|title }}</span></td>
+        <td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td>
+        <td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td>
+        <td>
+          <a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='expense_claim', entity_id=row.id) }}">Receipts</a>
+          {% if row.status == 'draft' %}
+          <details><summary class="button button-small button-secondary">Add line</summary><div style="min-width:320px;margin-top:.5rem"><form method="post" class="form-grid">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_line"><input type="hidden" name="claim_id" value="{{ row.id }}">
+            <div class="field"><label>Expense date</label><input type="date" name="expense_date" value="{{ today }}" required></div><div class="field"><label>Merchant</label><input name="merchant"></div>
+            <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" required></div><div class="field"><label>Expense account</label><select name="expense_account_id" required>{% for account in expense_accounts %}<option value="{{ account.id }}">{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></div>
+            {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for tax in tax_codes %}<option value="{{ tax.id }}">{{ tax.code }} · {{ tax.name }}</option>{% endfor %}</select></div>{% endif %}
+            <div class="field field-full"><label>Description</label><input name="description" required></div><div class="field-full"><button class="button button-small" type="submit">Add line</button></div>
+          </form></div></details>
+          <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="submit"><input type="hidden" name="claim_id" value="{{ row.id }}"><button class="button button-small" type="submit">Submit</button></form>
+          {% elif row.status == 'submitted' %}
+          {% if current_access.can('expense_claims.approve') %}<details><summary class="button button-small">Review</summary><div style="min-width:300px;margin-top:.5rem">
+            <form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Posting date</label><input type="date" name="posting_date" value="{{ today }}" required></div><div class="field-full"><button class="button button-small" type="submit">Approve & post</button></div></form>
+            <hr><form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reject"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Reason</label><input name="reason"></div><div class="field-full"><button class="button button-small button-secondary" type="submit">Reject</button></div></form>
+          </div></details>{% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No expense claims yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
