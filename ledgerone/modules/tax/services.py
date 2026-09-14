@@ -257,7 +257,9 @@ class TaxService:
         if profile and profile.scheme != "standard":
             raise TaxError("The first VAT return implementation supports standard VAT accounting only")
 
+        from ledgerone.modules.purchases.credit_models import PurchaseCreditNote
         from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine
+        from ledgerone.modules.sales.credit_models import SalesCreditNote
         from ledgerone.modules.sales.models import SalesInvoice, SalesInvoiceLine
 
         sales_rows = (
@@ -284,11 +286,70 @@ class TaxService:
             )
             .all()
         )
+        sales_credit_rows = (
+            db.session.query(SalesCreditNote, TaxCode)
+            .join(SalesInvoice, SalesInvoice.id == SalesCreditNote.invoice_id)
+            .join(SalesInvoiceLine, SalesInvoiceLine.invoice_id == SalesInvoice.id)
+            .join(TaxCode, TaxCode.id == SalesInvoiceLine.tax_code_id)
+            .filter(
+                SalesCreditNote.organisation_id == context.organisation_id,
+                SalesCreditNote.credit_date >= start_date,
+                SalesCreditNote.credit_date <= end_date,
+                SalesCreditNote.status == "posted",
+            )
+            .all()
+        )
+        purchase_credit_rows = (
+            db.session.query(PurchaseCreditNote, TaxCode)
+            .join(PurchaseBill, PurchaseBill.id == PurchaseCreditNote.bill_id)
+            .join(PurchaseBillLine, PurchaseBillLine.bill_id == PurchaseBill.id)
+            .join(TaxCode, TaxCode.id == PurchaseBillLine.tax_code_id)
+            .filter(
+                PurchaseCreditNote.organisation_id == context.organisation_id,
+                PurchaseCreditNote.credit_date >= start_date,
+                PurchaseCreditNote.credit_date <= end_date,
+                PurchaseCreditNote.status == "posted",
+            )
+            .all()
+        )
 
-        box_1 = sum((_money(line.tax_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
-        box_4 = sum((_money(line.tax_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
-        box_6 = sum((_money(line.net_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
-        box_7 = sum((_money(line.net_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"), Decimal("0.00"))
+        sales_vat = sum(
+            (_money(line.tax_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        sales_credit_vat = sum(
+            (_money(note.tax_total) for note, code in sales_credit_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        purchase_vat = sum(
+            (_money(line.tax_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        purchase_credit_vat = sum(
+            (_money(note.tax_total) for note, code in purchase_credit_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        sales_net = sum(
+            (_money(line.net_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        sales_credit_net = sum(
+            (_money(note.subtotal) for note, code in sales_credit_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        purchase_net = sum(
+            (_money(line.net_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+        purchase_credit_net = sum(
+            (_money(note.subtotal) for note, code in purchase_credit_rows if code.treatment != "out_of_scope"),
+            Decimal("0.00"),
+        )
+
+        box_1 = sales_vat - sales_credit_vat
+        box_4 = purchase_vat - purchase_credit_vat
+        box_6 = sales_net - sales_credit_net
+        box_7 = purchase_net - purchase_credit_net
         net = box_1 - box_4
         return {
             "from_date": start_date,
@@ -308,4 +369,6 @@ class TaxService:
             "box_9_eu_acquisitions": Decimal("0.00"),
             "sales_documents": len({invoice.id for invoice, _, code in sales_rows if code.treatment != "out_of_scope"}),
             "purchase_documents": len({bill.id for bill, _, code in purchase_rows if code.treatment != "out_of_scope"}),
+            "sales_credit_notes": len([1 for note, code in sales_credit_rows if code.treatment != "out_of_scope"]),
+            "purchase_credit_notes": len([1 for note, code in purchase_credit_rows if code.treatment != "out_of_scope"]),
         }
