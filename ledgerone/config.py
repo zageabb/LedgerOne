@@ -4,6 +4,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
     SQLALCHEMY_DATABASE_URI = os.getenv(
@@ -17,11 +24,16 @@ class Config:
     ADMIN_NAME = os.getenv("LEDGERONE_ADMIN_NAME", "LedgerOne Administrator")
     DEFAULT_ORG_NAME = os.getenv("LEDGERONE_ORG_NAME", "My Ledger")
 
-    LOCAL_AI_ENABLED = os.getenv("LOCAL_AI_ENABLED", "true").lower() in {"1", "true", "yes"}
+    LOCAL_AI_ENABLED = _env_bool("LOCAL_AI_ENABLED", True)
     LOCAL_AI_BASE_URL = os.getenv("LOCAL_AI_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
     LOCAL_AI_MODEL = os.getenv("LOCAL_AI_MODEL", "qwen3:14b")
     LOCAL_AI_TIMEOUT = int(os.getenv("LOCAL_AI_TIMEOUT", "120"))
-    LOCAL_AI_ALLOW_WRITES = os.getenv("LOCAL_AI_ALLOW_WRITES", "true").lower() in {"1", "true", "yes"}
+    LOCAL_AI_ALLOW_WRITES = _env_bool("LOCAL_AI_ALLOW_WRITES", True)
+
+    # Development and single-user installs can auto-create an empty schema. Production
+    # defaults to Alembic/Flask-Migrate so schema changes are explicit and repeatable.
+    AUTO_CREATE_SCHEMA = _env_bool("AUTO_CREATE_SCHEMA", True)
+    AUTO_SEED_DEFAULTS = _env_bool("AUTO_SEED_DEFAULTS", True)
 
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
@@ -39,7 +51,8 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "true").lower() in {"1", "true", "yes"}
+    AUTO_CREATE_SCHEMA = _env_bool("AUTO_CREATE_SCHEMA", False)
+    SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", True)
     REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
 
 
