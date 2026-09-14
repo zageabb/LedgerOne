@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Source Documents · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Documents' if ui_mode == 'home' else 'Source Documents' }}</h1>
+    <p>{{ 'Keep receipts, invoices and useful links beside the transaction they belong to.' if ui_mode == 'home' else 'Store supporting files and external evidence references against accounting records.' }}</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Target record</h2></div>
+    <div class="card-body">
+      <form method="get" class="form-grid">
+        <div class="field"><label>Record type</label><select name="entity_type"><option value="">All documents</option>{% for key, module in target_types.items() %}<option value="{{ key }}" {% if entity_type == key %}selected{% endif %}>{{ key|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Record ID</label><input name="entity_id" value="{{ entity_id }}" placeholder="Paste record ID"></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Open record documents</button></div>
+      </form>
+      {% if entity_type and entity_id %}<p class="help">Current target: <span class="code">{{ entity_type }} / {{ entity_id }}</span></p>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Add supporting evidence</h2></div>
+    <div class="card-body">
+      {% if entity_type and entity_id %}
+      <form method="post" enctype="multipart/form-data" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="upload"><input type="hidden" name="entity_type" value="{{ entity_type }}"><input type="hidden" name="entity_id" value="{{ entity_id }}">
+        <div class="field field-full"><label>Title (optional)</label><input name="title" placeholder="Supplier invoice / receipt / statement"></div>
+        <div class="field field-full"><label>File</label><input type="file" name="file" required></div>
+        <div class="field-full"><button class="button" type="submit">Upload document</button></div>
+      </form>
+      <hr>
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reference"><input type="hidden" name="entity_type" value="{{ entity_type }}"><input type="hidden" name="entity_id" value="{{ entity_id }}">
+        <div class="field"><label>Title</label><input name="title" placeholder="External evidence"></div>
+        <div class="field"><label>Web reference</label><input type="url" name="reference_url" placeholder="https://..." required></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Add web reference</button></div>
+      </form>
+      {% else %}
+      <div class="empty">Choose a record type and record ID first, or open Documents from a transaction record.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>{{ 'Saved documents' if ui_mode == 'home' else 'Evidence register' }}</h2><span class="badge">{{ documents|length }}</span></div>
+  <div class="table-wrap">
+    {% if documents %}
+    <table><thead><tr><th>Added</th><th>Title</th><th>Target</th><th>Type</th><th>Integrity / size</th><th></th></tr></thead><tbody>
+      {% for row in documents %}
+      <tr>
+        <td>{{ row.created_at.strftime('%d %b %Y %H:%M') }}</td>
+        <td><strong>{{ row.title }}</strong>{% if row.original_filename %}<br><span class="help">{{ row.original_filename }}</span>{% endif %}</td>
+        <td>{{ row.entity_type|replace('_',' ')|title }}<br><span class="code">{{ row.entity_id[:12] }}…</span></td>
+        <td><span class="badge">{{ row.kind|title }}</span></td>
+        <td>{% if row.kind == 'file' %}{{ '%.1f'|format((row.size_bytes or 0) / 1024) }} KB<br><span class="help code">SHA-256 {{ row.sha256[:12] }}…</span>{% else %}<span class="help">External reference</span>{% endif %}</td>
+        <td>{% if row.kind == 'file' %}<a class="button button-small button-secondary" href="{{ url_for('documents.download', document_id=row.id) }}">Download</a>{% else %}<a class="button button-small button-secondary" href="{{ row.reference_url }}" target="_blank" rel="noopener">Open link</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody></table>
+    {% else %}<div class="empty">No source documents have been recorded for this view.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
