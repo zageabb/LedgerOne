@@ -53,6 +53,37 @@ def test_audit_api_records_and_filters_posted_journal(client, app):
     assert event["detail"]["total_debit"] == "42.00"
 
 
+def test_business_module_writes_are_visible_in_audit_trail(client, app):
+    token, _ = _key(app, full_access=True)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    customer = client.post(
+        "/api/v1/sales/customers",
+        headers=headers,
+        json={"name": "Audit Customer", "email": "audit@example.test"},
+    )
+    assert customer.status_code == 201
+
+    supplier = client.post(
+        "/api/v1/purchases/suppliers",
+        headers=headers,
+        json={"name": "Audit Supplier"},
+    )
+    assert supplier.status_code == 201
+
+    sales_events = client.get(
+        "/api/v1/audit?module_id=sales&action=customer_created",
+        headers=headers,
+    ).get_json()["events"]
+    purchase_events = client.get(
+        "/api/v1/audit?module_id=purchases&action=supplier_created",
+        headers=headers,
+    ).get_json()["events"]
+
+    assert any(event["entity_id"] == customer.get_json()["id"] for event in sales_events)
+    assert any(event["entity_id"] == supplier.get_json()["id"] for event in purchase_events)
+
+
 def test_audit_export_requires_export_permission(client, app):
     reader_token, _ = _key(app, permissions={"audit.read"})
     reader_headers = {"Authorization": f"Bearer {reader_token}"}
