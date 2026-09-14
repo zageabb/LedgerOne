@@ -150,3 +150,24 @@ def index():
         ai_settings=ai_settings,
         ai_probe=ai_probe,
     )
+
+
+@bp.route("/payment-terms", methods=["GET", "POST"])
+@login_required
+def payment_terms():
+    context = browser_context()
+    if request.method == "POST":
+        try:
+            PaymentTermsService.update(
+                context,
+                customer_days=request.form.get("customer_days", 30),
+                supplier_days=request.form.get("supplier_days", 30),
+            )
+            flash("Default payment terms updated.", "success")
+            return redirect(url_for("settings.payment_terms"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "settings/payment_terms.html",
+        payment_terms=PaymentTermsService.get(context.organisation_id),
+    )
