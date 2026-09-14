@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}VAT Return · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>UK VAT return summary</h1><p>Transaction-date summary derived from posted LedgerOne sales and purchase documents. This is a review/reporting screen, not an HMRC submission.</p></div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('tax.index') }}">Tax setup</a></div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="get" class="form-grid">
+      <div class="field"><label>From</label><input type="date" name="from_date" value="{{ from_date }}" required></div>
+      <div class="field"><label>To</label><input type="date" name="to_date" value="{{ to_date }}" required></div>
+      <div class="field-full"><button class="button" type="submit">Calculate summary</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2 section">
+  <div class="card"><div class="card-head"><h2>VAT due / reclaimable</h2></div><div class="table-wrap"><table><tbody>
+    <tr><th>Box 1 · VAT due on sales</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_1_output_vat) }}</td></tr>
+    <tr><th>Box 2 · VAT due on acquisitions</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_2_acquisitions_vat) }}</td></tr>
+    <tr><th>Box 3 · Total VAT due</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_3_total_vat_due) }}</td></tr>
+    <tr><th>Box 4 · VAT reclaimed on purchases</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_4_input_vat) }}</td></tr>
+    <tr><th>Box 5 · Net VAT</th><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_5_net_vat) }}</strong><br><span class="badge {{ 'badge-success' if summary.position == 'repayment' else '' }}">{{ summary.position|title }}</span></td></tr>
+  </tbody></table></div></div>
+
+  <div class="card"><div class="card-head"><h2>Net values</h2></div><div class="table-wrap"><table><tbody>
+    <tr><th>Box 6 · Sales / outputs excl. VAT</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_6_sales_net) }}</td></tr>
+    <tr><th>Box 7 · Purchases / inputs excl. VAT</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_7_purchases_net) }}</td></tr>
+    <tr><th>Box 8 · EU supplies</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_8_eu_supplies) }}</td></tr>
+    <tr><th>Box 9 · EU acquisitions</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_9_eu_acquisitions) }}</td></tr>
+    <tr><th>Source documents</th><td>{{ summary.sales_documents }} sales · {{ summary.purchase_documents }} purchases</td></tr>
+  </tbody></table></div></div>
+</div>
+
+<div class="flash flash-warning section">Boxes 2, 8 and 9 are currently reported as zero. Cash Accounting and Flat Rate profiles can be recorded, but scheme-specific return calculation is not yet applied in this first VAT slice.</div>
+{% endblock %}
