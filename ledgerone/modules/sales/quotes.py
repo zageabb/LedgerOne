@@ -11,6 +11,7 @@ from ledgerone.modules.sales.services import SalesService
 from ledgerone.modules.tax.services import TaxService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
+from ledgerone.services.numbering import NumberSequenceService
 
 
 def _money(value) -> Decimal:
@@ -45,9 +46,7 @@ class SalesQuoteService:
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         quote_number = (quote_number or "").strip()
-        if not quote_number:
-            raise ValueError("Quote number is required")
-        if SalesQuote.query.filter_by(
+        if quote_number and SalesQuote.query.filter_by(
             organisation_id=context.organisation_id,
             quote_number=quote_number,
         ).first():
@@ -75,51 +74,65 @@ class SalesQuoteService:
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
-        quote = SalesQuote(
-            organisation_id=context.organisation_id,
-            customer_id=customer.id,
-            quote_number=quote_number,
-            quote_date=quote_date,
-            expiry_date=expiry_date,
-            currency=(currency or "GBP").upper(),
-            status="draft",
-            subtotal=net_amount,
-            tax_total=tax_amount,
-            total=total,
-            receivable_account_id=receivable.id,
-        )
-        db.session.add(quote)
-        db.session.flush()
-        db.session.add(
-            SalesQuoteLine(
-                quote_id=quote.id,
-                line_number=1,
-                description=(description or "").strip() or "Sales",
-                quantity=1,
-                unit_price=net_amount,
-                net_amount=net_amount,
-                tax_amount=tax_amount,
-                tax_code_id=tax_code.id if tax_code else None,
-                revenue_account_id=revenue.id,
-                dimensions={"tax_code": tax_code.code} if tax_code else {},
+        try:
+            if not quote_number:
+                for _ in range(1000):
+                    candidate = NumberSequenceService.next_number(context, "sales_quote")
+                    if not SalesQuote.query.filter_by(
+                        organisation_id=context.organisation_id, quote_number=candidate
+                    ).first():
+                        quote_number = candidate
+                        break
+                if not quote_number:
+                    raise ValueError("Could not allocate a unique quote number")
+            quote = SalesQuote(
+                organisation_id=context.organisation_id,
+                customer_id=customer.id,
+                quote_number=quote_number,
+                quote_date=quote_date,
+                expiry_date=expiry_date,
+                currency=(currency or "GBP").upper(),
+                status="draft",
+                subtotal=net_amount,
+                tax_total=tax_amount,
+                total=total,
+                receivable_account_id=receivable.id,
             )
-        )
-        record_audit_event(
-            context,
-            module_id="sales",
-            action="quote_created",
-            entity_type="sales_quote",
-            entity_id=quote.id,
-            detail={
-                "quote_number": quote.quote_number,
-                "customer_id": customer.id,
-                "subtotal": str(net_amount),
-                "tax_total": str(tax_amount),
-                "total": str(total),
-            },
-        )
-        db.session.commit()
-        return quote
+            db.session.add(quote)
+            db.session.flush()
+            db.session.add(
+                SalesQuoteLine(
+                    quote_id=quote.id,
+                    line_number=1,
+                    description=(description or "").strip() or "Sales",
+                    quantity=1,
+                    unit_price=net_amount,
+                    net_amount=net_amount,
+                    tax_amount=tax_amount,
+                    tax_code_id=tax_code.id if tax_code else None,
+                    revenue_account_id=revenue.id,
+                    dimensions={"tax_code": tax_code.code} if tax_code else {},
+                )
+            )
+            record_audit_event(
+                context,
+                module_id="sales",
+                action="quote_created",
+                entity_type="sales_quote",
+                entity_id=quote.id,
+                detail={
+                    "quote_number": quote.quote_number,
+                    "customer_id": customer.id,
+                    "subtotal": str(net_amount),
+                    "tax_total": str(tax_amount),
+                    "total": str(total),
+                },
+            )
+            db.session.commit()
+            return quote
+        except Exception:
+            db.session.rollback()
+            raise
 
     @staticmethod
     def set_status(context: AccessContext, quote_id: str, *, status: str):

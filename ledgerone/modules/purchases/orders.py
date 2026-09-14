@@ -11,6 +11,7 @@ from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.modules.tax.services import TaxService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
+from ledgerone.services.numbering import NumberSequenceService
 
 
 def _money(value) -> Decimal:
@@ -45,9 +46,7 @@ class PurchaseOrderService:
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         order_number = (order_number or "").strip()
-        if not order_number:
-            raise ValueError("Purchase order number is required")
-        if PurchaseOrder.query.filter_by(
+        if order_number and PurchaseOrder.query.filter_by(
             organisation_id=context.organisation_id,
             order_number=order_number,
         ).first():
@@ -75,51 +74,65 @@ class PurchaseOrderService:
         tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
-        order = PurchaseOrder(
-            organisation_id=context.organisation_id,
-            supplier_id=supplier.id,
-            order_number=order_number,
-            order_date=order_date,
-            expected_date=expected_date,
-            currency=(currency or "GBP").upper(),
-            status="draft",
-            subtotal=net_amount,
-            tax_total=tax_amount,
-            total=total,
-            payable_account_id=payable.id,
-        )
-        db.session.add(order)
-        db.session.flush()
-        db.session.add(
-            PurchaseOrderLine(
-                order_id=order.id,
-                line_number=1,
-                description=(description or "").strip() or "Purchase",
-                quantity=1,
-                unit_price=net_amount,
-                net_amount=net_amount,
-                tax_amount=tax_amount,
-                tax_code_id=tax_code.id if tax_code else None,
-                expense_account_id=expense.id,
-                dimensions={"tax_code": tax_code.code} if tax_code else {},
+        try:
+            if not order_number:
+                for _ in range(1000):
+                    candidate = NumberSequenceService.next_number(context, "purchase_order")
+                    if not PurchaseOrder.query.filter_by(
+                        organisation_id=context.organisation_id, order_number=candidate
+                    ).first():
+                        order_number = candidate
+                        break
+                if not order_number:
+                    raise ValueError("Could not allocate a unique purchase order number")
+            order = PurchaseOrder(
+                organisation_id=context.organisation_id,
+                supplier_id=supplier.id,
+                order_number=order_number,
+                order_date=order_date,
+                expected_date=expected_date,
+                currency=(currency or "GBP").upper(),
+                status="draft",
+                subtotal=net_amount,
+                tax_total=tax_amount,
+                total=total,
+                payable_account_id=payable.id,
             )
-        )
-        record_audit_event(
-            context,
-            module_id="purchases",
-            action="purchase_order_created",
-            entity_type="purchase_order",
-            entity_id=order.id,
-            detail={
-                "order_number": order.order_number,
-                "supplier_id": supplier.id,
-                "subtotal": str(net_amount),
-                "tax_total": str(tax_amount),
-                "total": str(total),
-            },
-        )
-        db.session.commit()
-        return order
+            db.session.add(order)
+            db.session.flush()
+            db.session.add(
+                PurchaseOrderLine(
+                    order_id=order.id,
+                    line_number=1,
+                    description=(description or "").strip() or "Purchase",
+                    quantity=1,
+                    unit_price=net_amount,
+                    net_amount=net_amount,
+                    tax_amount=tax_amount,
+                    tax_code_id=tax_code.id if tax_code else None,
+                    expense_account_id=expense.id,
+                    dimensions={"tax_code": tax_code.code} if tax_code else {},
+                )
+            )
+            record_audit_event(
+                context,
+                module_id="purchases",
+                action="purchase_order_created",
+                entity_type="purchase_order",
+                entity_id=order.id,
+                detail={
+                    "order_number": order.order_number,
+                    "supplier_id": supplier.id,
+                    "subtotal": str(net_amount),
+                    "tax_total": str(tax_amount),
+                    "total": str(total),
+                },
+            )
+            db.session.commit()
+            return order
+        except Exception:
+            db.session.rollback()
+            raise
 
     @staticmethod
     def set_status(context: AccessContext, order_id: str, *, status: str):

@@ -63,7 +63,7 @@ def create_invoice():
         row = SalesService.create_invoice(
             g.access_context,
             customer_id=payload["customer_id"],
-            invoice_number=payload["invoice_number"],
+            invoice_number=payload.get("invoice_number", ""),
             invoice_date=date.fromisoformat(payload.get("invoice_date") or date.today().isoformat()),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
             description=payload.get("description", "Sales"),
@@ -75,6 +75,7 @@ def create_invoice():
         )
         return jsonify({
             "id": row.id,
+            "invoice_number": row.invoice_number,
             "status": row.status,
             "due_date": row.due_date.isoformat() if row.due_date else None,
             "subtotal": str(row.subtotal),

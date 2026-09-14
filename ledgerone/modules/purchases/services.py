@@ -13,6 +13,7 @@ from ledgerone.modules.purchases.models import (
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
+from ledgerone.services.numbering import NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
 
 
@@ -116,8 +117,9 @@ class PurchasesService:
         supplier = db.session.get(Supplier, supplier_id)
         if not supplier or supplier.organisation_id != context.organisation_id:
             raise ValueError("Invalid supplier")
-        if PurchaseBill.query.filter_by(
-            organisation_id=context.organisation_id, bill_number=bill_number
+        supplied_number = (bill_number or "").strip()
+        if supplied_number and PurchaseBill.query.filter_by(
+            organisation_id=context.organisation_id, bill_number=supplied_number
         ).first():
             raise ValueError("Bill number already exists")
         if due_date is None:
@@ -134,76 +136,88 @@ class PurchasesService:
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
 
-        bill = PurchaseBill(
-            organisation_id=context.organisation_id,
-            supplier_id=supplier.id,
-            bill_number=bill_number.strip(),
-            bill_date=bill_date,
-            due_date=due_date,
-            currency=currency.upper(),
-            status="posting",
-            subtotal=amount,
-            tax_total=tax_amount,
-            total=total,
-        )
-        db.session.add(bill)
-        db.session.flush()
-        db.session.add(
-            PurchaseBillLine(
-                bill_id=bill.id,
-                line_number=1,
-                description=description.strip() or "Purchase",
-                quantity=1,
-                unit_price=amount,
-                net_amount=amount,
-                tax_amount=tax_amount,
-                tax_code_id=tax_code.id if tax_code else None,
-                expense_account_id=expense_account_id,
-            )
-        )
+        try:
+            resolved_number = supplied_number
+            if not resolved_number:
+                for _ in range(1000):
+                    candidate = NumberSequenceService.next_number(context, "purchase_bill")
+                    if not PurchaseBill.query.filter_by(
+                        organisation_id=context.organisation_id, bill_number=candidate
+                    ).first():
+                        resolved_number = candidate
+                        break
+                if not resolved_number:
+                    raise ValueError("Could not allocate a unique bill number")
 
-        journal_lines = [
-            {
-                "account_id": expense_account_id,
-                "debit": amount,
-                "credit": 0,
-                "description": description.strip() or "Purchase",
-                "currency": currency.upper(),
-                "dimensions": {
-                    "supplier_id": supplier.id,
-                    "bill_id": bill.id,
-                    "tax_code_id": tax_code.id if tax_code else None,
-                },
-            },
-            {
-                "account_id": payable_account_id,
-                "debit": 0,
-                "credit": total,
-                "description": supplier.name,
-                "currency": currency.upper(),
-                "dimensions": {"supplier_id": supplier.id, "bill_id": bill.id},
-            },
-        ]
-        if tax_amount:
-            if not tax_code or not tax_code.purchase_tax_account_id:
-                raise ValueError("Selected tax code has no input VAT account")
-            journal_lines.insert(
-                1,
+            bill = PurchaseBill(
+                organisation_id=context.organisation_id,
+                supplier_id=supplier.id,
+                bill_number=resolved_number,
+                bill_date=bill_date,
+                due_date=due_date,
+                currency=currency.upper(),
+                status="posting",
+                subtotal=amount,
+                tax_total=tax_amount,
+                total=total,
+            )
+            db.session.add(bill)
+            db.session.flush()
+            db.session.add(
+                PurchaseBillLine(
+                    bill_id=bill.id,
+                    line_number=1,
+                    description=description.strip() or "Purchase",
+                    quantity=1,
+                    unit_price=amount,
+                    net_amount=amount,
+                    tax_amount=tax_amount,
+                    tax_code_id=tax_code.id if tax_code else None,
+                    expense_account_id=expense_account_id,
+                )
+            )
+
+            journal_lines = [
                 {
-                    "account_id": tax_code.purchase_tax_account_id,
-                    "debit": tax_amount,
+                    "account_id": expense_account_id,
+                    "debit": amount,
                     "credit": 0,
-                    "description": f"{tax_code.code} input VAT",
+                    "description": description.strip() or "Purchase",
                     "currency": currency.upper(),
                     "dimensions": {
                         "supplier_id": supplier.id,
                         "bill_id": bill.id,
-                        "tax_code_id": tax_code.id,
+                        "tax_code_id": tax_code.id if tax_code else None,
                     },
                 },
-            )
+                {
+                    "account_id": payable_account_id,
+                    "debit": 0,
+                    "credit": total,
+                    "description": supplier.name,
+                    "currency": currency.upper(),
+                    "dimensions": {"supplier_id": supplier.id, "bill_id": bill.id},
+                },
+            ]
+            if tax_amount:
+                if not tax_code or not tax_code.purchase_tax_account_id:
+                    raise ValueError("Selected tax code has no input VAT account")
+                journal_lines.insert(
+                    1,
+                    {
+                        "account_id": tax_code.purchase_tax_account_id,
+                        "debit": tax_amount,
+                        "credit": 0,
+                        "description": f"{tax_code.code} input VAT",
+                        "currency": currency.upper(),
+                        "dimensions": {
+                            "supplier_id": supplier.id,
+                            "bill_id": bill.id,
+                            "tax_code_id": tax_code.id,
+                        },
+                    },
+                )
 
-        try:
             journal = LedgerService.post_journal(
                 context,
                 journal_date=bill_date,
