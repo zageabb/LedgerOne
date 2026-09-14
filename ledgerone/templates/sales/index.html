@@ -8,6 +8,7 @@
   </div>
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('settings.payment_terms') }}">Payment terms</a>
+    <a class="button button-secondary" href="{{ url_for('settings.numbering') }}">Numbering</a>
     <a class="button button-secondary" href="{{ url_for('sales_quotes.index') }}">{{ 'Quotes' if ui_mode == 'home' else 'Sales quotes' }}</a>
     <a class="button button-secondary" href="{{ url_for('sales_orders.index') }}">{{ 'Orders' if ui_mode == 'home' else 'Sales orders' }}</a>
     <a class="button button-secondary" href="{{ url_for('sales_credits.index') }}">{{ 'Refunds & credits' if ui_mode == 'home' else 'Credit notes' }}</a>
@@ -32,7 +33,7 @@
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="invoice">
         <div class="field"><label>Customer</label><select name="customer_id" required><option value="">Select</option>{% for row in customers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>{{ 'Reference' if ui_mode == 'home' else 'Invoice number' }}</label><input name="invoice_number" placeholder="INV-001" required></div>
+        <div class="field"><label>{{ 'Reference' if ui_mode == 'home' else 'Invoice number' }}</label><input name="invoice_number" placeholder="Leave blank for automatic"><div class="help">Leave blank to use the configured sales-invoice sequence.</div></div>
         <div class="field"><label>Date</label><input type="date" name="invoice_date" value="{{ today }}" required></div><div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"><div class="help">Leave blank to use the customer's payment terms.</div></div>
         <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
         {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select><div class="help">The entered amount is net of VAT. LedgerOne calculates VAT and posts it to the configured VAT control account.</div></div>{% endif %}
