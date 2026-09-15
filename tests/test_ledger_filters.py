@@ -1,11 +1,19 @@
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _key_and_accounts(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        # Journal filtering is about persisted ledger rows, not workflow proposals.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="ledger-filter-test",
             organisation_id=organisation.id,
