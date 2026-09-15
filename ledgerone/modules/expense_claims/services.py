@@ -236,7 +236,7 @@ class ExpenseClaimService:
         return line, claim
 
     @staticmethod
-    def submit(context: AccessContext, claim_id: str):
+    def submit(context: AccessContext, claim_id: str, *, commit: bool = True):
         if not context.can("expense_claims.write"):
             raise PermissionError("expense_claims.write")
         claim = ExpenseClaimService._claim(context, claim_id)
@@ -254,7 +254,10 @@ class ExpenseClaimService:
             entity_id=claim.id,
             detail={"total": str(claim.total)},
         )
-        db.session.commit()
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
         return claim
 
     @staticmethod
@@ -278,7 +281,13 @@ class ExpenseClaimService:
         return claim
 
     @staticmethod
-    def approve_and_post(context: AccessContext, claim_id: str, *, posting_date: date):
+    def approve_and_post(
+        context: AccessContext,
+        claim_id: str,
+        *,
+        posting_date: date,
+        commit: bool = True,
+    ):
         if not context.can("expense_claims.approve"):
             raise PermissionError("expense_claims.approve")
         claim = ExpenseClaimService._claim(context, claim_id)
@@ -338,6 +347,10 @@ class ExpenseClaimService:
         )
 
         try:
+            # This service has already required expense_claims.approve. The central
+            # ledger permission check is therefore intentionally delegated here instead
+            # of forcing an approver to also hold arbitrary journal/module-write rights.
+            # All period, currency, control-account and ORM guards still run.
             journal = LedgerService.post_journal(
                 context,
                 journal_date=posting_date,
@@ -347,6 +360,7 @@ class ExpenseClaimService:
                 source_reference=claim.id,
                 lines=lines,
                 commit=False,
+                enforce_permission=False,
             )
             claim.status = "posted"
             claim.approved_at = utcnow()
@@ -360,7 +374,10 @@ class ExpenseClaimService:
                 entity_id=claim.id,
                 detail={"journal_id": journal.id, "posting_date": posting_date.isoformat(), "total": str(claim.total)},
             )
-            db.session.commit()
+            if commit:
+                db.session.commit()
+            else:
+                db.session.flush()
             return claim, journal
         except Exception:
             db.session.rollback()
