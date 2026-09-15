@@ -82,7 +82,7 @@ def test_opening_balance_wizard_auto_offsets_to_equity(client, app):
             "balancing_account_id": accounts["3000"],
             "entries": [
                 {"account_id": accounts["1000"], "debit": "1000.00", "credit": "0"},
-                {"account_id": accounts["2100"], "debit": "0", "credit": "200.00"},
+                {"account_id": accounts["2000"], "debit": "0", "credit": "200.00"},
             ],
         },
     )
@@ -106,7 +106,7 @@ def test_opening_balance_wizard_auto_offsets_to_equity(client, app):
     trial = client.get("/api/v1/ledger/trial-balance", headers=_headers(token))
     rows = {row["code"]: row for row in trial.get_json()["rows"]}
     assert rows["1000"]["balance"] == "1000.00"
-    assert rows["2100"]["balance"] == "-200.00"
+    assert rows["2000"]["balance"] == "-200.00"
     assert rows["3000"]["balance"] == "-800.00"
 
 
