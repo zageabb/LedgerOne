@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Control Account Reconciliation · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Account checks' if ui_mode == 'home' else 'Control account reconciliation' }}</h1>
+    <p>{{ 'Check that customer, supplier and tax balances agree with the underlying records.' if ui_mode == 'home' else 'Compare each protected general-ledger control account with its owning subledger as of a selected date.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('reports.index') }}">Back to reports</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="get" class="form-grid">
+      <div class="field"><label>As of</label><input type="date" name="as_of" value="{{ as_of.isoformat() }}"></div>
+      <div class="field" style="align-self:end"><button class="button" type="submit">Refresh reconciliation</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head">
+    <h2>Control accounts</h2>
+    {% if report.all_configured_reconciled %}
+      <span class="badge">Configured controls reconciled</span>
+    {% else %}
+      <span class="badge">Differences require review</span>
+    {% endif %}
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Control</th>
+          <th>Owner</th>
+          <th>GL account(s)</th>
+          <th class="number">GL balance</th>
+          <th class="number">Subledger</th>
+          <th class="number">Difference</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.rows %}
+        <tr>
+          <td><strong>{{ row.label }}</strong></td>
+          <td>{{ row.owner_module|replace('_', ' ')|title }}</td>
+          <td>
+            {% if row.accounts %}
+              {% for account in row.accounts %}
+                <div>{{ account.code }} · {{ account.name }}</div>
+              {% endfor %}
+            {% else %}
+              <span class="muted">Not configured</span>
+            {% endif %}
+          </td>
+          <td class="number">{{ '%.2f'|format(row.ledger_balance) }}</td>
+          <td class="number">{{ '%.2f'|format(row.subledger_balance) }}</td>
+          <td class="number"><strong>{{ '%.2f'|format(row.difference) }}</strong></td>
+          <td>
+            {% if row.status == 'reconciled' %}
+              <span class="badge">Reconciled</span>
+            {% elif row.status == 'unconfigured' %}
+              <span class="badge">Not configured</span>
+            {% else %}
+              <span class="badge">Difference</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-body">
+    <p><strong>Protection rule:</strong> control accounts cannot be posted to by ordinary journals, API callers, AI tools or bank-offset postings. Entries must come from the owning Sales, Purchases or Expense workflow, a genuine reversal, or an authorised control-account adjustment with a recorded reason.</p>
+  </div>
+</div>
+{% endblock %}

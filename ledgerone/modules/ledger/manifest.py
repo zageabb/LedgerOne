@@ -16,6 +16,7 @@ MANIFEST = ModuleManifest(
         "ledger.accounts.write",
         "ledger.journals.post",
         "ledger.journals.reverse",
+        "ledger.control_accounts.adjust",
         "ledger.periods.manage",
         "ledger.opening_balances.manage",
         "ledger.recurring.manage",

@@ -27,9 +27,11 @@ __all__ = [
     "RecurringJournalRun",
 ]
 
-# Install only the ORM-level safeguard while model modules are initialising. Service
-# wrappers are installed by create_app after model imports are complete, avoiding an
-# import cycle for standalone code that imports LedgerService directly.
+# Install model-level accounting safeguards while model modules are initialising.
+# Service wrappers are installed by create_app after model imports are complete, which
+# keeps standalone LedgerService imports free of circular dependencies.
+from ledgerone.services.control_accounts import install_control_account_orm_guard
 from ledgerone.services.currency import install_currency_orm_guard
 
 install_currency_orm_guard()
+install_control_account_orm_guard()

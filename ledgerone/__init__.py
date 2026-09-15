@@ -18,11 +18,17 @@ def create_app(config_overrides: dict | None = None):
     from ledgerone.extensions import csrf, db, login_manager, migrate
     from ledgerone.module_registry import module_registry
     from ledgerone.models import User
+    from ledgerone.services.control_accounts import (
+        install_control_account_service_guards,
+        seed_all_control_account_metadata,
+    )
     from ledgerone.services.currency import install_currency_service_guards
 
     # Models are fully loaded at this point, so service-level accounting guards can be
-    # installed without creating a models <-> LedgerService import cycle.
+    # installed without creating model/service import cycles. Currency runs first and
+    # control-account protection wraps the resulting posting surface.
     install_currency_service_guards()
+    install_control_account_service_guards()
 
     app = Flask(__name__)
     app.config.from_object(get_config())
@@ -90,5 +96,6 @@ def create_app(config_overrides: dict | None = None):
             create_schema=app.config.get("AUTO_CREATE_SCHEMA", True),
             seed_defaults=app.config.get("AUTO_SEED_DEFAULTS", True),
         )
+        seed_all_control_account_metadata()
 
     return app

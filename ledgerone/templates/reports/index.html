@@ -6,7 +6,7 @@
     <h1>{{ 'Reports' if ui_mode == 'home' else 'Financial reports' }}</h1>
     <p>{{ 'See how much you own, owe, earn and spend from the same ledger.' if ui_mode == 'home' else 'Management-level profit and loss and balance-sheet views from posted ledger balances.' }}</p>
   </div>
-  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.aging') }}">{{ 'Who owes what' if ui_mode == 'home' else 'Aged balances' }}</a><a class="button button-secondary" href="{{ url_for('ledger.trial_balance') }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a></div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.aging') }}">{{ 'Who owes what' if ui_mode == 'home' else 'Aged balances' }}</a><a class="button button-secondary" href="{{ url_for('control_account_reports.index') }}">{{ 'Account checks' if ui_mode == 'home' else 'Control reconciliation' }}</a><a class="button button-secondary" href="{{ url_for('ledger.trial_balance') }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a></div>
 </div>
 
 <div class="grid grid-4">
