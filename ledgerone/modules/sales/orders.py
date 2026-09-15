@@ -183,15 +183,14 @@ class SalesOrderService:
                 revenue_account_id=line.revenue_account_id,
                 currency=order.currency,
                 tax_code_id=line.tax_code_id,
+                metadata={
+                    "source_sales_order_id": order.id,
+                    "source_sales_order_number": order.order_number,
+                },
                 commit=False,
             )
             order.status = "converted"
             order.converted_invoice_id = invoice.id
-            invoice.metadata_json = {
-                **(invoice.metadata_json or {}),
-                "source_sales_order_id": order.id,
-                "source_sales_order_number": order.order_number,
-            }
             record_audit_event(
                 context,
                 module_id="sales",
