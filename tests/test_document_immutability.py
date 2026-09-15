@@ -191,7 +191,7 @@ def test_posted_credit_notes_and_expense_claims_are_immutable(app):
             currency="GBP",
         )
         ExpenseClaimService.submit(context, claim.id)
-        claim = ExpenseClaimService.approve_and_post(
+        claim, _journal = ExpenseClaimService.approve_and_post(
             context, claim.id, posting_date=date(2026, 9, 15)
         )
         claim.claimant_name = "Mutated claimant"
