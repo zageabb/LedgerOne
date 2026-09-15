@@ -24,7 +24,7 @@ Do not mark an item `CLOSED` solely because code was changed.
 | ID | Severity | Finding | Status | Target phase | Owner | Retest commit |
 |---|---|---|---|---|---|---|
 | LO-AUD-001 | **CRITICAL** | AI can bypass requesting-user permissions | OPEN | AA-1 | Unassigned | — |
-| LO-AUD-002 | **CRITICAL** | Foreign currency accepted without proper base-currency accounting | OPEN | AA-1 | Unassigned | — |
+| LO-AUD-002 | **CRITICAL** | Foreign currency accepted without proper base-currency accounting | READY FOR RETEST | AA-1 | Unassigned | `76214d6d9eae432120a33979a8f945f46015aca9` |
 | LO-AUD-003 | **HIGH** | Control accounts permit direct posting | OPEN | AA-1 | Unassigned | — |
 | LO-AUD-004 | **HIGH** | Financial reports are not sufficiently period-aware | OPEN | AA-2 | Unassigned | — |
 | LO-AUD-005 | **HIGH** | Missing accounting period does not block posting | OPEN | AA-1 | Unassigned | — |
@@ -77,23 +77,23 @@ Test/retest notes: `—`
 
 ## LO-AUD-002 — Base-currency safety / multi-currency gate
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** CRITICAL
 
 ### Immediate implementation checklist
 
-- [ ] Create central validation comparing transaction currency to `Organisation.base_currency`.
-- [ ] Apply it to journals, sales, purchases, payments, credits, expenses and bank posting workflows.
-- [ ] Reject journal lines that attempt unsupported foreign-currency accounting.
-- [ ] Make UI/API error explicit: multi-currency accounting is not yet enabled.
-- [ ] Keep `foreign_amount` dormant or clearly defined until the full FX model exists.
+- [x] Create central validation comparing transaction currency to `Organisation.base_currency`.
+- [x] Apply it to journals, sales, purchases, payments, credits, expenses and bank posting workflows.
+- [x] Reject journal lines that attempt unsupported foreign-currency accounting.
+- [x] Make UI/API error explicit: multi-currency accounting is not yet enabled.
+- [x] Keep `foreign_amount` dormant or clearly defined until the full FX model exists.
 
 ### Required tests
 
-- [ ] GBP organisation accepts GBP transaction.
-- [ ] GBP organisation rejects USD/EUR invoice, bill and manual journal.
-- [ ] Banking cannot bypass the currency gate.
-- [ ] AI/API cannot bypass the currency gate.
+- [x] GBP organisation accepts GBP transaction.
+- [x] GBP organisation rejects USD/EUR invoice, bill and manual journal.
+- [x] Banking cannot bypass the currency gate.
+- [x] AI/API cannot bypass the currency gate.
 
 ### Future multi-currency work before removing the gate
 
@@ -106,8 +106,8 @@ Test/retest notes: `—`
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `76214d6d9eae432120a33979a8f945f46015aca9`  
+Test/retest notes: `LedgerOne CI run #252 passed compile, clean migration upgrade/check and the complete automated suite: 104 passed, 3 skipped. Independent audit retest is still required before CLOSED.`
 
 ---
 
