@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}General Ledger · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Account activity' if ui_mode == 'home' else 'General ledger activity' }}</h1>
+    <p>{{ 'See the starting balance, what moved during the period, and the ending balance.' if ui_mode == 'home' else 'Brought-forward, in-period movement and carried-forward balances from posted journals.' }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.index', from_date=from_date.isoformat(), to_date=to_date.isoformat()) }}">Back to reports</a></div>
+</div>
+
+<div class="card">
+  <form method="get" class="form-grid">
+    <div class="field"><label>From</label><input type="date" name="from_date" value="{{ from_date.isoformat() }}" required></div>
+    <div class="field"><label>To</label><input type="date" name="to_date" value="{{ to_date.isoformat() }}" required></div>
+    <div class="field"><label>Account</label><select name="account_id"><option value="">All accounts with activity</option>{% for account in accounts %}<option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>&nbsp;</label><button class="button" type="submit">Run report</button></div>
+  </form>
+</div>
+
+{% if report.accounts %}
+  {% for account in report.accounts %}
+  <div class="card section">
+    <div class="card-head"><h2>{{ account.code }} · {{ account.name }}</h2><span class="badge">{{ account.account_type|title }}</span></div>
+    <div class="grid grid-4">
+      <div class="metric"><div class="metric-label">Brought forward</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(account.opening_balance) }}</div></div>
+      <div class="metric"><div class="metric-label">Period debits</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(account.movement_debit) }}</div></div>
+      <div class="metric"><div class="metric-label">Period credits</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(account.movement_credit) }}</div></div>
+      <div class="metric"><div class="metric-label">Carried forward</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(account.closing_balance) }}</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Running balance</th></tr></thead>
+        <tbody>
+          {% for entry in account.entries %}
+          <tr>
+            <td>{{ entry.journal_date.strftime('%d %b %Y') }}</td>
+            <td>{{ entry.reference or '—' }}</td>
+            <td>{{ entry.line_description or entry.journal_description }}</td>
+            <td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(entry.debit) }}</td>
+            <td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(entry.credit) }}</td>
+            <td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(entry.running_balance) }}</td>
+          </tr>
+          {% else %}<tr><td colspan="6"><small>No posted movement in this period.</small></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card"><div class="empty">No posted ledger activity in the selected period.</div></div>
+{% endif %}
+{% endblock %}
