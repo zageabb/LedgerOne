@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>{{ 'Add a manual transaction' if ui_mode == 'home' else 'Post manual journal' }}</h1>
-    <p>{{ 'Choose where the value goes and where it comes from. The debit and credit totals must match.' if ui_mode == 'home' else 'Enter a balanced double-entry journal. Module-generated entries should normally be posted from their source module.' }}</p>
+    <h1>{{ 'Add a manual transaction' if ui_mode == 'home' else 'Submit manual journal' }}</h1>
+    <p>{{ 'Choose where the value goes and where it comes from. The debit and credit totals must match.' if ui_mode == 'home' else 'Enter a balanced double-entry journal. When Workflows is enabled the journal is sent to User Actions for review/approval and explicit posting.' }}</p>
   </div>
   <div class="actions"><a class="button button-secondary" href="{{ url_for('ledger.journals') }}">Back to {{ 'transactions' if ui_mode == 'home' else 'journals' }}</a></div>
 </div>
@@ -37,8 +37,8 @@
       </table>
     </div>
     <div class="card-body">
-      {% if ui_mode == 'home' %}<p class="help">Example: paying £50 electricity from your bank usually debits the Electricity/Utilities expense account £50 and credits the Bank account £50.</p>{% endif %}
-      <button class="button" type="submit">{{ 'Save transaction' if ui_mode == 'home' else 'Post journal' }}</button>
+      {% if ui_mode == 'home' %}<p class="help">Example: paying £50 electricity from your bank usually debits the Electricity/Utilities expense account £50 and credits the Bank account £50.</p>{% else %}<p class="help">Submission does not bypass accounting-period, currency or control-account checks. Final posting revalidates the journal.</p>{% endif %}
+      <button class="button" type="submit">{{ 'Save transaction' if ui_mode == 'home' else 'Submit journal' }}</button>
     </div>
   </div>
 </form>
