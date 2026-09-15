@@ -1,11 +1,20 @@
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _key(app, *, full_access=False, permissions=None):
     with app.app_context():
         organisation = Organisation.query.one()
+        # This suite verifies audit events emitted by completed accounting writes. The
+        # workflow boundary has separate tests, so make the direct-post fixture explicit.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="audit-test",
             organisation_id=organisation.id,
