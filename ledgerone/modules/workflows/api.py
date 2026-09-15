@@ -5,6 +5,7 @@ from flask import Blueprint, g, jsonify, request
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
+from ledgerone.modules.workflows.expense_claim_requests import ExpenseClaimWorkflowService
 from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import UserAction
 from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
@@ -105,6 +106,21 @@ def _purchase_bill_json(row):
         "bill_number": row.bill_number,
         "bill_date": row.bill_date.isoformat(),
         "due_date": row.due_date.isoformat() if row.due_date else None,
+        "currency": row.currency,
+        "subtotal": _money(row.subtotal),
+        "tax_total": _money(row.tax_total),
+        "total": _money(row.total),
+        "status": row.status,
+        "journal_id": row.posted_journal_id,
+    }
+
+
+def _expense_claim_json(row):
+    return {
+        "id": row.id,
+        "claim_number": row.claim_number,
+        "claimant_name": row.claimant_name,
+        "claim_date": row.claim_date.isoformat(),
         "currency": row.currency,
         "subtotal": _money(row.subtotal),
         "tax_total": _money(row.tax_total),
@@ -270,12 +286,22 @@ def actions():
 def action_decision(action_id):
     payload = request.get_json(silent=True) or {}
     try:
-        row = WorkflowService.complete_action(
-            g.access_context,
-            action_id,
-            decision=payload.get("decision", "approve"),
-            comments=payload.get("comments"),
-        )
+        action = db.session.get(UserAction, action_id)
+        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
+        if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
+            row = ExpenseClaimWorkflowService.complete_action(
+                g.access_context,
+                action_id,
+                decision=payload.get("decision", "approve"),
+                comments=payload.get("comments"),
+            )
+        else:
+            row = WorkflowService.complete_action(
+                g.access_context,
+                action_id,
+                decision=payload.get("decision", "approve"),
+                comments=payload.get("comments"),
+            )
         return jsonify(_instance_json(row))
     except (WorkflowError, PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
@@ -294,6 +320,13 @@ def post_action(action_id):
         if entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
             row = PurchaseBillWorkflowService.post_from_action(g.access_context, action_id)
             return jsonify({"entity_type": "purchase_bill", "purchase_bill": _purchase_bill_json(row)})
+        if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
+            row = ExpenseClaimWorkflowService.post_from_action(
+                g.access_context,
+                action_id,
+                posting_date=date.fromisoformat(payload["posting_date"]) if payload.get("posting_date") else date.today(),
+            )
+            return jsonify({"entity_type": "expense_claim", "expense_claim": _expense_claim_json(row)})
 
         row = RecurringTransactionService.post_from_action(
             g.access_context,
