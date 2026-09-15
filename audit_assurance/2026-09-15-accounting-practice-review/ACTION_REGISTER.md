@@ -23,9 +23,9 @@ Do not mark an item `CLOSED` solely because code was changed.
 
 | ID | Severity | Finding | Status | Target phase | Owner | Retest commit |
 |---|---|---|---|---|---|---|
-| LO-AUD-001 | **CRITICAL** | AI can bypass requesting-user permissions | OPEN | AA-1 | Unassigned | — |
-| LO-AUD-002 | **CRITICAL** | Foreign currency accepted without proper base-currency accounting | READY FOR RETEST | AA-1 | Unassigned | `76214d6d9eae432120a33979a8f945f46015aca9` |
-| LO-AUD-003 | **HIGH** | Control accounts permit direct posting | OPEN | AA-1 | Unassigned | — |
+| LO-AUD-001 | **CRITICAL** | AI can bypass requesting-user permissions | READY FOR RETEST | AA-1 | Unassigned | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` |
+| LO-AUD-002 | **CRITICAL** | Foreign currency accepted without proper base-currency accounting | READY FOR RETEST | AA-1 | Unassigned | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` |
+| LO-AUD-003 | **HIGH** | Control accounts permit direct posting | READY FOR RETEST | AA-1 | Unassigned | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` |
 | LO-AUD-004 | **HIGH** | Financial reports are not sufficiently period-aware | OPEN | AA-2 | Unassigned | — |
 | LO-AUD-005 | **HIGH** | Missing accounting period does not block posting | OPEN | AA-1 | Unassigned | — |
 | LO-AUD-006 | **HIGH** | Sales invoice output is not yet a complete UK VAT invoice | OPEN | AA-3 | Unassigned | — |
@@ -47,31 +47,32 @@ These items should be completed before LedgerOne is treated as suitable for unre
 
 ## LO-AUD-001 — AI permission inheritance
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** CRITICAL
 
 ### Implementation checklist
 
-- [ ] Pass the requesting `AccessContext` into `LocalAIService.chat()`.
-- [ ] Remove `AccessContext.system()` as the normal execution identity for user-initiated AI actions.
-- [ ] Filter available tools by both organisation AI policy **and** caller permission.
-- [ ] Ensure API-key initiated AI calls retain the key's exact scope.
-- [ ] Add organisation AI write policies/approval hooks for consequential writes.
-- [ ] Ensure AI cannot perform a write merely because `LOCAL_AI_ALLOW_WRITES=true`.
-- [ ] Retain AI/tool audit attribution to both user/API identity and model.
+- [x] Pass the requesting `AccessContext` into `LocalAIService.chat()`.
+- [x] Remove `AccessContext.system()` as the normal execution identity for user-initiated AI actions.
+- [x] Filter available tools by both organisation AI policy **and** caller permission.
+- [x] Ensure API-key initiated AI calls retain the key's exact scope.
+- [x] Add organisation AI write policies/approval hooks for consequential writes.
+- [x] Ensure AI cannot perform a write merely because `LOCAL_AI_ALLOW_WRITES=true`.
+- [x] Retain AI/tool audit attribution to both user/API identity and model.
 
 ### Required tests
 
-- [ ] User with `ai.use` but no `ledger.journals.post` cannot AI-post a journal.
-- [ ] User with `ai.use` but no `sales.write` cannot AI-create an invoice.
-- [ ] User with `ai.use` but no `purchases.write` cannot AI-create a bill.
-- [ ] Appropriately authorised user can perform each permitted action.
-- [ ] Read-only AI policy removes/rejects every write tool.
+- [x] User with `ai.use` but no `ledger.journals.post` cannot AI-post a journal.
+- [x] User with `ai.use` but no `sales.write` cannot AI-create an invoice.
+- [x] User with `ai.use` but no `purchases.write` cannot AI-create a bill.
+- [x] Appropriately authorised user can perform each permitted action.
+- [x] Read-only AI policy removes/rejects every write tool.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `9e9ba07c`  
+Retest candidate: `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
+Test/retest notes: `Requester-scoped permissions, per-message write approval and tool filtering are implemented. The integrated candidate also passes the complete current suite. Independent audit retest is still required before CLOSED.`
 
 ---
 
@@ -106,42 +107,46 @@ Test/retest notes: `—`
 
 ### Closure evidence
 
-Implementation commit: `76214d6d9eae432120a33979a8f945f46015aca9`  
-Test/retest notes: `LedgerOne CI run #252 passed compile, clean migration upgrade/check and the complete automated suite: 104 passed, 3 skipped. Independent audit retest is still required before CLOSED.`
+Implementation commit: `9e28b2479be427ba9ccff3d07bea4306976382bb`  
+Retest candidate: `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
+Test/retest notes: `Central base-currency enforcement is integrated across browser/service/API/AI paths. The integrated candidate passes the complete current suite. Independent audit retest is still required before CLOSED.`
 
 ---
 
 ## LO-AUD-003 — Control-account protection and reconciliation
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** HIGH
 
 ### Implementation checklist
 
-- [ ] Add control-account type/owner metadata rather than only a boolean.
-- [ ] Mark AR, AP, output VAT, input VAT and employee reimbursement controls appropriately.
-- [ ] Central ledger service rejects ordinary/manual posting to control accounts.
-- [ ] Allow authorised module-origin postings to the module's own control account.
-- [ ] Prevent banking offset posting directly to AR/AP/VAT without the matching subledger workflow.
-- [ ] Add controlled adjustment workflow/permission with mandatory reason where exceptional posting is needed.
-- [ ] Add AR control reconciliation report.
-- [ ] Add AP control reconciliation report.
-- [ ] Add VAT control reconciliation report where supported.
+- [x] Add control-account type/owner metadata rather than only a boolean.
+- [x] Mark AR, AP, output VAT, input VAT and employee reimbursement controls appropriately.
+- [x] Central ledger service rejects ordinary/manual posting to control accounts.
+- [x] Allow authorised module-origin postings to the module's own control account.
+- [x] Prevent banking offset posting directly to AR/AP/VAT without the matching subledger workflow.
+- [x] Add controlled adjustment workflow/permission with mandatory reason where exceptional posting is needed.
+- [x] Add AR control reconciliation report.
+- [x] Add AP control reconciliation report.
+- [x] Add VAT control reconciliation report where supported.
 
 ### Required tests
 
-- [ ] Manual/API journal to AR is rejected.
-- [ ] Manual/API journal to AP is rejected.
-- [ ] Manual/API journal to VAT control is rejected.
-- [ ] Sales invoice/customer payment can update AR correctly.
-- [ ] Purchase bill/supplier payment can update AP correctly.
-- [ ] `AR GL == customer subledger` in test fixture.
-- [ ] `AP GL == supplier subledger` in test fixture.
+- [x] Manual/API journal to AR is rejected.
+- [x] Manual/API journal to AP is rejected.
+- [x] Manual/API journal to VAT control is rejected.
+- [x] Sales invoice/customer payment can update AR correctly.
+- [x] Purchase bill/supplier payment can update AP correctly.
+- [x] `AR GL == customer subledger` in test fixture.
+- [x] `AP GL == supplier subledger` in test fixture.
+- [x] Customer payment cannot use the same account for bank and AR and leaves no payment/journal side effects.
+- [x] Supplier payment cannot use the same account for bank and AP and leaves no payment/journal side effects.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `8a74122ec047df262c7460f4c0e9632a403157f9`  
+Retest candidate: `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
+Test/retest notes: `Follow-up integration fixes moved cross-module guard installation after module discovery, seeded control ownership efficiently, aligned old tests to valid subledger workflows and added exact same-account payment regressions. LedgerOne CI run #264 passed compile, clean migration upgrade/check and the complete automated suite: 114 passed, 3 skipped. Independent audit retest is still required before CLOSED.`
 
 ---
 
@@ -303,24 +308,25 @@ Test/retest notes: `—`
 - [ ] Restrict account types to supported enum/check constraint.
 - [ ] Validate parent/child account classification rules where applicable.
 - [ ] Configure default/system posting accounts centrally.
-- [ ] Validate AR posting role.
-- [ ] Validate AP posting role.
+- [x] Validate AR posting role/control ownership.
+- [x] Validate AP posting role/control ownership.
 - [ ] Validate revenue/income posting role.
 - [ ] Validate expense/asset posting roles according to supported workflows.
-- [ ] Validate bank-linked account type.
+- [x] Reject control accounts as linked bank accounts and reject same-account bank/AR or bank/AP payments.
 - [ ] Define controlled overrides where legitimate accounting scenarios require them.
 
 ### Required tests
 
 - [ ] Invalid account type rejected.
-- [ ] Sales workflow rejects incompatible AR/revenue account configuration.
-- [ ] Purchase workflow rejects incompatible AP account configuration.
-- [ ] Bank account link rejects incompatible ledger account where policy requires it.
+- [ ] Sales workflow rejects all incompatible AR/revenue account configurations.
+- [ ] Purchase workflow rejects all incompatible AP account configurations.
+- [x] Same-account customer and supplier payment attempts are rejected before any payment/allocation/journal side effects.
+- [ ] Bank account link rejects every incompatible ledger account where policy requires it.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `Partial at 45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
+Test/retest notes: `Same-account payment and control-account bank-link protection are implemented as part of LO-AUD-003. Remaining account classification and revenue/expense role validation keeps LO-AUD-012 OPEN.`
 
 ---
 
@@ -513,7 +519,7 @@ Add a row whenever one or more findings are submitted for retest.
 
 | Date | Commit | Findings retested | Result | Retested by | Notes |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| 2026-09-15 | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` | LO-AUD-001, LO-AUD-002, LO-AUD-003 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #264: compile and clean migration checks passed; 114 tests passed, 3 skipped. |
 
 ---
 
