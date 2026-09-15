@@ -13,7 +13,6 @@ def _env_bool(name: str, default: bool) -> bool:
 
 class Config:
     APP_VERSION = os.getenv("LEDGERONE_VERSION", "0.3.0-dev")
-
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL", f"sqlite:///{BASE_DIR / 'ledgerone.db'}"
@@ -37,6 +36,10 @@ class Config:
         "LEDGERONE_DOCUMENT_STORAGE_DIR", str(BASE_DIR / "data" / "documents")
     )
     DOCUMENT_MAX_BYTES = int(os.getenv("LEDGERONE_DOCUMENT_MAX_BYTES", str(25 * 1024 * 1024)))
+
+    # Development/home installations can opt into strict posting periods. Production
+    # defaults to requiring a defined period for every posting date.
+    ACCOUNTING_PERIOD_POLICY = os.getenv("LEDGERONE_ACCOUNTING_PERIOD_POLICY", "optional").strip().lower()
 
     # Development and single-user installs can auto-create an empty schema. Production
     # defaults to Alembic/Flask-Migrate so schema changes are explicit and repeatable.
@@ -65,6 +68,7 @@ class ProductionConfig(Config):
     AUTO_CREATE_SCHEMA = _env_bool("AUTO_CREATE_SCHEMA", False)
     SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", True)
     REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
+    ACCOUNTING_PERIOD_POLICY = os.getenv("LEDGERONE_ACCOUNTING_PERIOD_POLICY", "required").strip().lower()
 
 
 def get_config():
