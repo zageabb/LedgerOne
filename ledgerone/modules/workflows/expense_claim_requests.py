@@ -121,60 +121,94 @@ class ExpenseClaimWorkflowService:
         comments: str | None = None,
     ) -> WorkflowInstance:
         action = db.session.get(UserAction, action_id)
-        if not action or action.organisation_id != context.organisation_id:
+        if not action or action.organisation_id != context.organisation_id or action.status != "open":
             raise WorkflowError("Open user action not found")
         instance = action.workflow_instance
         if instance.entity_type != ExpenseClaimWorkflowService.ENTITY_TYPE:
             raise WorkflowError("Action does not belong to an expense claim workflow")
         claim_id = (instance.metadata_json or {}).get("expense_claim_id")
         claim = ExpenseClaimWorkflowService._claim(context, claim_id)
-
         clean_decision = (decision or "approve").strip().lower()
-        try:
-            result = WorkflowService.complete_action(
+        if clean_decision not in {"approve", "reject", "return"}:
+            raise WorkflowError("Decision must be approve, reject or return")
+
+        # Approval can use the common engine unchanged: the claim remains frozen in
+        # submitted state while the workflow advances to its next step/ready-to-post.
+        if clean_decision == "approve":
+            return WorkflowService.complete_action(
                 context,
                 action_id,
                 decision=clean_decision,
                 comments=comments,
             )
+
+        # Reject/return have domain consequences, so complete both the workflow action
+        # and the expense-claim status in one database transaction.
+        permission = "workflows.post" if action.action_type == "post" else (
+            "workflows.approve" if action.action_type == "approve" else "workflows.review"
+        )
+        if not context.can(permission):
+            raise PermissionError(permission)
+        if not WorkflowService._can_access_action(context, action):
+            raise PermissionError("This action is assigned to another user or role")
+
+        try:
+            action.status = "completed"
+            action.decision = clean_decision
+            action.comments = (comments or "").strip() or None
+            action.completed_by_user_id = context.user_id
+            action.completed_at = utcnow()
+
             if clean_decision == "reject":
+                instance.status = "rejected"
+                instance.completed_at = utcnow()
                 claim.status = "rejected"
                 claim.metadata_json = {
                     **(claim.metadata_json or {}),
-                    "rejection_reason": (comments or "").strip() or None,
-                    "workflow_instance_id": result.id,
+                    "rejection_reason": action.comments,
+                    "workflow_instance_id": instance.id,
                 }
-                record_audit_event(
-                    context,
-                    module_id="expense_claims",
-                    action="claim_rejected",
-                    entity_type="expense_claim",
-                    entity_id=claim.id,
-                    detail={"reason": (comments or "").strip() or None, "workflow_instance_id": result.id},
-                )
-            elif clean_decision == "return":
-                # Generic workflow return creates another review action. Expense claims
-                # instead return to editable draft; resubmission starts a fresh workflow
-                # so amount thresholds and approval rules are evaluated again.
+                domain_action = "claim_rejected"
+            else:
+                instance.status = "returned"
+                instance.completed_at = utcnow()
                 claim.status = "draft"
                 claim.metadata_json = {
                     **(claim.metadata_json or {}),
-                    "returned_from_workflow_id": result.id,
-                    "return_reason": (comments or "").strip() or None,
+                    "returned_from_workflow_id": instance.id,
+                    "return_reason": action.comments,
                 }
-                for open_action in result.actions:
-                    if open_action.status == "open":
-                        open_action.status = "cancelled"
-                record_audit_event(
-                    context,
-                    module_id="expense_claims",
-                    action="claim_returned_to_draft",
-                    entity_type="expense_claim",
-                    entity_id=claim.id,
-                    detail={"reason": (comments or "").strip() or None, "workflow_instance_id": result.id},
-                )
+                # Any other outstanding step belongs to the frozen submission and must
+                # not survive after the claim is reopened for editing.
+                for other in instance.actions:
+                    if other.id != action.id and other.status == "open":
+                        other.status = "cancelled"
+                domain_action = "claim_returned_to_draft"
+
+            record_audit_event(
+                context,
+                module_id="workflows",
+                action="user_action_completed",
+                entity_type="user_action",
+                entity_id=action.id,
+                detail={
+                    "workflow_instance_id": instance.id,
+                    "action_type": action.action_type,
+                    "decision": clean_decision,
+                    "comments": action.comments,
+                    "resulting_status": instance.status,
+                },
+            )
+            record_audit_event(
+                context,
+                module_id="expense_claims",
+                action=domain_action,
+                entity_type="expense_claim",
+                entity_id=claim.id,
+                detail={"reason": action.comments, "workflow_instance_id": instance.id},
+            )
             db.session.commit()
-            return result
+            return instance
         except Exception:
             db.session.rollback()
             raise
