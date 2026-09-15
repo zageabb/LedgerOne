@@ -90,6 +90,9 @@ class JournalWorkflowService:
 
         clean_description = (description or "").strip() or "Manual journal"
         clean_reference = (reference or "").strip() or None
+        # Reject a request that could not be posted today before it enters somebody's
+        # review queue. The same period guard is run again at final Post time.
+        LedgerService.assert_posting_date_open(context, journal_date)
         # Validate the accounting request before creating any workflow state. This also
         # preserves the existing error contract for unsupported currency/control entries.
         serialised_lines, total = JournalWorkflowService._serialise_lines(context, lines)
