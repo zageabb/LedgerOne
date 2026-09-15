@@ -186,20 +186,49 @@ def _create_supplier(context, args):
 
 
 def _create_bill(context, args):
+    bill_date = date.fromisoformat(args.get("bill_date") or date.today().isoformat())
+    due_date = date.fromisoformat(args["due_date"]) if args.get("due_date") else None
+    if module_registry.is_enabled(context.organisation_id, "workflows"):
+        from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
+
+        workflow = PurchaseBillWorkflowService.create_request(
+            context,
+            supplier_id=args["supplier_id"],
+            bill_number=args["bill_number"],
+            bill_date=bill_date,
+            due_date=due_date,
+            description=args.get("description", "Purchase"),
+            amount=args["amount"],
+            payable_account_id=args["payable_account_id"],
+            expense_account_id=args["expense_account_id"],
+            currency=args.get("currency", "GBP"),
+            tax_code_id=args.get("tax_code_id"),
+            source_module="ai",
+            source_reference=args.get("source_reference"),
+            metadata={"created_by": "ledgerone_ai"},
+        )
+        return {
+            "workflow_instance_id": workflow.id,
+            "status": workflow.status,
+            "posted": False,
+            "message": "Purchase bill proposal submitted to User Actions for controlled review/posting.",
+        }
+
     from ledgerone.modules.purchases.services import PurchasesService
     row = PurchasesService.create_bill(
         context,
         supplier_id=args["supplier_id"],
         bill_number=args["bill_number"],
-        bill_date=date.fromisoformat(args.get("bill_date") or date.today().isoformat()),
-        due_date=date.fromisoformat(args["due_date"]) if args.get("due_date") else None,
+        bill_date=bill_date,
+        due_date=due_date,
         description=args.get("description", "Purchase"),
         amount=args["amount"],
         payable_account_id=args["payable_account_id"],
         expense_account_id=args["expense_account_id"],
         currency=args.get("currency", "GBP"),
+        tax_code_id=args.get("tax_code_id"),
     )
-    return {"id": row.id, "status": row.status, "journal_id": row.posted_journal_id}
+    return {"id": row.id, "status": row.status, "journal_id": row.posted_journal_id, "posted": True}
 
 
 def _audit_events(context, args):
@@ -242,7 +271,7 @@ TOOLS = {
         ToolSpec("purchases.list_suppliers", "purchases", "List suppliers and IDs.", False, "purchases.read", _suppliers),
         ToolSpec("purchases.list_bills", "purchases", "List purchase bills.", False, "purchases.read", _purchase_bills),
         ToolSpec("purchases.create_supplier", "purchases", "Create a supplier.", True, "purchases.write", _create_supplier),
-        ToolSpec("purchases.create_bill", "purchases", "Create and post a simple purchase bill.", True, "purchases.write", _create_bill),
+        ToolSpec("purchases.create_bill", "purchases", "Submit a purchase bill. When Workflows is enabled it creates a User Action and does not post automatically.", True, "purchases.write", _create_bill),
         ToolSpec("audit.list_events", "audit", "Search recent LedgerOne audit events. Supports module_id, action, actor_type, entity_type, from_date, to_date, text and limit.", False, "audit.read", _audit_events),
     ]
 }
