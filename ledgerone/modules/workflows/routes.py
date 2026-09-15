@@ -163,17 +163,33 @@ def actions():
     rows = WorkflowService.open_actions(context)
     item_map = {}
     post_access = {}
+    revision_access = {}
     for action in rows:
         instance = action.workflow_instance
         if instance.entity_type == "scheduled_transaction":
             item_map[action.id] = db.session.get(ScheduledTransaction, instance.entity_id)
         post_access[action.id] = can_post_action(context, action)
+        adapter = module_registry.workflow_adapter(instance.entity_type)
+        manifest = module_registry.workflow_manifest(instance.entity_type)
+        revision_access[action.id] = bool(
+            instance.status == "returned"
+            and adapter
+            and getattr(adapter, "supports_revision", False)
+            and manifest
+            and context.can(manifest.workflow_post_permission)
+        )
+    revision_accounts = Account.query.filter_by(
+        organisation_id=context.organisation_id,
+        is_active=True,
+    ).order_by(Account.code).all()
     return render_template(
         "workflows/actions.html",
         actions=rows,
         recent_actions=WorkflowService.recent_actions(context),
         action_items=item_map,
         post_access=post_access,
+        revision_access=revision_access,
+        revision_accounts=revision_accounts,
         can_review=context.can("workflows.review"),
         can_approve=context.can("workflows.approve"),
         today=date.today().isoformat(),
@@ -203,6 +219,31 @@ def action_decision(action_id):
                 comments=request.form.get("comments") or None,
             )
         flash(f"Action completed. Workflow is now {instance.status.replace('_', ' ')}.", "success")
+    except (WorkflowError, PermissionError, ValueError) as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("workflows.actions"))
+
+
+@bp.post("/actions/<action_id>/revise")
+@login_required
+@require_module("workflows")
+def revise_action(action_id):
+    context = browser_context()
+    try:
+        action = db.session.get(UserAction, action_id)
+        adapter = _adapter_for_action(action)
+        if not adapter or not getattr(adapter, "supports_revision", False):
+            raise WorkflowError("This workflow item does not support controlled revision")
+        replacement = adapter.revise_action(
+            context,
+            action_id,
+            request.form,
+            channel="browser",
+        )
+        flash(
+            f"{replacement.title} corrected and resubmitted. Current workflow rules will be applied again.",
+            "success",
+        )
     except (WorkflowError, PermissionError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("workflows.actions"))
