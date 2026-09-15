@@ -11,8 +11,18 @@ def _money(value):
     return str(Decimal(value or 0).quantize(Decimal("0.01"))) if value is not None else None
 
 
+def _flat_payload(payload) -> dict:
+    if payload is None:
+        return {}
+    if hasattr(payload, "to_dict"):
+        return payload.to_dict(flat=True)
+    return dict(payload)
+
+
 class BaseWorkflowAdapter:
     """Uniform action contract used by the central workflow dispatcher."""
+
+    supports_revision = False
 
     @staticmethod
     def complete_action(
@@ -31,11 +41,49 @@ class BaseWorkflowAdapter:
 
 
 class JournalWorkflowAdapter(BaseWorkflowAdapter):
+    supports_revision = True
+
     @staticmethod
     def post_action(context: AccessContext, action_id: str, payload=None, *, channel: str = "api"):
         from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 
         return JournalWorkflowService.post_from_action(context, action_id)
+
+    @staticmethod
+    def revise_action(context: AccessContext, action_id: str, payload=None, *, channel: str = "api"):
+        from ledgerone.modules.workflows.revisions import WorkflowRevisionService
+
+        if channel == "browser" and hasattr(payload, "getlist"):
+            account_ids = payload.getlist("line_account_id")
+            descriptions = payload.getlist("line_description")
+            debits = payload.getlist("line_debit")
+            credits = payload.getlist("line_credit")
+            currency = payload.get("currency") or None
+            lines = []
+            for index, account_id in enumerate(account_ids):
+                lines.append(
+                    {
+                        "account_id": account_id,
+                        "description": descriptions[index] if index < len(descriptions) else None,
+                        "debit": debits[index] if index < len(debits) and debits[index] not in (None, "") else 0,
+                        "credit": credits[index] if index < len(credits) and credits[index] not in (None, "") else 0,
+                        "currency": currency,
+                    }
+                )
+            changes = {
+                "journal_date": payload.get("journal_date"),
+                "reference": payload.get("reference"),
+                "description": payload.get("description"),
+                "lines": lines,
+            }
+        else:
+            changes = _flat_payload(payload)
+        return WorkflowRevisionService.revise_journal(
+            context,
+            action_id,
+            changes,
+            revision_source_module=channel,
+        )
 
     @staticmethod
     def browser_message(row) -> str:
@@ -60,11 +108,24 @@ class JournalWorkflowAdapter(BaseWorkflowAdapter):
 
 
 class PurchaseBillWorkflowAdapter(BaseWorkflowAdapter):
+    supports_revision = True
+
     @staticmethod
     def post_action(context: AccessContext, action_id: str, payload=None, *, channel: str = "api"):
         from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
 
         return PurchaseBillWorkflowService.post_from_action(context, action_id)
+
+    @staticmethod
+    def revise_action(context: AccessContext, action_id: str, payload=None, *, channel: str = "api"):
+        from ledgerone.modules.workflows.revisions import WorkflowRevisionService
+
+        return WorkflowRevisionService.revise_purchase_bill(
+            context,
+            action_id,
+            _flat_payload(payload),
+            revision_source_module=channel,
+        )
 
     @staticmethod
     def browser_message(row) -> str:
@@ -91,11 +152,24 @@ class PurchaseBillWorkflowAdapter(BaseWorkflowAdapter):
 
 
 class SalesInvoiceWorkflowAdapter(BaseWorkflowAdapter):
+    supports_revision = True
+
     @staticmethod
     def post_action(context: AccessContext, action_id: str, payload=None, *, channel: str = "api"):
         from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
 
         return SalesInvoiceWorkflowService.post_from_action(context, action_id)
+
+    @staticmethod
+    def revise_action(context: AccessContext, action_id: str, payload=None, *, channel: str = "api"):
+        from ledgerone.modules.workflows.revisions import WorkflowRevisionService
+
+        return WorkflowRevisionService.revise_sales_invoice(
+            context,
+            action_id,
+            _flat_payload(payload),
+            revision_source_module=channel,
+        )
 
     @staticmethod
     def browser_message(row) -> str:
