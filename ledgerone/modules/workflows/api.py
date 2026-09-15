@@ -5,6 +5,8 @@ from flask import Blueprint, g, jsonify, request
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
+from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
+from ledgerone.modules.workflows.models import UserAction
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -78,6 +80,20 @@ def _instance_json(row):
         "metadata": row.metadata_json,
         "created_at": row.created_at.isoformat(),
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+    }
+
+
+def _journal_json(row):
+    return {
+        "id": row.id,
+        "journal_date": row.journal_date.isoformat(),
+        "reference": row.reference,
+        "description": row.description,
+        "source_module": row.source_module,
+        "source_reference": row.source_reference,
+        "total_debit": _money(row.total_debit),
+        "total_credit": _money(row.total_credit),
+        "status": row.status,
     }
 
 
@@ -253,12 +269,18 @@ def action_decision(action_id):
 def post_action(action_id):
     payload = request.get_json(silent=True) or {}
     try:
+        action = db.session.get(UserAction, action_id)
+        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
+        if entity_type == JournalWorkflowService.ENTITY_TYPE:
+            row = JournalWorkflowService.post_from_action(g.access_context, action_id)
+            return jsonify({"entity_type": "journal", "journal": _journal_json(row)})
+
         row = RecurringTransactionService.post_from_action(
             g.access_context,
             action_id,
             actual_amount=payload.get("actual_amount"),
             posting_date=date.fromisoformat(payload["posting_date"]) if payload.get("posting_date") else None,
         )
-        return jsonify(_item_json(row))
+        return jsonify({"entity_type": "scheduled_transaction", "item": _item_json(row)})
     except (WorkflowError, PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
