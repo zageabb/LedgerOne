@@ -61,6 +61,33 @@ def index():
     )
 
 
+@bp.get("/trial-balance")
+@login_required
+@require_module("reports")
+def trial_balance():
+    context = browser_context()
+    raw_as_of = (request.args.get("as_of") or "").strip()
+    raw_from = (request.args.get("from_date") or "").strip()
+    try:
+        as_of = date.fromisoformat(raw_as_of) if raw_as_of else date.today()
+        from_date = date.fromisoformat(raw_from) if raw_from else None
+        report = ReportsService.trial_balance(
+            context,
+            as_of=as_of,
+            from_date=from_date,
+        )
+    except ValueError:
+        as_of = date.today()
+        from_date = None
+        report = ReportsService.trial_balance(context, as_of=as_of)
+    return render_template(
+        "reports/trial_balance.html",
+        report=report,
+        as_of=as_of,
+        from_date=from_date,
+    )
+
+
 @bp.get("/general-ledger")
 @login_required
 @require_module("reports")
