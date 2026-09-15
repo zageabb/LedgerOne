@@ -1,11 +1,21 @@
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account, AccountingPeriod, Journal
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _api_credentials(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        # These tests intentionally exercise the direct ledger API mechanics. Workflow
+        # enforcement has separate regression coverage, so disable that optional layer
+        # here instead of weakening the production-default API boundary.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="pytest",
             organisation_id=organisation.id,
