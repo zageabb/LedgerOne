@@ -6,6 +6,7 @@ from flask_login import login_required
 from ledgerone.models.ledger import Journal
 from ledgerone.module_registry import module_registry
 from ledgerone.modules.purchases.services import PurchasesService
+from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
 from ledgerone.security import browser_context, require_module
 from ledgerone.services.ledger import LedgerError, LedgerService
 
@@ -36,6 +37,27 @@ def index():
                 ).date()
                 due_date_raw = request.form.get("due_date")
                 due_date = datetime.strptime(due_date_raw, "%Y-%m-%d").date() if due_date_raw else None
+                if module_registry.is_enabled(context.organisation_id, "workflows"):
+                    workflow = PurchaseBillWorkflowService.create_request(
+                        context,
+                        supplier_id=request.form.get("supplier_id", ""),
+                        bill_number=request.form.get("bill_number", ""),
+                        bill_date=bill_date,
+                        due_date=due_date,
+                        description=request.form.get("description", "Purchase"),
+                        amount=request.form.get("amount", "0"),
+                        payable_account_id=request.form.get("payable_account_id", ""),
+                        expense_account_id=request.form.get("expense_account_id", ""),
+                        currency=request.form.get("currency", "GBP"),
+                        tax_code_id=request.form.get("tax_code_id") or None,
+                        source_module="purchases",
+                    )
+                    flash(
+                        f"Bill submitted to workflow. Status: {workflow.status.replace('_', ' ')}.",
+                        "success",
+                    )
+                    return redirect(url_for("workflows.actions"))
+
                 PurchasesService.create_bill(
                     context,
                     supplier_id=request.form.get("supplier_id", ""),
