@@ -15,6 +15,7 @@ from ledgerone.modules.workflows.services import WorkflowError, WorkflowService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.currency import organisation_base_currency
+from ledgerone.services.ledger import LedgerService
 from ledgerone.services.payment_terms import PaymentTermsService
 
 
@@ -60,6 +61,10 @@ class PurchaseBillWorkflowService:
     ) -> tuple[dict, Decimal]:
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
+
+        # The simple AP workflow posts on the bill date. Reject locked dates before a
+        # reviewer spends time on an item that cannot legally enter the ledger.
+        LedgerService.assert_posting_date_open(context, bill_date)
 
         clean_number = (bill_number or "").strip()
         if not clean_number:
