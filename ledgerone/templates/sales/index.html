@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>{{ 'Income' if ui_mode == 'home' else 'Sales & receivables' }}</h1>
-    <p>{{ 'Record people or organisations that pay you, then create income entries.' if ui_mode == 'home' else 'Maintain customers and post sales invoices to receivables, revenue and VAT control accounts.' }}</p>
+    <p>{{ 'Record people or organisations that pay you, then create income entries.' if ui_mode == 'home' else 'Maintain customers and prepare sales invoices for controlled receivables, revenue and VAT posting.' }}</p>
   </div>
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('settings.payment_terms') }}">Payment terms</a>
@@ -27,7 +27,7 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>{{ 'Record income / invoice' if ui_mode == 'home' else 'Post sales invoice' }}</h2></div>
+    <div class="card-head"><h2>{{ 'Record income / invoice' if ui_mode == 'home' else ('Prepare sales invoice' if workflows_enabled else 'Post sales invoice') }}</h2></div>
     <div class="card-body">
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="invoice">
@@ -35,12 +35,13 @@
         <div class="field"><label>{{ 'Reference' if ui_mode == 'home' else 'Invoice number' }}</label><input name="invoice_number" placeholder="INV-001" required></div>
         <div class="field"><label>Date</label><input type="date" name="invoice_date" value="{{ today }}" required></div><div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"><div class="help">Leave blank to use the customer's payment terms.</div></div>
         <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
-        {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select><div class="help">The entered amount is net of VAT. LedgerOne calculates VAT and posts it to the configured VAT control account.</div></div>{% endif %}
+        {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select><div class="help">The entered amount is net of VAT. LedgerOne calculates VAT and posts it to the configured VAT control account only after the invoice reaches the Post step.</div></div>{% endif %}
         <div class="field field-full"><label>Description</label><input name="description" placeholder="Services / income"></div>
         <div class="field"><label>{{ 'Money owed to you account' if ui_mode == 'home' else 'Receivables account' }}</label><select name="receivable_account_id" required>{% for row in receivable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>{{ 'Income category' if ui_mode == 'home' else 'Revenue account' }}</label><select name="revenue_account_id" required>{% for row in revenue_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field-full"><button class="button" type="submit">{{ 'Record income' if ui_mode == 'home' else 'Create & post invoice' }}</button></div>
+        <div class="field-full"><button class="button" type="submit">{% if workflows_enabled %}{{ 'Submit income for review' if ui_mode == 'home' else 'Submit invoice to User Actions' }}{% else %}{{ 'Record income' if ui_mode == 'home' else 'Create & post invoice' }}{% endif %}</button></div>
       </form>
+      {% if workflows_enabled %}<p class="help">Submitting reserves the invoice number and creates a User Action. It does not create the customer receivable or ledger journal until the final Post action.</p>{% endif %}
     </div>
   </div>
 </div>
