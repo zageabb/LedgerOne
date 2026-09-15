@@ -141,6 +141,63 @@ def test_posted_purchase_bill_header_and_lines_are_immutable(app):
         db.session.rollback()
 
 
+def test_partially_credited_sales_and_purchase_documents_remain_immutable(app):
+    with app.app_context():
+        _, accounts, context = _setup()
+
+        invoice = _posted_invoice(
+            context,
+            accounts,
+            number="IMM-PART-CREDIT-INV",
+            amount="100.00",
+        )
+        SalesCreditService.create_credit_note(
+            context,
+            invoice_id=invoice.id,
+            credit_number="IMM-PART-SCN",
+            credit_date=date(2026, 9, 15),
+            amount="10.00",
+        )
+        invoice = db.session.get(SalesInvoice, invoice.id)
+        assert invoice.status == "part_credited"
+        invoice.invoice_number = "MUTATED-PART-CREDIT-INV"
+        with pytest.raises(PostedDocumentImmutableError, match="sales invoice"):
+            db.session.commit()
+        db.session.rollback()
+
+        invoice = db.session.get(SalesInvoice, invoice.id)
+        invoice.lines[0].description = "Mutated partially credited line"
+        with pytest.raises(PostedDocumentImmutableError, match="invoice lines"):
+            db.session.commit()
+        db.session.rollback()
+
+        bill = _posted_bill(
+            context,
+            accounts,
+            number="IMM-PART-CREDIT-BILL",
+            amount="100.00",
+        )
+        PurchaseCreditService.create_credit_note(
+            context,
+            bill_id=bill.id,
+            credit_number="IMM-PART-PCN",
+            credit_date=date(2026, 9, 15),
+            amount="10.00",
+        )
+        bill = db.session.get(PurchaseBill, bill.id)
+        assert bill.status == "part_credited"
+        bill.bill_number = "MUTATED-PART-CREDIT-BILL"
+        with pytest.raises(PostedDocumentImmutableError, match="purchase bill"):
+            db.session.commit()
+        db.session.rollback()
+
+        bill = db.session.get(PurchaseBill, bill.id)
+        bill.lines[0].description = "Mutated partially credited line"
+        with pytest.raises(PostedDocumentImmutableError, match="bill lines"):
+            db.session.commit()
+        db.session.rollback()
+
+
 def test_posted_credit_notes_and_expense_claims_are_immutable(app):
     with app.app_context():
         organisation, accounts, context = _setup()
