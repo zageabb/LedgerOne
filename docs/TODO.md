@@ -2,7 +2,7 @@
 
 **Status snapshot:** 15 September 2026  
 **Repository:** `zageabb/LedgerOne`  
-**Reviewed against `main` through:** `570c0ab93381e2123253a32f8b72808985ec7fb5`  
+**Reviewed against `main` through:** `b787dcb0559446a81a8523f48cd9ade41f979915`  
 **Purpose:** One place to see what is complete, what is in progress, and what remains outstanding.
 
 > **Status rule:** `[x]` means the capability is implemented and published on `main`. `[ ]` means it is not yet complete on `main`, even where partial work exists on a branch or pull request.
@@ -12,6 +12,7 @@ Related documents:
 - [Product roadmap](./ROADMAP.md)
 - [Audit & Assurance workspace](../audit_assurance/README.md)
 - [Accounting Practice & Controls Audit Report](../audit_assurance/2026-09-15-accounting-practice-review/AUDIT_REPORT.md)
+- [Accounting Audit Remediation Action Register](../audit_assurance/2026-09-15-accounting-practice-review/ACTION_REGISTER.md)
 
 ---
 
@@ -25,6 +26,7 @@ Related documents:
 | [x] | Transaction audit provenance | Complete | Full record -> journal -> accounts -> evidence -> audit-event trace published |
 | [x] | Audit assurance workspace/report | Complete | Audit workspace and 15-finding accounting/control review published |
 | [ ] | Accounting Assurance remediation | Not complete | 15 audit findings remain open; Critical/High items block unrestricted production use |
+| [ ] | User-facing balance visibility and accounting guidance | Not complete | Account-list balances, transaction workflow guidance and payment-account validation added to backlog |
 | [ ] | v0.4 Bank/document automation | Not started as a release | 8 roadmap items outstanding |
 | [ ] | v0.5 Projects/jobs/costing | Not started as a release | 8 roadmap items outstanding |
 | [ ] | v0.6 Fixed assets/inventory | Not started as a release | 8 roadmap items outstanding |
@@ -176,7 +178,7 @@ Current branch/PR: `numbering-sequences-v03`, PR #3. The branch has diverged fro
 | [x] | Audit lifecycle and severity/status conventions | Published |
 | [x] | 2026-09-15 Accounting Practice & Controls Audit Report | Published |
 | [x] | Audit finding IDs `LO-AUD-001` through `LO-AUD-015` | Published |
-| [ ] | `ACTION_REGISTER.md` referenced by the audit README/report | **Missing from repository at this snapshot; create authoritative remediation register** |
+| [x] | `ACTION_REGISTER.md` referenced by the audit README/report | Published and ACTIVE; authoritative remediation register |
 | [ ] | Assign owner and target release to every audit finding | Outstanding |
 | [ ] | Record implementation commit and regression-test evidence per finding | Outstanding |
 | [ ] | Independent retest before changing a finding to CLOSED | Outstanding |
@@ -196,7 +198,7 @@ These findings are separate from ordinary feature-roadmap completion. They deter
 | [ ] | **LO-AUD-008 — Posted commercial documents lack journal-level immutability** | HIGH | A | Prevent update/delete of posted invoice/bill headers and lines; correct via credit/reversal/cancellation |
 | [ ] | **LO-AUD-004 — Financial reports are not sufficiently period-aware** | HIGH | B | Add TB as-at, P&L from/to, Balance Sheet as-at, GL activity from/to with brought/carried balances and comparatives |
 | [ ] | **LO-AUD-009 — Invoice/credit-note numbering needs controlled sequences** | MEDIUM-HIGH | B | Finish and merge numbering; prove concurrency safety, no reuse, gap/void handling and separate series |
-| [ ] | **LO-AUD-012 — Account types/posting roles need stronger validation** | MEDIUM | B | Constrain account types and validate module-specific account roles/default control accounts |
+| [ ] | **LO-AUD-012 — Account types/posting roles need stronger validation** | MEDIUM | B | Constrain account types and validate module-specific account roles/default control accounts; include explicit prevention of invalid same-account payment postings |
 | [ ] | **LO-AUD-013 — API/integration posting lacks idempotency protection** | MEDIUM | B | Add idempotency key/source uniqueness and replay-safe posting behavior |
 | [ ] | **LO-AUD-014 — Bank reconciliation is not a full statement reconciliation** | MEDIUM | B | Add statement period/opening/closing balances, outstanding items, GL cut-off balance, approval and locked reconciliation report |
 | [ ] | **LO-AUD-006 — Invoice output is not yet a complete UK VAT invoice** | HIGH | C | Add supplier legal/address/VAT details, customer address, tax point/issue date and all required VAT invoice content/tests |
@@ -213,6 +215,52 @@ These findings are separate from ordinary feature-roadmap completion. They deter
 | [ ] | Gate B | LO-AUD-004, 009, 012, 013, 014 | Complete for professional bookkeeping readiness |
 | [ ] | Gate C | LO-AUD-006, 007 plus later HMRC MTD submission | Complete before UK VAT/MTD compliance claims |
 | [ ] | Gate D | LO-AUD-010, 015 plus full multi-currency/revaluation | Complete for enterprise readiness |
+
+---
+
+## 8A. User-requested usability, guidance and transaction-safety work — OUTSTANDING
+
+These items improve day-to-day usability while also reducing the chance that a non-accountant performs an apparently valid but economically incorrect transaction.
+
+### Account balances directly in account lists
+
+- [ ] Show the **current ledger balance** directly on the Chart of Accounts list so users do not need to open the full Trial Balance merely to see an account balance.
+- [ ] Show each **customer's current receivable/outstanding balance** on customer lists.
+- [ ] Show each **supplier's current payable/outstanding balance** on supplier lists.
+- [ ] Show the **current ledger/book balance** on bank-account lists where appropriate.
+- [ ] Use the same shared balance/reporting services as the Trial Balance, ageing and ledger reports so the displayed figures cannot drift from formal reports.
+- [ ] Avoid N+1 per-row queries; list balances must remain efficient for larger account/customer/supplier sets.
+- [ ] Make balance columns link to the relevant account/customer/supplier activity or detail view where practical.
+- [ ] Where an `as_of` concept is offered, clearly label whether the list shows today's/current balance or a historical balance.
+
+### Accounting transaction workflow guide with Mermaid diagrams
+
+- [ ] Create `docs/ACCOUNTING_WORKFLOWS.md` as a non-accountant-friendly guide explaining **where to start in LedgerOne and which workflow to use** for common transactions.
+- [ ] Include Mermaid workflows for at least: customer quote/order -> invoice -> payment/allocation; supplier PO -> bill -> payment/allocation; expense claim -> approval -> posting/reimbursement; bank receipt/payment; bank transfer; sales/purchase credit note and refund; manual journal; opening balance; recurring journal; VAT-related transaction path.
+- [ ] For each workflow show the expected accounting effect in plain English and, where useful, the debit/credit result.
+- [ ] Clearly distinguish business workflows from manual journals so users are guided to Sales/Purchases/Banking first rather than manually posting to AR/AP/VAT control accounts.
+- [ ] Link the workflow guide from the Home/Apprentice UI and Help/documentation area so it is usable inside the application rather than only as developer documentation.
+- [ ] Include common correction paths: reverse, credit, refund or cancel rather than editing posted accounting records.
+
+### Payment posting validation defect — bank and control account must not cancel each other
+
+Observed test case: a customer payment selected **Current Account (1000)** as both the bank account and the receivables account. LedgerOne then created equal debit and credit entries to the same ledger account, so the journal balanced but had zero economic effect.
+
+Expected customer-payment accounting:
+
+- Debit the selected bank/current account for the cash received.
+- Credit the Accounts Receivable control account for the amount no longer owed by the customer.
+
+Required remediation:
+
+- [ ] Customer payment posting must reject a transaction where the bank/cash account and Accounts Receivable account resolve to the same ledger account.
+- [ ] Supplier payment posting must likewise reject a transaction where the bank/cash account and Accounts Payable account resolve to the same ledger account.
+- [ ] Validate **account role and relationship**, not only account existence: customer payments require a compatible bank/cash debit account and AR control credit account; supplier payments require AP control debit and compatible bank/cash credit.
+- [ ] UI selectors should filter or clearly prevent incompatible account choices, but the service layer/API must independently enforce the rule so UI, API and AI cannot bypass it.
+- [ ] Add regression tests reproducing the same-account payment defect and proving that the transaction is rejected before any journal/payment/allocation state is committed.
+- [ ] Add equivalent tests for supplier payments and any other two-account module workflow where selecting the same account would make the intended business transaction cancel itself out.
+- [ ] Ensure failed validation does not mark the invoice/bill as paid, allocate settlement, consume a document number or leave a posted journal behind.
+- [ ] Treat this as directly related to **LO-AUD-012 account/posting-role validation** and **LO-AUD-003 control-account integrity** until implementation and retest are complete.
 
 ---
 
@@ -331,16 +379,18 @@ These findings are separate from ordinary feature-roadmap completion. They deter
 
 | Priority | Complete | Work item | Why now |
 |---:|---|---|---|
-| 1 | [ ] | Create the missing Accounting Assurance `ACTION_REGISTER.md` | The audit report and workspace already reference it as the authoritative remediation register |
-| 2 | [ ] | LO-AUD-001 — Fix AI permission inheritance | Critical authorisation risk |
-| 3 | [ ] | LO-AUD-002 — Enforce base currency until real FX exists | Critical financial-statement risk |
-| 4 | [ ] | LO-AUD-003 — Protect control accounts and add subledger reconciliation | High subledger/GL integrity risk |
+| 1 | [ ] | LO-AUD-001 — Fix AI permission inheritance | Critical authorisation risk |
+| 2 | [ ] | LO-AUD-002 — Enforce base currency until real FX exists | Critical financial-statement risk |
+| 3 | [ ] | LO-AUD-003 — Protect control accounts and add subledger reconciliation | High subledger/GL integrity risk |
+| 4 | [ ] | Fix same-account payment/account-role validation defect | A balanced zero-effect journal can otherwise make a payment workflow appear successful; related to LO-AUD-012/003 |
 | 5 | [ ] | LO-AUD-005 — Enforce mandatory accounting-period policy | High period close/cut-off risk |
 | 6 | [ ] | LO-AUD-008 — Make posted commercial documents immutable | High audit/subledger integrity risk |
 | 7 | [ ] | Reconcile and finish PR #3 numbering work | Completes a v0.3 item and addresses part of LO-AUD-009 |
 | 8 | [ ] | LO-AUD-004 — Period-aware TB/P&L/Balance Sheet/GL reports | Required for professional accounting |
-| 9 | [ ] | Contact/address improvements | Last ordinary v0.3 product feature and prerequisite for better VAT invoices |
-| 10 | [ ] | LO-AUD-006/007 — Complete VAT invoice and VAT-period controls | Required before UK VAT/MTD compliance claims |
+| 9 | [ ] | Show balances directly on account/customer/supplier/bank lists | Removes unnecessary navigation to the Trial Balance and improves day-to-day usability |
+| 10 | [ ] | Build Mermaid accounting transaction workflow guide | Gives non-accountants a correct starting point and reduces misuse of manual journals/control accounts |
+| 11 | [ ] | Contact/address improvements | Last ordinary v0.3 product feature and prerequisite for better VAT invoices |
+| 12 | [ ] | LO-AUD-006/007 — Complete VAT invoice and VAT-period controls | Required before UK VAT/MTD compliance claims |
 
 ---
 
