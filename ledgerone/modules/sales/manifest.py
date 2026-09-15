@@ -13,4 +13,7 @@ MANIFEST = ModuleManifest(
     default_enabled=True,
     permissions=("sales.read", "sales.write"),
     dependencies=("ledger",),
+    workflow_entity_type="sales_invoice",
+    workflow_adapter="ledgerone.modules.workflows.adapters:SalesInvoiceWorkflowAdapter",
+    workflow_post_permission="sales.write",
 )

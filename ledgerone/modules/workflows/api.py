@@ -5,11 +5,8 @@ from flask import Blueprint, g, jsonify, request
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
-from ledgerone.modules.workflows.expense_claim_requests import ExpenseClaimWorkflowService
-from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.workflows.models import UserAction
-from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
-from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -86,65 +83,10 @@ def _instance_json(row):
     }
 
 
-def _journal_json(row):
-    return {
-        "id": row.id,
-        "journal_date": row.journal_date.isoformat(),
-        "reference": row.reference,
-        "description": row.description,
-        "source_module": row.source_module,
-        "source_reference": row.source_reference,
-        "total_debit": _money(row.total_debit),
-        "total_credit": _money(row.total_credit),
-        "status": row.status,
-    }
-
-
-def _purchase_bill_json(row):
-    return {
-        "id": row.id,
-        "supplier_id": row.supplier_id,
-        "bill_number": row.bill_number,
-        "bill_date": row.bill_date.isoformat(),
-        "due_date": row.due_date.isoformat() if row.due_date else None,
-        "currency": row.currency,
-        "subtotal": _money(row.subtotal),
-        "tax_total": _money(row.tax_total),
-        "total": _money(row.total),
-        "status": row.status,
-        "journal_id": row.posted_journal_id,
-    }
-
-
-def _sales_invoice_json(row):
-    return {
-        "id": row.id,
-        "customer_id": row.customer_id,
-        "invoice_number": row.invoice_number,
-        "invoice_date": row.invoice_date.isoformat(),
-        "due_date": row.due_date.isoformat() if row.due_date else None,
-        "currency": row.currency,
-        "subtotal": _money(row.subtotal),
-        "tax_total": _money(row.tax_total),
-        "total": _money(row.total),
-        "status": row.status,
-        "journal_id": row.posted_journal_id,
-    }
-
-
-def _expense_claim_json(row):
-    return {
-        "id": row.id,
-        "claim_number": row.claim_number,
-        "claimant_name": row.claimant_name,
-        "claim_date": row.claim_date.isoformat(),
-        "currency": row.currency,
-        "subtotal": _money(row.subtotal),
-        "tax_total": _money(row.tax_total),
-        "total": _money(row.total),
-        "status": row.status,
-        "journal_id": row.posted_journal_id,
-    }
+def _adapter_for_action(action: UserAction | None):
+    if not action or not action.workflow_instance:
+        return None
+    return module_registry.workflow_adapter(action.workflow_instance.entity_type)
 
 
 @api_bp.get("/templates")
@@ -304,9 +246,9 @@ def action_decision(action_id):
     payload = request.get_json(silent=True) or {}
     try:
         action = db.session.get(UserAction, action_id)
-        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
-        if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
-            row = ExpenseClaimWorkflowService.complete_action(
+        adapter = _adapter_for_action(action)
+        if adapter:
+            row = adapter.complete_action(
                 g.access_context,
                 action_id,
                 decision=payload.get("decision", "approve"),
@@ -330,31 +272,15 @@ def post_action(action_id):
     payload = request.get_json(silent=True) or {}
     try:
         action = db.session.get(UserAction, action_id)
-        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
-        if entity_type == JournalWorkflowService.ENTITY_TYPE:
-            row = JournalWorkflowService.post_from_action(g.access_context, action_id)
-            return jsonify({"entity_type": "journal", "journal": _journal_json(row)})
-        if entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
-            row = PurchaseBillWorkflowService.post_from_action(g.access_context, action_id)
-            return jsonify({"entity_type": "purchase_bill", "purchase_bill": _purchase_bill_json(row)})
-        if entity_type == SalesInvoiceWorkflowService.ENTITY_TYPE:
-            row = SalesInvoiceWorkflowService.post_from_action(g.access_context, action_id)
-            return jsonify({"entity_type": "sales_invoice", "sales_invoice": _sales_invoice_json(row)})
-        if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
-            row = ExpenseClaimWorkflowService.post_from_action(
-                g.access_context,
-                action_id,
-                posting_date=date.fromisoformat(payload["posting_date"]) if payload.get("posting_date") else date.today(),
-            )
-            return jsonify({"entity_type": "expense_claim", "expense_claim": _expense_claim_json(row)})
-
-        row = RecurringTransactionService.post_from_action(
+        adapter = _adapter_for_action(action)
+        if not adapter:
+            raise WorkflowError("No posting adapter is registered for this workflow item")
+        row = adapter.post_action(
             g.access_context,
             action_id,
-            actual_amount=payload.get("actual_amount"),
-            posting_date=date.fromisoformat(payload["posting_date"]) if payload.get("posting_date") else None,
+            payload,
+            channel="api",
         )
-        # Preserve the original Scheduled Transactions API response shape for existing clients.
-        return jsonify(_item_json(row))
+        return jsonify(adapter.api_result(row))
     except (WorkflowError, PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400

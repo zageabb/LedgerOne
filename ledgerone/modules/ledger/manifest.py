@@ -22,4 +22,7 @@ MANIFEST = ModuleManifest(
         "ledger.opening_balances.manage",
         "ledger.recurring.manage",
     ),
+    workflow_entity_type="journal",
+    workflow_adapter="ledgerone.modules.workflows.adapters:JournalWorkflowAdapter",
+    workflow_post_permission="ledger.journals.post",
 )

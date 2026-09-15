@@ -20,4 +20,7 @@ MANIFEST = ModuleManifest(
         "workflows.manage",
     ),
     dependencies=("ledger",),
+    workflow_entity_type="scheduled_transaction",
+    workflow_adapter="ledgerone.modules.workflows.adapters:ScheduledTransactionWorkflowAdapter",
+    workflow_post_permission="ledger.journals.post",
 )

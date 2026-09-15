@@ -13,4 +13,7 @@ MANIFEST = ModuleManifest(
     default_enabled=False,
     permissions=("expense_claims.read", "expense_claims.write", "expense_claims.approve"),
     dependencies=("ledger", "documents"),
+    workflow_entity_type="expense_claim",
+    workflow_adapter="ledgerone.modules.workflows.adapters:ExpenseClaimWorkflowAdapter",
+    workflow_post_permission="expense_claims.approve",
 )

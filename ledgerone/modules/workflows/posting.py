@@ -1,25 +1,15 @@
 from __future__ import annotations
 
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.workflows.models import UserAction, WorkflowInstance
 from ledgerone.services.context import AccessContext
-
-
-# Final posting remains domain-authorised. A purchasing user should not need arbitrary
-# manual-journal rights merely because Purchases ultimately writes through LedgerService.
-POST_PERMISSIONS = {
-    "scheduled_transaction": "ledger.journals.post",
-    "journal": "ledger.journals.post",
-    "purchase_bill": "purchases.write",
-    "sales_invoice": "sales.write",
-    "expense_claim": "expense_claims.approve",
-}
 
 
 def workflow_submission_context(context: AccessContext, domain_permission: str) -> AccessContext:
     """Return a context that can create workflow state after proving domain authority.
 
     This adds only `workflows.write` for the internal call to WorkflowService.start. It
-    does not grant review, approval, posting, or any accounting/business permission.
+    does not grant review, approval, posting, or any additional accounting/business right.
     Generic API callers still need `workflows.write` themselves.
     """
     if not context.can(domain_permission):
@@ -37,7 +27,8 @@ def workflow_submission_context(context: AccessContext, domain_permission: str) 
 
 
 def required_post_permission(instance: WorkflowInstance) -> str | None:
-    return POST_PERMISSIONS.get(instance.entity_type)
+    manifest = module_registry.workflow_manifest(instance.entity_type)
+    return manifest.workflow_post_permission if manifest else None
 
 
 def can_post_instance(context: AccessContext, instance: WorkflowInstance) -> bool:

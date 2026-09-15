@@ -13,4 +13,7 @@ MANIFEST = ModuleManifest(
     default_enabled=True,
     permissions=("purchases.read", "purchases.write"),
     dependencies=("ledger",),
+    workflow_entity_type="purchase_bill",
+    workflow_adapter="ledgerone.modules.workflows.adapters:PurchaseBillWorkflowAdapter",
+    workflow_post_permission="purchases.write",
 )

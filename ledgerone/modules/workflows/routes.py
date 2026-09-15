@@ -6,12 +6,9 @@ from flask_login import login_required
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
-from ledgerone.modules.workflows.expense_claim_requests import ExpenseClaimWorkflowService
-from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.workflows.models import ScheduledTransaction, UserAction
 from ledgerone.modules.workflows.posting import can_post_action
-from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
-from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -24,6 +21,12 @@ bp = Blueprint("workflows", __name__, url_prefix="/workflows")
 
 def _optional_date(value: str | None):
     return date.fromisoformat(value) if value else None
+
+
+def _adapter_for_action(action: UserAction | None):
+    if not action or not action.workflow_instance:
+        return None
+    return module_registry.workflow_adapter(action.workflow_instance.entity_type)
 
 
 @bp.route("/", methods=["GET", "POST"])
@@ -61,9 +64,21 @@ def index():
         except (WorkflowError, PermissionError, ValueError) as exc:
             flash(str(exc), "danger")
 
-    accounts = [row for row in Account.query.filter_by(organisation_id=context.organisation_id, is_active=True).order_by(Account.code).all()]
-    settlement_accounts = [row for row in accounts if row.account_type in {"asset", "liability"} and not row.is_control_account]
-    category_accounts = [row for row in accounts if row.account_type in {"income", "expense", "asset", "liability"} and not row.is_control_account]
+    accounts = [
+        row
+        for row in Account.query.filter_by(
+            organisation_id=context.organisation_id,
+            is_active=True,
+        ).order_by(Account.code).all()
+    ]
+    settlement_accounts = [
+        row for row in accounts if row.account_type in {"asset", "liability"} and not row.is_control_account
+    ]
+    category_accounts = [
+        row
+        for row in accounts
+        if row.account_type in {"income", "expense", "asset", "liability"} and not row.is_control_account
+    ]
     definitions = [row for row in WorkflowService.list_definitions(context) if row.is_active]
     return render_template(
         "workflows/index.html",
@@ -172,9 +187,9 @@ def action_decision(action_id):
     context = browser_context()
     try:
         action = db.session.get(UserAction, action_id)
-        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
-        if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
-            instance = ExpenseClaimWorkflowService.complete_action(
+        adapter = _adapter_for_action(action)
+        if adapter:
+            instance = adapter.complete_action(
                 context,
                 action_id,
                 decision=request.form.get("decision") or "approve",
@@ -188,7 +203,7 @@ def action_decision(action_id):
                 comments=request.form.get("comments") or None,
             )
         flash(f"Action completed. Workflow is now {instance.status.replace('_', ' ')}.", "success")
-    except (WorkflowError, PermissionError) as exc:
+    except (WorkflowError, PermissionError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("workflows.actions"))
 
@@ -200,31 +215,16 @@ def post_action(action_id):
     context = browser_context()
     try:
         action = db.session.get(UserAction, action_id)
-        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
-        if entity_type == JournalWorkflowService.ENTITY_TYPE:
-            journal = JournalWorkflowService.post_from_action(context, action_id)
-            flash(f"Journal {journal.reference or journal.id[:8]} posted to the ledger.", "success")
-        elif entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
-            bill = PurchaseBillWorkflowService.post_from_action(context, action_id)
-            flash(f"Bill {bill.bill_number} posted to Accounts Payable.", "success")
-        elif entity_type == SalesInvoiceWorkflowService.ENTITY_TYPE:
-            invoice = SalesInvoiceWorkflowService.post_from_action(context, action_id)
-            flash(f"Invoice {invoice.invoice_number} posted to Accounts Receivable.", "success")
-        elif entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
-            claim = ExpenseClaimWorkflowService.post_from_action(
-                context,
-                action_id,
-                posting_date=date.fromisoformat(request.form.get("posting_date") or date.today().isoformat()),
-            )
-            flash(f"Expense claim {claim.claim_number} approved and posted.", "success")
-        else:
-            item = RecurringTransactionService.post_from_action(
-                context,
-                action_id,
-                actual_amount=request.form.get("actual_amount") or None,
-                posting_date=date.fromisoformat(request.form.get("posting_date") or date.today().isoformat()),
-            )
-            flash(f"{item.template.name} posted to the ledger.", "success")
+        adapter = _adapter_for_action(action)
+        if not adapter:
+            raise WorkflowError("No posting adapter is registered for this workflow item")
+        row = adapter.post_action(
+            context,
+            action_id,
+            request.form,
+            channel="browser",
+        )
+        flash(adapter.browser_message(row), "success")
     except (WorkflowError, PermissionError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("workflows.actions"))
