@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Trial Balance · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</h1>
+    <p>{% if from_date %}Posted movement from {{ from_date.strftime('%d %b %Y') }} through {{ as_of.strftime('%d %b %Y') }}.{% else %}Cumulative posted balances through {{ as_of.strftime('%d %b %Y') }}.{% endif %}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.index', to_date=as_of.isoformat()) }}">Back to reports</a></div>
+</div>
+
+<div class="card">
+  <form method="get" class="form-grid">
+    <div class="field"><label>From date (optional)</label><input type="date" name="from_date" value="{{ from_date.isoformat() if from_date else '' }}"><small>Leave blank for cumulative balances. Set it for period movement.</small></div>
+    <div class="field"><label>As at / to date</label><input type="date" name="as_of" value="{{ as_of.isoformat() }}" required></div>
+    <div class="field"><label>&nbsp;</label><button class="button" type="submit">Run trial balance</button></div>
+  </form>
+</div>
+
+<div class="card section">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Net</th></tr></thead>
+      <tbody>
+      {% for row in report.rows %}
+      <tr><td>{{ row.code }}</td><td>{{ row.name }}</td><td>{{ row.account_type|title }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(row.debit) }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(row.credit) }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(row.balance) }}</td></tr>
+      {% endfor %}
+      <tr><td colspan="3"><strong>Totals</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_debit) }}</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_credit) }}</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.difference) }}</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  {% if report.difference != 0 %}<p class="help">The trial balance is out by {{ current_organisation.base_currency }} {{ '%.2f'|format(report.difference) }} and should be investigated.</p>{% endif %}
+</div>
+{% endblock %}
