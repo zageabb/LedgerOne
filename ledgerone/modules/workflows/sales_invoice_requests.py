@@ -15,6 +15,7 @@ from ledgerone.modules.workflows.services import WorkflowError, WorkflowService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.currency import organisation_base_currency
+from ledgerone.services.ledger import LedgerService
 from ledgerone.services.payment_terms import PaymentTermsService
 
 
@@ -60,6 +61,10 @@ class SalesInvoiceWorkflowService:
     ) -> tuple[dict, Decimal]:
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
+
+        # Invoice date is the posting date for the simple sales workflow. Do not let an
+        # impossible locked-period invoice enter review; the guard runs again at Post.
+        LedgerService.assert_posting_date_open(context, invoice_date)
 
         clean_number = (invoice_number or "").strip()
         if not clean_number:
