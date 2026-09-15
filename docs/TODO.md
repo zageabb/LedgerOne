@@ -2,7 +2,7 @@
 
 **Status snapshot:** 15 September 2026  
 **Repository:** `zageabb/LedgerOne`  
-**Reviewed against `main` through:** `b787dcb0559446a81a8523f48cd9ade41f979915`  
+**Reviewed against `main` through:** `6371044e75d1c171482a9d82d0df000db199610d`  
 **Purpose:** One place to see what is complete, what is in progress, and what remains outstanding.
 
 > **Status rule:** `[x]` means the capability is implemented and published on `main`. `[ ]` means it is not yet complete on `main`, even where partial work exists on a branch or pull request.
@@ -27,6 +27,7 @@ Related documents:
 | [x] | Audit assurance workspace/report | Complete | Audit workspace and 15-finding accounting/control review published |
 | [ ] | Accounting Assurance remediation | Not complete | 15 audit findings remain open; Critical/High items block unrestricted production use |
 | [ ] | User-facing balance visibility and accounting guidance | Not complete | Account-list balances, transaction workflow guidance and payment-account validation added to backlog |
+| [ ] | AI workspace UX and business Knowledge | Not complete | Chat-style conversation history/layout plus organisation-scoped Knowledge/RAG added to backlog |
 | [ ] | v0.4 Bank/document automation | Not started as a release | 8 roadmap items outstanding |
 | [ ] | v0.5 Projects/jobs/costing | Not started as a release | 8 roadmap items outstanding |
 | [ ] | v0.6 Fixed assets/inventory | Not started as a release | 8 roadmap items outstanding |
@@ -264,6 +265,54 @@ Required remediation:
 
 ---
 
+## 8B. AI workspace UX and organisation Knowledge — OUTSTANDING
+
+These items make the local AI workspace behave like a normal chat application and let even a relatively small local LLM answer with organisation-specific business knowledge instead of relying only on model training.
+
+### Chat-style AI workspace layout
+
+- [ ] Redesign the AI screen as a three-part chat workspace: **conversation history on the left, scrollable conversation in the centre/main pane, prompt composer fixed at the bottom**.
+- [ ] Persist previous AI conversations and show them in the left sidebar, newest/recent first.
+- [ ] Add **New conversation** and allow reopening previous conversations without losing their message history.
+- [ ] Support sensible conversation titles, with rename and delete/archive controls.
+- [ ] Make the left conversation-history panel independently scrollable when the history is longer than the screen.
+- [ ] Make the main message pane vertically scrollable and automatically keep the latest response visible without preventing the user from scrolling back through older messages.
+- [ ] Keep the prompt input/composer visible at the bottom while the message pane scrolls, similar to a conventional chat application.
+- [ ] Add visible scroll bars wherever content exceeds the available pane height/width rather than allowing page content to become inaccessible.
+- [ ] Allow multiline prompts, Enter/Shift+Enter behaviour appropriate to the UI, and a clearly visible Send action.
+- [ ] Preserve responsive behaviour: on smaller screens the conversation list may collapse into a drawer, while the conversation and composer remain usable.
+- [ ] Do not make a whole long AI page scroll when independent sidebar/message-pane scrolling gives a better experience.
+- [ ] Ensure loading/tool-execution states do not move or hide the prompt composer unexpectedly.
+
+### Organisation Knowledge / local RAG workspace
+
+- [ ] Add a first-class **Knowledge** section to LedgerOne for organisation-specific information that should inform AI answers.
+- [ ] Allow authorised users to add business-process documents, manuals, procedures, accounting policies, work instructions, FAQs and similar reference material.
+- [ ] Support practical source types such as Markdown/text, PDF, Word and other document formats already supported by LedgerOne where feasible.
+- [ ] Keep Knowledge **organisation-scoped** so material from one organisation can never be retrieved into another organisation's AI session.
+- [ ] Store source metadata including title, source/file name, version or updated date where available, uploader and ingestion/indexing status.
+- [ ] Extract/chunk/index Knowledge separately from the raw source so retrieval can return only the most relevant passages to the local model.
+- [ ] Use retrieval-augmented generation so a small local LLM receives a compact set of relevant Knowledge passages rather than entire manuals in every prompt.
+- [ ] Make retrieval/model integration provider-agnostic so it works with the existing Ollama-compatible local model configuration and can support other local embedding/model backends later.
+- [ ] Prefer a **local/offline retrieval path** for local-model deployments; business Knowledge should not require sending source content to an external service merely to search it.
+- [ ] Show which Knowledge sources/passages were used in an AI answer so the user can verify where the guidance came from.
+- [ ] Allow enabling/disabling or removing a Knowledge source and ensure disabled/deleted content is no longer returned by retrieval.
+- [ ] Add re-index/rebuild controls when a source document changes.
+- [ ] Provide simple search/browse of Knowledge independently of the AI chat so users can confirm what information is available.
+- [ ] Respect existing AI and user permissions: being allowed to use AI must not automatically grant access to restricted Knowledge sources.
+- [ ] Audit Knowledge upload/change/delete/re-index actions and retain provenance for the source used in consequential AI recommendations.
+- [ ] Add retrieval tests for organisation isolation, stale/removed source exclusion, source citation/provenance and deterministic top-k filtering.
+
+### How Knowledge should be used by the AI
+
+- [ ] AI prompt assembly should clearly separate **system/accounting rules**, **organisation Knowledge**, **live LedgerOne data/tool results**, and the **user request** rather than blending them into one untraceable prompt.
+- [ ] Ledger/accounting facts obtained from LedgerOne services remain authoritative over narrative Knowledge where they conflict.
+- [ ] Knowledge should guide procedures and business context but must not weaken ledger validation, user permissions, period controls or other accounting safeguards.
+- [ ] Where the Knowledge answer is uncertain or no strong source is retrieved, the AI should say so rather than invent a business rule.
+- [ ] Make the Knowledge feature useful to the planned `docs/ACCOUNTING_WORKFLOWS.md` content as well, so the local AI can explain correct LedgerOne workflows conversationally.
+
+---
+
 ## 9. v0.4 — Bank and document automation — OUTSTANDING
 
 | Complete | Capability | Status |
@@ -352,7 +401,7 @@ Required remediation:
 | [ ] | Budget variance explanations | Outstanding |
 | [ ] | Explainable coding/reconciliation suggestions | Outstanding |
 | [ ] | AI approval policies by tool/action/risk | Outstanding; also required by LO-AUD-001/015 |
-| [ ] | Organisation-specific knowledge/RAG sources | Outstanding |
+| [ ] | Organisation-specific knowledge/RAG sources | Outstanding; detailed user-facing requirements now tracked in section 8B |
 | [ ] | Optional local-model profiles per organisation | Outstanding beyond current single organisation-level AI config |
 
 ---
@@ -389,8 +438,10 @@ Required remediation:
 | 8 | [ ] | LO-AUD-004 — Period-aware TB/P&L/Balance Sheet/GL reports | Required for professional accounting |
 | 9 | [ ] | Show balances directly on account/customer/supplier/bank lists | Removes unnecessary navigation to the Trial Balance and improves day-to-day usability |
 | 10 | [ ] | Build Mermaid accounting transaction workflow guide | Gives non-accountants a correct starting point and reduces misuse of manual journals/control accounts |
-| 11 | [ ] | Contact/address improvements | Last ordinary v0.3 product feature and prerequisite for better VAT invoices |
-| 12 | [ ] | LO-AUD-006/007 — Complete VAT invoice and VAT-period controls | Required before UK VAT/MTD compliance claims |
+| 11 | [ ] | Redesign AI screen with conversation sidebar, scrollable chat and bottom composer | Makes the local AI practical for ongoing use rather than a single-page prompt form |
+| 12 | [ ] | Add organisation Knowledge/RAG workspace for local AI | Gives small local models business-process/manual context while keeping sources local, scoped and traceable |
+| 13 | [ ] | Contact/address improvements | Last ordinary v0.3 product feature and prerequisite for better VAT invoices |
+| 14 | [ ] | LO-AUD-006/007 — Complete VAT invoice and VAT-period controls | Required before UK VAT/MTD compliance claims |
 
 ---
 
