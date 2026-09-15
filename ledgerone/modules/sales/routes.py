@@ -36,20 +36,43 @@ def index():
                 ).date()
                 due_date_raw = request.form.get("due_date")
                 due_date = datetime.strptime(due_date_raw, "%Y-%m-%d").date() if due_date_raw else None
-                SalesService.create_invoice(
-                    context,
-                    customer_id=request.form.get("customer_id", ""),
-                    invoice_number=request.form.get("invoice_number", ""),
-                    invoice_date=invoice_date,
-                    due_date=due_date,
-                    description=request.form.get("description", "Sales"),
-                    amount=request.form.get("amount", "0"),
-                    receivable_account_id=request.form.get("receivable_account_id", ""),
-                    revenue_account_id=request.form.get("revenue_account_id", ""),
-                    currency=request.form.get("currency", "GBP"),
-                    tax_code_id=request.form.get("tax_code_id") or None,
-                )
-                flash("Invoice created and posted to the ledger.", "success")
+                if module_registry.is_enabled(context.organisation_id, "workflows"):
+                    # Import lazily so Sales remains independent of the workflow package
+                    # during module discovery.
+                    from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
+
+                    workflow = SalesInvoiceWorkflowService.create_request(
+                        context,
+                        customer_id=request.form.get("customer_id", ""),
+                        invoice_number=request.form.get("invoice_number", ""),
+                        invoice_date=invoice_date,
+                        due_date=due_date,
+                        description=request.form.get("description", "Sales"),
+                        amount=request.form.get("amount", "0"),
+                        receivable_account_id=request.form.get("receivable_account_id", ""),
+                        revenue_account_id=request.form.get("revenue_account_id", ""),
+                        currency=request.form.get("currency", "GBP"),
+                        tax_code_id=request.form.get("tax_code_id") or None,
+                    )
+                    flash(
+                        f"Invoice submitted to User Actions ({workflow.status.replace('_', ' ')}). Nothing has posted to receivables yet.",
+                        "success",
+                    )
+                else:
+                    SalesService.create_invoice(
+                        context,
+                        customer_id=request.form.get("customer_id", ""),
+                        invoice_number=request.form.get("invoice_number", ""),
+                        invoice_date=invoice_date,
+                        due_date=due_date,
+                        description=request.form.get("description", "Sales"),
+                        amount=request.form.get("amount", "0"),
+                        receivable_account_id=request.form.get("receivable_account_id", ""),
+                        revenue_account_id=request.form.get("revenue_account_id", ""),
+                        currency=request.form.get("currency", "GBP"),
+                        tax_code_id=request.form.get("tax_code_id") or None,
+                    )
+                    flash("Invoice created and posted to the ledger.", "success")
             return redirect(url_for("sales.index"))
         except (ValueError, PermissionError, LedgerError) as exc:
             flash(str(exc), "danger")
@@ -69,6 +92,7 @@ def index():
         revenue_accounts=[row for row in accounts if row.account_type == "income"],
         tax_codes=tax_codes,
         tax_enabled=module_registry.is_enabled(context.organisation_id, "tax"),
+        workflows_enabled=module_registry.is_enabled(context.organisation_id, "workflows"),
         today=date.today().isoformat(),
         default_due="",
     )
