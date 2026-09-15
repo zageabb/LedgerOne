@@ -5,6 +5,7 @@ from flask import Blueprint, g, jsonify, request
 from sqlalchemy import or_
 
 from ledgerone.models.ledger import Account, Journal
+from ledgerone.module_registry import module_registry
 from ledgerone.security import require_api
 from ledgerone.services.ledger import LedgerError, LedgerService
 
@@ -243,6 +244,26 @@ def post_journal():
     payload = request.get_json(silent=True) or {}
     try:
         journal_date = date.fromisoformat(payload.get("date") or date.today().isoformat())
+        if module_registry.is_enabled(g.access_context.organisation_id, "workflows"):
+            from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
+
+            workflow = JournalWorkflowService.create_request(
+                g.access_context,
+                journal_date=journal_date,
+                description=payload.get("description", "API journal"),
+                reference=payload.get("reference"),
+                lines=payload.get("lines") or [],
+                source_module="api",
+                source_reference=payload.get("source_reference"),
+                metadata={**(payload.get("metadata") or {}), "created_by": "ledger_api"},
+            )
+            return jsonify({
+                "workflow_instance_id": workflow.id,
+                "status": workflow.status,
+                "posted": False,
+                "immutable": False,
+            }), 201
+
         journal = LedgerService.post_journal(
             g.access_context,
             journal_date=journal_date,
@@ -253,7 +274,7 @@ def post_journal():
             source_reference=payload.get("source_reference"),
             metadata=payload.get("metadata") or {},
         )
-        return jsonify({"id": journal.id, "status": journal.status, "immutable": True}), 201
+        return jsonify({"id": journal.id, "status": journal.status, "immutable": True, "posted": True}), 201
     except (LedgerError, PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
 
