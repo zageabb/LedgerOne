@@ -4,44 +4,63 @@
 <div class="page-head">
   <div>
     <h1>{{ 'Reports' if ui_mode == 'home' else 'Financial reports' }}</h1>
-    <p>{{ 'See how much you own, owe, earn and spend from the same ledger.' if ui_mode == 'home' else 'Management-level profit and loss and balance-sheet views from posted ledger balances.' }}</p>
+    <p>{{ 'See what you earned and spent in the selected period, and what you own and owe at the end date.' if ui_mode == 'home' else 'Period-aware profit and loss and balance-sheet views from posted ledger entries.' }}</p>
   </div>
-  <div class="actions"><a class="button button-secondary" href="{{ url_for('reports.aging') }}">{{ 'Who owes what' if ui_mode == 'home' else 'Aged balances' }}</a><a class="button button-secondary" href="{{ url_for('control_account_reports.index') }}">{{ 'Account checks' if ui_mode == 'home' else 'Control reconciliation' }}</a><a class="button button-secondary" href="{{ url_for('ledger.trial_balance') }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a></div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('reports.general_ledger', from_date=from_date.isoformat(), to_date=to_date.isoformat()) }}">{{ 'Account activity' if ui_mode == 'home' else 'General ledger' }}</a>
+    <a class="button button-secondary" href="{{ url_for('reports.aging') }}">{{ 'Who owes what' if ui_mode == 'home' else 'Aged balances' }}</a>
+    <a class="button button-secondary" href="{{ url_for('control_account_reports.index') }}">{{ 'Account checks' if ui_mode == 'home' else 'Control reconciliation' }}</a>
+    <a class="button button-secondary" href="{{ url_for('ledger.trial_balance', as_of=to_date.isoformat()) }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" class="form-grid">
+    <div class="field"><label>From</label><input type="date" name="from_date" value="{{ from_date.isoformat() }}" required></div>
+    <div class="field"><label>To / balance-sheet date</label><input type="date" name="to_date" value="{{ to_date.isoformat() }}" required></div>
+    <div class="field"><label>Comparison</label><select name="compare"><option value="1" {% if compare_enabled %}selected{% endif %}>Same period last year</option><option value="0" {% if not compare_enabled %}selected{% endif %}>No comparison</option></select></div>
+    <div class="field"><label>&nbsp;</label><button class="button" type="submit">Run reports</button></div>
+  </form>
+  <p class="help">Profit &amp; loss covers {{ from_date.strftime('%d %b %Y') }} to {{ to_date.strftime('%d %b %Y') }}. Balance sheet is cumulative through {{ to_date.strftime('%d %b %Y') }}.{% if compare_enabled %} Comparison is {{ compare_from.strftime('%d %b %Y') }} to {{ compare_to.strftime('%d %b %Y') }}.{% endif %}</p>
 </div>
 
 <div class="grid grid-4">
-  <div class="card metric"><div class="metric-label">{{ 'Net worth' if ui_mode == 'home' else 'Net assets' }}</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.net_worth) }}</div></div>
-  <div class="card metric"><div class="metric-label">Income</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_income) }}</div></div>
-  <div class="card metric"><div class="metric-label">Expenses</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_expenses) }}</div></div>
-  <div class="card metric"><div class="metric-label">{{ 'Money left after expenses' if ui_mode == 'home' else 'Net profit / loss' }}</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.net_profit) }}</div></div>
+  <div class="card metric"><div class="metric-label">{{ 'Net worth' if ui_mode == 'home' else 'Net assets' }}</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.net_assets) }}</div>{% if report.balance_sheet_comparative %}<small>Prior year: {{ current_organisation.base_currency }} {{ '%.2f'|format(report.balance_sheet_comparative.net_assets) }}</small>{% endif %}</div>
+  <div class="card metric"><div class="metric-label">Income</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_income) }}</div>{% if report.comparative %}<small>Prior period: {{ current_organisation.base_currency }} {{ '%.2f'|format(report.comparative.total_income) }}</small>{% endif %}</div>
+  <div class="card metric"><div class="metric-label">Expenses</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_expenses) }}</div>{% if report.comparative %}<small>Prior period: {{ current_organisation.base_currency }} {{ '%.2f'|format(report.comparative.total_expenses) }}</small>{% endif %}</div>
+  <div class="card metric"><div class="metric-label">{{ 'Money left after expenses' if ui_mode == 'home' else 'Net profit / loss' }}</div><div class="metric-value">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.net_profit) }}</div>{% if report.comparative %}<small>Prior period: {{ current_organisation.base_currency }} {{ '%.2f'|format(report.comparative.net_profit) }}</small>{% endif %}</div>
 </div>
 
 <div class="grid grid-2 section">
   <div class="card">
-    <div class="card-head"><h2>{{ 'Income and spending' if ui_mode == 'home' else 'Profit & loss' }}</h2></div>
+    <div class="card-head"><h2>{{ 'Income and spending' if ui_mode == 'home' else 'Profit & loss' }}</h2><span class="badge">{{ from_date.strftime('%d %b %Y') }} – {{ to_date.strftime('%d %b %Y') }}</span></div>
     <div class="table-wrap">
-      <table><thead><tr><th>Account</th><th class="number">Amount</th></tr></thead><tbody>
+      <table><thead><tr><th>Account</th><th class="number">Period amount</th></tr></thead><tbody>
       {% for row in report.income %}<tr><td>{{ row.code }} · {{ row.name }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(-row.balance) }}</td></tr>{% endfor %}
       <tr><td><strong>Total income</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_income) }}</strong></td></tr>
       {% for row in report.expenses %}<tr><td>{{ row.code }} · {{ row.name }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(row.balance) }}</td></tr>{% endfor %}
       <tr><td><strong>Total expenses</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_expenses) }}</strong></td></tr>
       <tr><td><strong>Net profit / loss</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.net_profit) }}</strong></td></tr>
+      {% if report.comparative %}<tr><td><strong>Prior-period net profit / loss</strong><br><small>{{ compare_from.strftime('%d %b %Y') }} – {{ compare_to.strftime('%d %b %Y') }}</small></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.comparative.net_profit) }}</strong></td></tr>{% endif %}
       </tbody></table>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>{{ 'What you own and owe' if ui_mode == 'home' else 'Balance sheet' }}</h2></div>
+    <div class="card-head"><h2>{{ 'What you own and owe' if ui_mode == 'home' else 'Balance sheet' }}</h2><span class="badge">As at {{ to_date.strftime('%d %b %Y') }}</span></div>
     <div class="table-wrap">
-      <table><thead><tr><th>Account</th><th class="number">Amount</th></tr></thead><tbody>
+      <table><thead><tr><th>Account</th><th class="number">Balance</th></tr></thead><tbody>
       {% for row in report.assets %}<tr><td>{{ row.code }} · {{ row.name }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(row.balance) }}</td></tr>{% endfor %}
       <tr><td><strong>Total assets</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_assets) }}</strong></td></tr>
       {% for row in report.liabilities %}<tr><td>{{ row.code }} · {{ row.name }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(-row.balance) }}</td></tr>{% endfor %}
       <tr><td><strong>Total liabilities</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_liabilities) }}</strong></td></tr>
       {% for row in report.equity %}<tr><td>{{ row.code }} · {{ row.name }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(-row.balance) }}</td></tr>{% endfor %}
-      <tr><td><strong>Equity</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_equity) }}</strong></td></tr>
+      <tr><td>Current / unclosed earnings</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(report.current_earnings) }}</td></tr>
+      <tr><td><strong>Total equity including current earnings</strong></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.total_equity) }}</strong></td></tr>
+      {% if report.balance_sheet_comparative %}<tr><td><strong>Prior-year net assets</strong><br><small>As at {{ compare_to.strftime('%d %b %Y') }}</small></td><td class="number"><strong>{{ current_organisation.base_currency }} {{ '%.2f'|format(report.balance_sheet_comparative.net_assets) }}</strong></td></tr>{% endif %}
       </tbody></table>
     </div>
+    {% if report.balance_check != 0 %}<p class="help">Balance check difference: {{ current_organisation.base_currency }} {{ '%.2f'|format(report.balance_check) }}. Investigate before relying on this statement.</p>{% endif %}
   </div>
 </div>
 {% endblock %}
