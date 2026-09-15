@@ -4,7 +4,7 @@ from flask import current_app
 from sqlalchemy import inspect
 
 from ledgerone.extensions import db
-from ledgerone.models.core import Membership, Organisation, User
+from ledgerone.models.core import Membership, Organisation, Setting, User
 from ledgerone.models.ledger import Account
 from ledgerone.module_registry import module_registry
 
@@ -14,9 +14,23 @@ def _slugify(value: str) -> str:
     return value or "ledger"
 
 
-def _seed_chart(organisation_id: str):
+def _seed_chart(organisation_id: str) -> bool:
+    """Seed the starter chart and return True when a new chart was created."""
     if Account.query.filter_by(organisation_id=organisation_id).first():
-        return
+        return False
+
+    control_metadata = {
+        "1200": {
+            "control_role": "accounts_receivable",
+            "control_owner_module": "sales",
+            "control_allowed_modules": ["sales"],
+        },
+        "2100": {
+            "control_role": "accounts_payable",
+            "control_owner_module": "purchases",
+            "control_allowed_modules": ["purchases"],
+        },
+    }
     defaults = [
         ("1000", "Current Account", "asset"),
         ("1100", "Savings", "asset"),
@@ -32,14 +46,44 @@ def _seed_chart(organisation_id: str):
         ("5300", "Food and Groceries", "expense"),
     ]
     for code, name, account_type in defaults:
+        metadata = control_metadata.get(code, {})
         db.session.add(
             Account(
                 organisation_id=organisation_id,
                 code=code,
                 name=name,
                 account_type=account_type,
+                is_control_account=bool(metadata),
+                metadata_json=metadata,
             )
         )
+    db.session.commit()
+    return True
+
+
+def _ensure_control_metadata_once(organisation_id: str, *, fresh_chart: bool) -> None:
+    """Backfill pre-LO-AUD-003 organisations once, not on every app startup."""
+    marker = Setting.query.filter_by(
+        organisation_id=organisation_id,
+        scope="accounting_controls",
+        key="control_metadata_v1",
+    ).first()
+    if marker:
+        return
+
+    if not fresh_chart:
+        from ledgerone.services.control_accounts import seed_control_account_metadata_for_org
+
+        seed_control_account_metadata_for_org(organisation_id)
+
+    db.session.add(
+        Setting(
+            organisation_id=organisation_id,
+            scope="accounting_controls",
+            key="control_metadata_v1",
+            value={"applied": True},
+        )
+    )
     db.session.commit()
 
 
@@ -90,5 +134,6 @@ def bootstrap_database(*, create_schema: bool = True, seed_defaults: bool = True
 
     for organisation in Organisation.query.all():
         module_registry.ensure_org_states(organisation.id)
-        _seed_chart(organisation.id)
+        fresh_chart = _seed_chart(organisation.id)
         module_registry.seed_org_defaults(organisation.id)
+        _ensure_control_metadata_once(organisation.id, fresh_chart=fresh_chart)
