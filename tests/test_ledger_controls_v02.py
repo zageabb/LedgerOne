@@ -11,11 +11,20 @@ from ledgerone.models.ledger import (
     RecurringJournal,
     RecurringJournalRun,
 )
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _full_access(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        # These tests exercise immutable posted-journal/opening-balance/recurring-ledger
+        # controls themselves. Keep the workflow proposal layer out of these fixtures.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="v02-controls",
             organisation_id=organisation.id,
