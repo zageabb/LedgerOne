@@ -18,10 +18,7 @@ def create_app(config_overrides: dict | None = None):
     from ledgerone.extensions import csrf, db, login_manager, migrate
     from ledgerone.module_registry import module_registry
     from ledgerone.models import User
-    from ledgerone.services.control_accounts import (
-        install_control_account_service_guards,
-        seed_all_control_account_metadata,
-    )
+    from ledgerone.services.control_accounts import install_control_account_service_guards
     from ledgerone.services.currency import install_currency_service_guards
 
     # Currency only depends on the core ledger models, so it is safe to install before
@@ -96,6 +93,5 @@ def create_app(config_overrides: dict | None = None):
             create_schema=app.config.get("AUTO_CREATE_SCHEMA", True),
             seed_defaults=app.config.get("AUTO_SEED_DEFAULTS", True),
         )
-        seed_all_control_account_metadata()
 
     return app
