@@ -183,15 +183,14 @@ class PurchaseOrderService:
                 expense_account_id=line.expense_account_id,
                 currency=order.currency,
                 tax_code_id=line.tax_code_id,
+                metadata={
+                    "source_purchase_order_id": order.id,
+                    "source_purchase_order_number": order.order_number,
+                },
                 commit=False,
             )
             order.status = "converted"
             order.converted_bill_id = bill.id
-            bill.metadata_json = {
-                **(bill.metadata_json or {}),
-                "source_purchase_order_id": order.id,
-                "source_purchase_order_number": order.order_number,
-            }
             record_audit_event(
                 context,
                 module_id="purchases",
