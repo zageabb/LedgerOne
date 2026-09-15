@@ -27,6 +27,7 @@
         {% set sales_request = instance.metadata_json.get('sales_invoice_request') if instance.entity_type == 'sales_invoice' else none %}
         {% set expense_claim = instance.metadata_json.get('expense_claim_snapshot') if instance.entity_type == 'expense_claim' else none %}
         {% set can_post_item = post_access.get(action.id, false) %}
+        {% set can_revise_item = revision_access.get(action.id, false) %}
         <tr>
           <td><span class="badge">{{ action.action_type|title }}</span><br><small>{{ action.created_at.strftime('%d %b %Y %H:%M') }}</small></td>
           <td>
@@ -60,7 +61,61 @@
           <td>{% if action.assigned_user %}{{ action.assigned_user.name }}{% elif action.assigned_role %}Role: {{ action.assigned_role }}{% else %}Any authorised user{% endif %}</td>
           <td>
             {% if action.action_type in ['review', 'approve'] %}
-              {% if (action.action_type == 'review' and can_review) or (action.action_type == 'approve' and can_approve) %}
+              {% if instance.status == 'returned' and can_revise_item and journal_request %}
+              <form method="post" action="{{ url_for('workflows.revise_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="currency" value="{{ instance.currency }}">
+                <div class="field"><label>Journal date</label><input name="journal_date" type="date" value="{{ journal_request.get('journal_date') }}" required></div>
+                <div class="field"><label>Reference</label><input name="reference" value="{{ journal_request.get('reference') or '' }}"></div>
+                <div class="field field-full"><label>Description</label><input name="description" value="{{ journal_request.get('description') or '' }}" required></div>
+                {% for line in journal_request.get('lines', []) %}
+                <div class="field field-full"><strong>Line {{ loop.index }}</strong></div>
+                <div class="field field-full"><label>Account</label><select name="line_account_id" required>
+                  {% for account in revision_accounts if not account.is_control_account %}
+                  <option value="{{ account.id }}" {% if account.id == line.get('account_id') %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>
+                  {% endfor %}
+                </select></div>
+                <div class="field field-full"><label>Line description</label><input name="line_description" value="{{ line.get('description') or '' }}"></div>
+                <div class="field"><label>Debit</label><input name="line_debit" type="number" min="0" step="0.01" value="{{ line.get('debit') }}"></div>
+                <div class="field"><label>Credit</label><input name="line_credit" type="number" min="0" step="0.01" value="{{ line.get('credit') }}"></div>
+                {% endfor %}
+                <div class="field field-full"><p class="help">Resubmitting creates a replacement workflow and recalculates all current review/approval rules. The returned workflow remains in the audit history.</p></div>
+                <div class="field field-full"><button class="button" type="submit">Correct & resubmit journal</button></div>
+              </form>
+              <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject instead</button>
+              </form>
+              {% elif instance.status == 'returned' and can_revise_item and purchase_request %}
+              <form method="post" action="{{ url_for('workflows.revise_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="supplier_id" value="{{ purchase_request.get('supplier_id') }}"><input type="hidden" name="currency" value="{{ purchase_request.get('currency') }}"><input type="hidden" name="tax_code_id" value="{{ purchase_request.get('tax_code_id') or '' }}">
+                <div class="field"><label>Bill number</label><input name="bill_number" value="{{ purchase_request.get('bill_number') }}" required></div>
+                <div class="field"><label>Amount before VAT</label><input name="amount" type="number" min="0.01" step="0.01" value="{{ purchase_request.get('amount') }}" required></div>
+                <div class="field"><label>Bill date</label><input name="bill_date" type="date" value="{{ purchase_request.get('bill_date') }}" required></div>
+                <div class="field"><label>Due date</label><input name="due_date" type="date" value="{{ purchase_request.get('due_date') }}"></div>
+                <div class="field field-full"><label>Description</label><input name="description" value="{{ purchase_request.get('description') or '' }}" required></div>
+                <div class="field"><label>Expense account</label><select name="expense_account_id" required>{% for account in revision_accounts if account.account_type == 'expense' %}<option value="{{ account.id }}" {% if account.id == purchase_request.get('expense_account_id') %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></div>
+                <div class="field"><label>Payables account</label><select name="payable_account_id" required>{% for account in revision_accounts if account.account_type == 'liability' %}<option value="{{ account.id }}" {% if account.id == purchase_request.get('payable_account_id') %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></div>
+                <div class="field field-full"><p class="help">Supplier and VAT code remain as reviewed unless corrected through the API. The replacement workflow is re-evaluated against current approval rules.</p></div>
+                <div class="field field-full"><button class="button" type="submit">Correct & resubmit bill</button></div>
+              </form>
+              <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject instead</button></form>
+              {% elif instance.status == 'returned' and can_revise_item and sales_request %}
+              <form method="post" action="{{ url_for('workflows.revise_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="customer_id" value="{{ sales_request.get('customer_id') }}"><input type="hidden" name="currency" value="{{ sales_request.get('currency') }}"><input type="hidden" name="tax_code_id" value="{{ sales_request.get('tax_code_id') or '' }}">
+                <div class="field"><label>Invoice number</label><input name="invoice_number" value="{{ sales_request.get('invoice_number') }}" required></div>
+                <div class="field"><label>Amount before VAT</label><input name="amount" type="number" min="0.01" step="0.01" value="{{ sales_request.get('amount') }}" required></div>
+                <div class="field"><label>Invoice date</label><input name="invoice_date" type="date" value="{{ sales_request.get('invoice_date') }}" required></div>
+                <div class="field"><label>Due date</label><input name="due_date" type="date" value="{{ sales_request.get('due_date') }}"></div>
+                <div class="field field-full"><label>Description</label><input name="description" value="{{ sales_request.get('description') or '' }}" required></div>
+                <div class="field"><label>Revenue account</label><select name="revenue_account_id" required>{% for account in revision_accounts if account.account_type == 'income' %}<option value="{{ account.id }}" {% if account.id == sales_request.get('revenue_account_id') %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></div>
+                <div class="field"><label>Receivables account</label><select name="receivable_account_id" required>{% for account in revision_accounts if account.account_type == 'asset' %}<option value="{{ account.id }}" {% if account.id == sales_request.get('receivable_account_id') %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></div>
+                <div class="field field-full"><p class="help">Customer and VAT code remain as reviewed unless corrected through the API. The replacement workflow is re-evaluated against current approval rules.</p></div>
+                <div class="field field-full"><button class="button" type="submit">Correct & resubmit invoice</button></div>
+              </form>
+              <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject instead</button></form>
+              {% elif (action.action_type == 'review' and can_review) or (action.action_type == 'approve' and can_approve) %}
               <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="form-grid">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="field field-full"><input name="comments" placeholder="Optional comment / approval note"></div>
@@ -70,7 +125,7 @@
                   <button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject</button>
                 </div>
               </form>
-              {% else %}<small>You do not have permission to complete this step.</small>{% endif %}
+              {% else %}<small>You do not have permission to complete or correct this step.</small>{% endif %}
             {% elif action.action_type == 'post' %}
               {% if can_post_item and item %}
               <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
@@ -80,30 +135,13 @@
                 <div class="field field-full"><button class="button" type="submit">Post to ledger</button></div>
               </form>
               {% elif can_post_item and journal_request %}
-              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="field field-full"><p class="help">Posting date {{ journal_request.get('journal_date') }}. The journal will be revalidated against period, currency and control-account rules when posted.</p></div>
-                <div class="field field-full"><button class="button" type="submit">Post journal to ledger</button></div>
-              </form>
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="field field-full"><p class="help">Posting date {{ journal_request.get('journal_date') }}. The journal will be revalidated against period, currency and control-account rules when posted.</p></div><div class="field field-full"><button class="button" type="submit">Post journal to ledger</button></div></form>
               {% elif can_post_item and purchase_request %}
-              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="field field-full"><p class="help">Posting creates the supplier bill and AP journal only now. VAT and the reviewed total are rechecked first.</p></div>
-                <div class="field field-full"><button class="button" type="submit">Post bill to Accounts Payable</button></div>
-              </form>
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="field field-full"><p class="help">Posting creates the supplier bill and AP journal only now. VAT and the reviewed total are rechecked first.</p></div><div class="field field-full"><button class="button" type="submit">Post bill to Accounts Payable</button></div></form>
               {% elif can_post_item and sales_request %}
-              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="field field-full"><p class="help">Posting creates the customer invoice and AR journal only now. VAT and the reviewed total are rechecked first.</p></div>
-                <div class="field field-full"><button class="button" type="submit">Post invoice to Accounts Receivable</button></div>
-              </form>
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="field field-full"><p class="help">Posting creates the customer invoice and AR journal only now. VAT and the reviewed total are rechecked first.</p></div><div class="field field-full"><button class="button" type="submit">Post invoice to Accounts Receivable</button></div></form>
               {% elif can_post_item and expense_claim %}
-              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="field"><label>Posting date</label><input name="posting_date" type="date" value="{{ today }}" required></div>
-                <div class="field field-full"><p class="help">The claim must still match the exact lines and totals reviewed above. Posting creates the expense/VAT/reimbursement journal only now.</p></div>
-                <div class="field field-full"><button class="button" type="submit">Approve & post expense claim</button></div>
-              </form>
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="field"><label>Posting date</label><input name="posting_date" type="date" value="{{ today }}" required></div><div class="field field-full"><p class="help">The claim must still match the exact lines and totals reviewed above. Posting creates the expense/VAT/reimbursement journal only now.</p></div><div class="field field-full"><button class="button" type="submit">Approve & post expense claim</button></div></form>
               {% else %}<small>You do not have the workflow and domain permission required to post this item.</small>{% endif %}
               <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -111,9 +149,7 @@
                 <button class="button button-small button-secondary" name="decision" value="return" type="submit">Return for review</button>
                 <button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject</button>
               </form>
-            {% else %}
-              <small>No handler is configured for this action type yet.</small>
-            {% endif %}
+            {% else %}<small>No handler is configured for this action type yet.</small>{% endif %}
           </td>
         </tr>
       {% endfor %}
@@ -131,13 +167,7 @@
       <thead><tr><th>Completed</th><th>Action</th><th>Item</th><th>Decision</th><th>By</th></tr></thead>
       <tbody>
       {% for action in recent_actions %}
-        <tr>
-          <td>{{ action.completed_at.strftime('%d %b %Y %H:%M') if action.completed_at else '—' }}</td>
-          <td>{{ action.action_type|title }}</td>
-          <td>{{ action.workflow_instance.title }}</td>
-          <td>{{ (action.decision or action.status).replace('_', ' ')|title }}</td>
-          <td>{{ action.completed_by.name if action.completed_by else 'System / unknown' }}</td>
-        </tr>
+        <tr><td>{{ action.completed_at.strftime('%d %b %Y %H:%M') if action.completed_at else '—' }}</td><td>{{ action.action_type|title }}</td><td>{{ action.workflow_instance.title }}</td><td>{{ (action.decision or action.status).replace('_', ' ')|title }}</td><td>{{ action.completed_by.name if action.completed_by else 'System / unknown' }}</td></tr>
       {% endfor %}
       </tbody>
     </table>
