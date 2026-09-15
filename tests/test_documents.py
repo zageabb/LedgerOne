@@ -5,11 +5,20 @@ from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.documents.models import SourceDocument
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _full_key(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        # Document tests need an already-posted entity to attach evidence to. Workflow
+        # proposal routing is covered by its own API boundary suite.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="documents-test",
             organisation_id=organisation.id,
