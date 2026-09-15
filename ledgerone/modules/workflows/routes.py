@@ -11,6 +11,7 @@ from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import ScheduledTransaction, UserAction
 from ledgerone.modules.workflows.posting import can_post_action
 from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
+from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -206,6 +207,9 @@ def post_action(action_id):
         elif entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
             bill = PurchaseBillWorkflowService.post_from_action(context, action_id)
             flash(f"Bill {bill.bill_number} posted to Accounts Payable.", "success")
+        elif entity_type == SalesInvoiceWorkflowService.ENTITY_TYPE:
+            invoice = SalesInvoiceWorkflowService.post_from_action(context, action_id)
+            flash(f"Invoice {invoice.invoice_number} posted to Accounts Receivable.", "success")
         elif entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
             claim = ExpenseClaimWorkflowService.post_from_action(
                 context,
