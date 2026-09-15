@@ -349,7 +349,6 @@ class AuditTraceService:
                 or_(*conditions),
             )
             .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
-            .limit(1000)
             .all()
         )
         return [
