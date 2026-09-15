@@ -26,11 +26,11 @@ Do not mark an item `CLOSED` solely because code was changed.
 | LO-AUD-001 | **CRITICAL** | AI can bypass requesting-user permissions | READY FOR RETEST | AA-1 | Unassigned | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` |
 | LO-AUD-002 | **CRITICAL** | Foreign currency accepted without proper base-currency accounting | READY FOR RETEST | AA-1 | Unassigned | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` |
 | LO-AUD-003 | **HIGH** | Control accounts permit direct posting | READY FOR RETEST | AA-1 | Unassigned | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` |
-| LO-AUD-004 | **HIGH** | Financial reports are not sufficiently period-aware | OPEN | AA-2 | Unassigned | — |
-| LO-AUD-005 | **HIGH** | Missing accounting period does not block posting | OPEN | AA-1 | Unassigned | — |
+| LO-AUD-004 | **HIGH** | Financial reports are not sufficiently period-aware | READY FOR RETEST | AA-2 | Unassigned | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` |
+| LO-AUD-005 | **HIGH** | Missing accounting period does not block posting | READY FOR RETEST | AA-1 | Unassigned | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` |
 | LO-AUD-006 | **HIGH** | Sales invoice output is not yet a complete UK VAT invoice | OPEN | AA-3 | Unassigned | — |
 | LO-AUD-007 | **HIGH** | VAT return lacks complete tax-point/adjustment/MTD controls | OPEN | AA-3 | Unassigned | — |
-| LO-AUD-008 | **HIGH** | Posted source documents are not protected like posted journals | OPEN | AA-1 | Unassigned | — |
+| LO-AUD-008 | **HIGH** | Posted source documents are not protected like posted journals | READY FOR RETEST | AA-1 | Unassigned | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` |
 | LO-AUD-009 | **MEDIUM-HIGH** | Invoice/credit numbering needs controlled sequences | OPEN | AA-2 | Unassigned | — |
 | LO-AUD-010 | **MEDIUM-HIGH** | Audit trail is not tamper-evident | OPEN | AA-4 | Unassigned | — |
 | LO-AUD-011 | **MEDIUM** | Paid-invoice credit/refund scenarios are restricted | OPEN | AA-2 | Unassigned | — |
@@ -72,7 +72,7 @@ These items should be completed before LedgerOne is treated as suitable for unre
 
 Implementation commit: `9e9ba07c`  
 Retest candidate: `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
-Test/retest notes: `Requester-scoped permissions, per-message write approval and tool filtering are implemented. The integrated candidate also passes the complete current suite. Independent audit retest is still required before CLOSED.`
+Test/retest notes: `Requester-scoped permissions, per-message write approval and tool filtering are implemented. Independent audit retest is still required before CLOSED.`
 
 ---
 
@@ -109,7 +109,7 @@ Test/retest notes: `Requester-scoped permissions, per-message write approval and
 
 Implementation commit: `9e28b2479be427ba9ccff3d07bea4306976382bb`  
 Retest candidate: `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
-Test/retest notes: `Central base-currency enforcement is integrated across browser/service/API/AI paths. The integrated candidate passes the complete current suite. Independent audit retest is still required before CLOSED.`
+Test/retest notes: `Central base-currency enforcement is integrated across browser/service/API/AI paths. Independent audit retest is still required before CLOSED.`
 
 ---
 
@@ -152,62 +152,71 @@ Test/retest notes: `Follow-up integration fixes moved cross-module guard install
 
 ## LO-AUD-005 — Mandatory accounting-period policy
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** HIGH
 
 ### Implementation checklist
 
-- [ ] Introduce organisation posting-period policy.
-- [ ] Professional policy requires the posting date to belong to a defined period.
-- [ ] Support `open`, `soft_closed`, `hard_closed` states.
-- [ ] Add dedicated override permission for soft-close posting.
-- [ ] Require reason for override/reopen.
-- [ ] Audit all overrides and reopen actions.
-- [ ] Ensure recurring journals use the same control.
-- [ ] Ensure sales/purchases/banking/expenses/API/AI use the same control.
+- [x] Introduce organisation posting-period policy.
+- [x] Required/production policy requires the posting date to belong to a defined period.
+- [x] Support `open`, `soft_closed`, `hard_closed` states; legacy `locked` is treated as hard closed.
+- [x] Add dedicated `ledger.periods.override` permission for soft-close posting.
+- [x] Require reason for override/reopen.
+- [x] Audit all overrides and reopen actions.
+- [x] Ensure recurring journals use the same control.
+- [x] Ensure sales/purchases/banking/expenses/API/AI use the same central control.
 
 ### Required tests
 
-- [ ] Undefined period date rejected under professional policy.
-- [ ] Open period accepted.
-- [ ] Soft-closed period rejected without override permission.
-- [ ] Hard-closed period rejected.
-- [ ] Reopened period records actor, timestamp and reason.
+- [x] Undefined period date rejected under required policy.
+- [x] Open period accepted.
+- [x] Soft-closed period rejected without override permission and reason.
+- [x] Hard-closed period rejected even with override authority.
+- [x] Reopened period records actor, timestamp and reason.
+- [x] Sales and recurring posting paths share the central policy.
+- [x] Period-policy/status API transitions are covered.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `c31068f0775f8bc95364fdaa1a3cbc69fa5bfe9c`  
+Retest candidate: `703b2e2bf1df751ba7290de4f38b3be3c5f7e878`  
+Test/retest notes: `Organisation-level period policy is enforced beneath LedgerService, with required/optional policy modes, open/soft/hard close semantics, audited override/reopen controls and shared enforcement for all posting channels. The integrated candidate passed CI #378: compile and clean migration checks succeeded; 168 tests passed, 3 skipped. Independent audit retest is still required before CLOSED.`
 
 ---
 
 ## LO-AUD-008 — Posted financial-document immutability
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** HIGH
 
 ### Implementation checklist
 
-- [ ] Protect posted sales invoice accounting fields against update.
-- [ ] Protect posted sales invoice lines against update/delete.
-- [ ] Protect posted purchase bill accounting fields against update.
-- [ ] Protect posted purchase bill lines against update/delete.
-- [ ] Apply equivalent protection to posted credit notes and posted expense claims where appropriate.
-- [ ] Define explicitly editable non-financial metadata, if any.
-- [ ] Ensure corrections use credit/reversal flows.
+- [x] Protect posted sales invoice accounting fields against update.
+- [x] Protect posted sales invoice lines against update/delete/addition.
+- [x] Protect posted purchase bill accounting fields against update.
+- [x] Protect posted purchase bill lines against update/delete/addition.
+- [x] Apply equivalent protection to posted credit notes and posted expense claims where appropriate.
+- [x] Explicitly allow settlement-status lifecycle changes while protecting financial/source-document evidence.
+- [x] Protect partially credited (`part_credited`) invoices and bills as posted evidence.
+- [x] Ensure corrections use credit/reversal/supported correction flows rather than silent mutation.
 
 ### Required tests
 
-- [ ] Direct ORM modification of posted invoice header fails.
-- [ ] Direct ORM modification/deletion of posted invoice line fails.
-- [ ] Direct ORM modification of posted bill header fails.
-- [ ] Direct ORM modification/deletion of posted bill line fails.
-- [ ] Draft records remain editable where intended.
+- [x] Direct ORM modification of posted invoice header fails.
+- [x] Direct ORM modification/deletion/addition of posted invoice line fails.
+- [x] Direct ORM modification of posted bill header fails.
+- [x] Direct ORM modification/deletion of posted bill line fails.
+- [x] Posted sales/purchase credit notes are immutable.
+- [x] Posted expense claim header/lines are immutable.
+- [x] Partially credited invoice/bill header and line mutation fails.
+- [x] Draft records remain editable where intended.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `d309c0ab43796a9a45e31fc9bbda980093ba0bce`  
+Follow-up control-state fix: `4aa86b8c87503f75ff782fbf25c795c87b21e34e`  
+Retest candidate: `703b2e2bf1df751ba7290de4f38b3be3c5f7e878`  
+Test/retest notes: `SQLAlchemy before-flush guards protect posted invoice, bill, credit-note and expense-claim evidence while retaining legitimate settlement status transitions. The part_credited state is explicitly protected. CI #366 passed 161 tests, 3 skipped; the later integrated candidate passed CI #378 with 168 tests, 3 skipped and clean compile/migration checks. Independent audit retest is still required before CLOSED.`
 
 ---
 
@@ -215,31 +224,37 @@ Test/retest notes: `—`
 
 ## LO-AUD-004 — Period-aware financial reporting
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** HIGH
 
 ### Implementation checklist
 
-- [ ] Trial Balance `as_of` date.
-- [ ] Trial Balance period movement option.
-- [ ] Profit & Loss `from_date` / `to_date`.
-- [ ] Balance Sheet `as_of` date.
-- [ ] General Ledger activity report with brought-forward/movement/carried-forward.
-- [ ] Current earnings / retained earnings presentation.
-- [ ] Comparative prior period/year support.
-- [ ] UI/API date parameters use common report services.
+- [x] Trial Balance `as_of` date.
+- [x] Trial Balance period movement option.
+- [x] Profit & Loss `from_date` / `to_date`.
+- [x] Balance Sheet `as_of` date.
+- [x] General Ledger activity report with brought-forward/movement/carried-forward.
+- [x] Current/unclosed earnings presentation within Balance Sheet equity.
+- [x] Comparative prior period/year support.
+- [x] UI/API date parameters use common report services.
+- [x] Legacy browser Trial Balance route redirects into the dated Reports surface.
 
 ### Required tests
 
-- [ ] Transactions before/inside/after period produce expected P&L.
-- [ ] Balance Sheet excludes post-as-of transactions.
-- [ ] Trial Balance remains balanced at each requested date.
-- [ ] Prior-period comparative values remain stable after later transactions.
+- [x] Transactions before/inside/after period produce expected P&L.
+- [x] Balance Sheet excludes post-as-of transactions.
+- [x] Trial Balance remains balanced at each requested date.
+- [x] Trial Balance period-movement totals are balanced.
+- [x] General Ledger opening/movement/closing and running balances are correct.
+- [x] Prior-period comparative values remain stable after later transactions.
+- [x] Reports REST endpoints use the same date-aware services.
+- [x] Browser financial reports, Trial Balance and General Ledger render with date controls.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `9312ecd2e018ed680430e816789f617395e3bbd7`  
+Retest candidate: `703b2e2bf1df751ba7290de4f38b3be3c5f7e878`  
+Test/retest notes: `FinancialReportingService now provides dated TB, P&L, Balance Sheet and General Ledger calculations from posted journals. Balance Sheet is cumulative as-of; P&L is period movement; GL carries brought-forward/movement/carried-forward; current/unclosed earnings are included in equity; prior-year comparisons are explicit. CI #375 passed 167 tests, 3 skipped on the core service/API implementation. Exact integrated candidate CI #378 passed compile, clean migration validation and 168 tests with 3 skipped. Independent audit retest is still required before CLOSED.`
 
 ---
 
@@ -267,7 +282,7 @@ Test/retest notes: `—`
 ### Closure evidence
 
 Implementation commit: `—`  
-Test/retest notes: `—`
+Test/retest notes: `Open PR #3 contains an older numbering implementation but is not mergeable with current main and uses a conflicting 0013 migration. Useful parts must be selectively ported onto the current migration/workflow architecture rather than merged blindly.`
 
 ---
 
@@ -520,6 +535,7 @@ Add a row whenever one or more findings are submitted for retest.
 | Date | Commit | Findings retested | Result | Retested by | Notes |
 |---|---|---|---|---|---|
 | 2026-09-15 | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` | LO-AUD-001, LO-AUD-002, LO-AUD-003 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #264: compile and clean migration checks passed; 114 tests passed, 3 skipped. |
+| 2026-09-15 | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` | LO-AUD-004, LO-AUD-005, LO-AUD-008 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #378: compile and clean migration checks passed; 168 tests passed, 3 skipped. |
 
 ---
 
