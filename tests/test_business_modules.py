@@ -6,11 +6,21 @@ from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account, AccountingPeriod, Journal
 from ledgerone.modules.purchases.models import PurchaseBill
 from ledgerone.modules.sales.models import SalesInvoice
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _scoped_key(app, permissions):
     with app.app_context():
         organisation = Organisation.query.one()
+        # These tests prove that Sales/Purchases services can post under their own
+        # permissions without arbitrary manual-journal authority. Workflow routing is
+        # tested separately, so exercise the direct service path here.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="pytest-scoped",
             organisation_id=organisation.id,
