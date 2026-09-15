@@ -1,6 +1,8 @@
+from datetime import date
+
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
-from ledgerone.models.ledger import Account, Journal
+from ledgerone.models.ledger import Account, AccountingPeriod, Journal
 from ledgerone.services.context import AccessContext
 
 
@@ -157,3 +159,45 @@ def test_api_journal_still_rejects_invalid_accounting_before_workflow_creation(c
         _, _, WorkflowInstance = _domain_types()
         assert Journal.query.count() == 0
         assert WorkflowInstance.query.filter_by(entity_type="journal").count() == 0
+
+
+def test_locked_period_sales_invoice_is_rejected_before_workflow_creation(client, app):
+    token, accounts, _, customer_id = _api_setup(app)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with app.app_context():
+        organisation = Organisation.query.one()
+        db.session.add(
+            AccountingPeriod(
+                organisation_id=organisation.id,
+                name="September 2026",
+                start_date=date(2026, 9, 1),
+                end_date=date(2026, 9, 30),
+                status="locked",
+            )
+        )
+        db.session.commit()
+
+    response = client.post(
+        "/api/v1/sales/invoices",
+        headers=headers,
+        json={
+            "customer_id": customer_id,
+            "invoice_number": "API-WF-LOCKED",
+            "invoice_date": "2026-09-15",
+            "due_date": "2026-10-15",
+            "description": "Locked-period proposal",
+            "amount": "100.00",
+            "receivable_account_id": accounts["1200"],
+            "revenue_account_id": accounts["4000"],
+            "currency": "GBP",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "locked period September 2026" in response.get_json()["error"]
+    with app.app_context():
+        _, SalesInvoice, WorkflowInstance = _domain_types()
+        assert SalesInvoice.query.filter_by(invoice_number="API-WF-LOCKED").count() == 0
+        assert Journal.query.count() == 0
+        assert WorkflowInstance.query.filter_by(entity_type="sales_invoice").count() == 0
