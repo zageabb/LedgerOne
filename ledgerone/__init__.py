@@ -84,12 +84,13 @@ def create_app(config_overrides: dict | None = None):
                 .all()
             )
         action_count = 0
-        if (
+        actions_enabled = bool(
             context
             and organisation
             and context.can("workflows.read")
             and module_registry.is_enabled(organisation.id, "workflows")
-        ):
+        )
+        if actions_enabled:
             from ledgerone.modules.workflows.services import WorkflowService
 
             action_count = WorkflowService.open_action_count(context)
@@ -98,6 +99,7 @@ def create_app(config_overrides: dict | None = None):
             "current_organisation": organisation,
             "current_memberships": memberships,
             "ledgerone_user_action_count": action_count,
+            "ledgerone_user_actions_enabled": actions_enabled,
             "ui_mode": getattr(current_user, "ui_mode", "home") if current_user.is_authenticated else "home",
         }
 
