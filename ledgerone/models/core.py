@@ -151,3 +151,77 @@ class Setting(db.Model):
     key = db.Column(db.String(120), nullable=False)
     value = db.Column(db.JSON, nullable=True)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class NumberSequence(db.Model):
+    __tablename__ = "number_sequences"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "sequence_key", name="uq_number_sequence_org_key"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    sequence_key = db.Column(db.String(80), nullable=False, index=True)
+    prefix = db.Column(db.String(40), nullable=False, default="")
+    suffix = db.Column(db.String(40), nullable=False, default="")
+    starting_value = db.Column(db.Integer, nullable=False, default=1)
+    padding = db.Column(db.Integer, nullable=False, default=4)
+    reset_policy = db.Column(db.String(20), nullable=False, default="never")
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    counters = db.relationship(
+        "NumberSequenceCounter",
+        back_populates="sequence",
+        cascade="all, delete-orphan",
+    )
+    allocations = db.relationship("NumberAllocation", back_populates="sequence")
+
+
+class NumberSequenceCounter(db.Model):
+    __tablename__ = "number_sequence_counters"
+    __table_args__ = (
+        db.UniqueConstraint("sequence_id", "reset_key", name="uq_number_sequence_counter_period"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    sequence_id = db.Column(db.String(36), db.ForeignKey("number_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    reset_key = db.Column(db.String(20), nullable=False, default="GLOBAL", index=True)
+    next_value = db.Column(db.Integer, nullable=False, default=1)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    sequence = db.relationship("NumberSequence", back_populates="counters")
+
+
+class NumberAllocation(db.Model):
+    __tablename__ = "number_allocations"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "sequence_id", "reset_key", "sequence_value", name="uq_number_allocation_sequence_value"
+        ),
+        db.UniqueConstraint(
+            "organisation_id", "sequence_key", "formatted_number", name="uq_number_allocation_formatted"
+        ),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    sequence_id = db.Column(db.String(36), db.ForeignKey("number_sequences.id"), nullable=False, index=True)
+    sequence_key = db.Column(db.String(80), nullable=False, index=True)
+    reset_key = db.Column(db.String(20), nullable=False, default="GLOBAL", index=True)
+    sequence_value = db.Column(db.Integer, nullable=True)
+    formatted_number = db.Column(db.String(120), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="reserved", index=True)
+    issue_date = db.Column(db.Date, nullable=False, index=True)
+    entity_type = db.Column(db.String(80), nullable=True, index=True)
+    entity_id = db.Column(db.String(36), nullable=True, index=True)
+    manual_override = db.Column(db.Boolean, nullable=False, default=False)
+    reason = db.Column(db.String(500), nullable=True)
+    allocated_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    allocated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    issued_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    voided_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    sequence = db.relationship("NumberSequence", back_populates="allocations")
