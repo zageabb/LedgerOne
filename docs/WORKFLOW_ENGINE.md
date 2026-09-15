@@ -1,239 +1,180 @@
-# LedgerOne Workflow Engine and Scheduled Transactions
+# LedgerOne Workflow Engine and Controlled Posting
 
 ## Purpose
 
-LedgerOne's workflow layer separates **automation and preparation** from **accounting posting**. It is intended to work from household/personal accounting through professional and enterprise use without creating a second accounting engine.
+LedgerOne's workflow layer separates **preparation, review and approval** from **accounting posting**. Browser users, API clients, AI tools and schedulers may prepare or propose work, but they do not gain a separate route around the accounting kernel.
 
 The core rule is:
 
-> **Automation may create, populate, classify, match and route work. Posting remains an explicit controlled action through the central `LedgerService`.**
+> **A channel may propose accounting work; only an explicit User Actions Post operation, delegated to the owning domain service, may create the final accounting effect.**
 
-For the initial release, scheduled transactions do **not auto-post in either UI mode**. Professional mode adds a review control by default when no explicit workflow rule is configured.
+The workflow engine is not a second ledger. Final journals continue to pass through the owning module and `LedgerService`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[Trigger] --> B[Transaction Template or Source Module]
-    B --> C[Generated Work Item]
+    A[Browser / REST API / AI / Scheduler] --> B[Owning domain validation]
+    B --> C[Workflow proposal or submitted domain record]
     C --> D[Workflow Instance]
-    D --> E[User Action]
+    D --> E[User Actions]
     E --> F{Decision}
-    F -->|Review/Approve| G[Ready to Post]
-    F -->|Return| H[Needs Review]
+    F -->|Review / Approve| G[Ready to Post]
+    F -->|Return| H[Correction required]
     F -->|Reject| I[Rejected]
-    G --> J[Explicit Post Action]
-    J --> K[LedgerService]
-    K --> L[Posted Journal]
+    G --> J[Explicit Post]
+    J --> K[Manifest-owned workflow adapter]
+    K --> L[Owning domain service]
+    L --> M[LedgerService]
+    M --> N[Posted journal / AR / AP]
 ```
 
-The workflow engine contains five persisted concepts:
+Each workflow-aware module declares its workflow ownership in `ModuleManifest`. The central Workflows module resolves the adapter lazily, so adding a new controlled accounting module does not require adding hard-coded imports or `if/elif` dispatch logic to the workflow controller.
 
-1. **Transaction Template** — describes expected recurring money in, bills/expenses or transfers.
-2. **Scheduled Transaction** — one generated occurrence of a template.
-3. **Workflow Definition** — reusable rules and review/approval steps.
-4. **Workflow Instance** — the state of one real item as it passes through controls.
-5. **User Action** — a task that a person or role must review, approve, return, reject or explicitly post.
+## Current controlled entity types
 
-## Scheduled transaction types
+| Entity type | Owning module | Final domain permission | Accounting effect at Post |
+| --- | --- | --- | --- |
+| `scheduled_transaction` | Workflows | `ledger.journals.post` | General-ledger journal |
+| `journal` | Ledger | `ledger.journals.post` | General-ledger journal |
+| `purchase_bill` | Purchases | `purchases.write` | Purchase bill, AP and journal |
+| `sales_invoice` | Sales | `sales.write` | Sales invoice, AR and journal |
+| `expense_claim` | Expense Claims | `expense_claims.approve` | Approved claim and journal |
 
-The first release supports three generic types.
+All final posting also requires `workflows.post`.
 
-### Income
+## Proposal boundary
 
-Examples: salary, pension, interest, rental income or other recurring receipts.
+When Workflows is enabled, normal creation channels for manual journals, purchase bills and sales invoices create **workflow proposals**, not posted accounting records. This applies consistently to browser, AI and REST API entry points.
 
-Accounting when posted:
+Before a proposal is accepted, LedgerOne performs accounting and domain validation that should not be deferred to a reviewer. This includes, as applicable:
+
+- balanced journal lines;
+- valid and active accounts;
+- organisation base-currency enforcement;
+- control-account protection;
+- valid customer or supplier;
+- valid VAT/tax-code use and totals;
+- due-date rules;
+- duplicate/open document-number checks; and
+- accounting-period policy, including locked periods.
+
+A request that cannot legally or correctly post should therefore fail **before** a workflow record is created. The same controls are rechecked by the owning service at final Post.
+
+## Workflow concepts
+
+The workflow engine persists:
+
+1. **Workflow Definition** — reusable review/approval rules.
+2. **Workflow Instance** — one controlled item and its current state.
+3. **User Action** — a review, approval or explicit posting task assigned to a user or role.
+4. **Transaction Template** — configuration for recurring money movements.
+5. **Scheduled Transaction** — a generated occurrence of a transaction template.
+
+The common statuses include:
 
 ```text
-Dr Payment / deposit account
-Cr Income account
+draft
+awaiting_review
+awaiting_approval
+ready_to_post
+returned
+rejected
+posted
 ```
 
-A salary therefore does not need Accounts Receivable unless there is genuinely an outstanding debtor/customer invoice before payment.
-
-### Expense / bill
-
-Examples: council tax, utilities, broadband, subscriptions, rent and insurance.
-
-Accounting when posted:
-
-```text
-Dr Expense account
-Cr Payment account
-```
-
-This simple workflow intentionally bypasses Accounts Payable where no supplier bill/open creditor is being maintained. A true supplier invoice should continue to use the Purchases/AP workflow.
-
-### Transfer
-
-Examples: current account to savings, repayment of a liability, or loan proceeds.
-
-Accounting when posted:
-
-```text
-Dr Destination account
-Cr Source account
-```
-
-Both accounts must be non-control asset/liability accounts.
-
-## Amount behaviour
-
-Each recurring template has one of three amount modes:
-
-- **Fixed** — the posted amount must equal the configured amount.
-- **Expected** — an expected value is stored and the actual amount may vary. An optional tolerance can require re-review before posting if the variance is too large.
-- **Variable** — no amount is assumed; the user enters the actual amount at posting time.
-
-Examples:
-
-- Council Tax: Fixed £185 monthly.
-- Salary: Expected £2,300 monthly, with actual pay entered when received.
-- Electricity: Expected £120 with a tolerance.
-- Credit-card payment: Variable monthly amount.
-
-## Frequencies
-
-The initial scheduler supports:
-
-- weekly;
-- every four weeks;
-- monthly;
-- quarterly;
-- annually.
-
-Templates have a next-run date and optional end date. Generation is idempotent using a unique template/date combination. Overdue templates can catch up multiple occurrences, with a safety cap to prevent accidental runaway generation.
-
-## Generation versus posting
-
-Generating a due item **does not alter the ledger or the bank balance**.
-
-Due work items can be generated in three ways:
-
-- automatically on the first authenticated app use for the organisation each day;
-- manually from **Scheduled Transactions**;
-- from the server CLI:
-
-```bash
-flask --app run.py generate-recurring-transactions
-flask --app run.py generate-recurring-transactions --through-date 2026-10-31
-```
-
-The daily generator can be disabled with:
-
-```dotenv
-LEDGERONE_WORKFLOW_AUTO_GENERATE_DUE=false
-```
-
-Even when automatic generation is enabled, **journal posting remains manual**.
-
-## Home / Apprentice mode
-
-When no explicit workflow definition applies, a Home-originated scheduled item is generated as **Ready to Post** and creates a User Action for explicit confirmation/posting.
-
-This keeps the UI simple while preserving the accounting control boundary.
-
-Example:
-
-```text
-Monthly Salary
-Expected: £2,300
-Due: 1 October
-Status: Ready to Post
-Action: confirm actual amount and posting date
-```
-
-## Professional mode
-
-When no explicit workflow rule applies, a Professional-originated scheduled item receives a **Review** action first.
-
-The sequence is:
-
-```text
-Generated -> Awaiting Review -> Ready to Post -> Explicit Post -> Posted
-```
-
-There is no automatic posting path in Professional mode.
-
-An organisation can add stronger approval rules so the sequence becomes, for example:
-
-```text
-Generated -> Review -> Manager Approval -> Ready to Post -> Explicit Post -> Posted
-```
-
-## Workflow definitions
-
-Workflow definitions are reusable and are evaluated by priority. The first release supports rules for:
-
-- entity type;
-- recurring transaction type;
-- minimum amount;
-- maximum amount;
-- source-module metadata;
-- review required;
-- approval required;
-- approval role;
-- maker/checker separation.
-
-Example:
-
-```text
-Name: High-value expense approval
-Entity: Scheduled transaction
-Transaction type: Expense
-Minimum: £1,000
-Steps:
-  1. Review
-  2. Manager approval
-Maker/checker: enabled
-```
-
-When maker/checker is enabled, the originating user cannot approve their own item.
+These are workflow states, not journal states.
 
 ## User Actions
 
-The **User Actions** page is the common accounting/workflow inbox. It answers:
-
-> What does LedgerOne need me to do?
-
-The initial action types are:
+The **User Actions** page is LedgerOne's common controlled-work inbox. Typical actions are:
 
 - Review;
 - Approve;
 - Post;
-- Return;
+- Return; and
 - Reject.
 
-Actions can be assigned to a user or role. The header displays the number of open actions visible to the current user.
+Actions can be assigned to a user or role. Maker/checker separation can prevent an originator from approving their own item where the workflow definition requires independent approval.
 
-The model is intentionally generic so future modules can create actions such as:
+## Home / Apprentice and Professional modes
 
-- supplier bill approval;
-- journal approval;
-- bank reconciliation review;
-- period-reopen approval;
-- new supplier/bank-detail approval;
-- AI-generated transaction review;
-- control-account adjustment approval.
+Both UI modes use the same accounting and workflow services.
 
-## Posting controls
+When no explicit workflow definition applies:
 
-Posting a scheduled item requires both:
+- **Home / Apprentice** proposals can move directly to **Ready to Post**, but still require an explicit Post action.
+- **Professional** proposals receive a **Review** action before they become Ready to Post.
 
-- `workflows.post`; and
-- `ledger.journals.post`.
+An organisation can configure additional approval steps, for example:
 
-The posting operation then calls the standard `LedgerService.post_journal()` method. Existing accounting controls therefore continue to apply, including:
+```text
+Submitted -> Review -> Manager Approval -> Ready to Post -> Explicit Post -> Posted
+```
 
-- base-currency enforcement;
-- accounting-period policy;
-- control-account protection;
-- journal balancing;
-- audit attribution;
-- immutable posted journals.
+There is no automatic accounting-post path hidden behind the simpler Home UI.
 
-Recurring templates cannot use AR/AP/VAT control accounts as simple payment/category accounts.
+## Domain-specific posting
+
+A User Actions Post does not grant general journal authority to every business module. The owning module's manifest declares the permission required to post its entity.
+
+For example, a purchasing user can post an approved `purchase_bill` with `purchases.write` plus `workflows.post`. The Purchases service then performs its normal AP/journal transaction through `LedgerService`; that user does not receive permission to post arbitrary manual journals.
+
+The current manifest fields are:
+
+```python
+workflow_entity_type="purchase_bill"
+workflow_adapter="ledgerone.modules.workflows.adapters:PurchaseBillWorkflowAdapter"
+workflow_post_permission="purchases.write"
+```
+
+The adapter is loaded only when an action for that entity type is handled. It provides the small translation layer between generic User Actions and the owning domain service; it must not duplicate accounting rules.
+
+## Expense Claim return/resubmit behaviour
+
+Expense Claims currently implement the complete correction loop:
+
+```text
+Draft -> Submit -> Review -> Return -> Draft/Edit -> Resubmit -> Review -> Post
+```
+
+The submitted claim is snapshotted. If underlying claim data changes after review without being formally returned and resubmitted, final posting is blocked.
+
+## Returned Journal/Bill/Invoice proposals
+
+Manual Journal, Purchase Bill and Sales Invoice proposals can currently be returned, but their pending payloads do not yet have a dedicated edit-and-resubmit surface. They must not be treated as fully corrected merely by acknowledging the returned review task.
+
+The intended next control is a **replacement workflow** model: revise and revalidate the proposal, preserve the returned workflow as history, create a new workflow instance and re-run the complete applicable review/approval chain. This prevents a changed amount or coding decision from bypassing a newly applicable approval rule.
+
+## Scheduled transactions
+
+Scheduled transactions support:
+
+- income;
+- expense/bill-style direct payments; and
+- transfers.
+
+Generation does **not** change the ledger or bank balance. Generated items become workflow work and require explicit Post.
+
+Typical accounting is:
+
+```text
+Income:   Dr settlement account / Cr income
+Expense:  Dr expense / Cr settlement account
+Transfer: Dr destination / Cr source
+```
+
+Recurring templates cannot use AR/AP/VAT control accounts as simple category or settlement accounts.
+
+Amount modes are `fixed`, `expected` and `variable`; supported frequencies are weekly, four-weekly, monthly, quarterly and annual.
+
+## API behaviour
+
+The workflow API is under `/api/v1/workflows` and includes templates, generation, definitions, instances and User Actions.
+
+When Workflows is enabled, normal domain creation APIs for journals, purchase bills and sales invoices return a proposal response rather than a posted record. HTTP `201` may be retained for compatibility, but the response explicitly reports that the work is not posted and identifies the workflow instance.
+
+API callers therefore cannot bypass the same User Actions boundary used by browser and AI channels.
 
 ## Permissions
 
@@ -248,66 +189,33 @@ workflows.post
 workflows.manage
 ```
 
-`workflows.post` does not replace the accounting permission. A user must also hold the underlying ledger posting permission.
+`workflows.post` is necessary but not sufficient. The caller must also hold the owning module's `workflow_post_permission` declared in its manifest.
 
-## API
+## Design rule for workflow-aware modules
 
-The initial API is under `/api/v1/workflows`:
+A new controlled financial module should:
 
-```text
-GET  /templates
-POST /templates
-POST /generate-due
-GET  /items
-GET  /definitions
-POST /definitions
-GET  /instances
-POST /instances
-GET  /actions
-POST /actions/<id>/decision
-POST /actions/<id>/post
-```
+1. validate its proposal using the same business/accounting rules needed for posting;
+2. create a workflow instance without creating premature financial effects;
+3. declare `workflow_entity_type`, `workflow_adapter` and `workflow_post_permission` in its manifest;
+4. let the common engine create review/approval/post User Actions;
+5. let its adapter translate the final action into the owning domain service call;
+6. revalidate at final posting;
+7. route financial effects through `LedgerService`; and
+8. test browser, API and AI paths so none can bypass the boundary.
 
-The generic instance endpoint allows other LedgerOne modules to adopt the workflow framework without coupling their domain data to recurring transactions.
+The adapter is orchestration only. The owning service remains authoritative for the business document and accounting transaction.
 
-## Status model
+## Next integrations
 
-Typical workflow states are:
+The next workflow-control increments are:
 
-```text
-draft
-awaiting_review
-awaiting_approval
-ready_to_post
-returned
-rejected
-posted
-```
+1. editable replacement/resubmission for returned Journal, Purchase Bill and Sales Invoice proposals;
+2. purchase-order approval workflows;
+3. sales/purchase credit-note approval rules;
+4. bank-reconciliation exception review;
+5. accounting-period reopen/override approval;
+6. control-account adjustment approval; and
+7. supplier/customer master-data changes such as bank details.
 
-The long-term platform model may add `needs_information`, `cancelled`, `failed`, escalation and delegation states, but these should remain workflow states rather than accounting journal states.
-
-## Future integrations
-
-The first release establishes the common workflow engine and uses it end-to-end for scheduled transactions. The next integrations should reuse the same engine rather than adding module-specific approval queues:
-
-1. Purchase bills and purchase orders.
-2. Expense claims.
-3. Manual journals and control-account adjustments.
-4. Sales exceptions/credits where approval is required.
-5. Bank reconciliation and unusual bank matches.
-6. AI-proposed accounting writes.
-7. Master-data changes such as supplier bank details.
-
-Bank matching should be able to suggest or complete the **review/match** step, but it should not bypass configured approvals or explicit Professional-mode posting.
-
-## Design rule for new modules
-
-A module that needs approval should:
-
-1. create and own its domain record;
-2. call `WorkflowService.start()` with the record type/id, amount and metadata;
-3. allow the workflow engine to create User Actions;
-4. react to the final approved/ready state through its own controlled service;
-5. route financial effects through `LedgerService`.
-
-The workflow engine must never become a second ledger and must never bypass the owning module's accounting/business rules.
+AI-proposed writes should continue to reuse these same domain workflows rather than receiving a separate approval mechanism.

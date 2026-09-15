@@ -1,6 +1,6 @@
 # LedgerOne Module Development
 
-LedgerOne modules are intended to be self-contained business capabilities. A new module should be installable by adding its package beneath `ledgerone/modules/` without adding hard-coded registration logic to the application factory.
+LedgerOne modules are intended to be self-contained business capabilities. A module should be installable beneath `ledgerone/modules/` without adding hard-coded registration or workflow-dispatch logic to the application factory or central Workflows controller.
 
 ## Standard module layout
 
@@ -11,31 +11,16 @@ ledgerone/modules/example/
 ├── routes.py
 ├── api.py
 ├── services.py
-├── permissions.py      # optional when permissions are small
+├── permissions.py      # optional
 ├── models.py           # optional
-└── templates/          # module-specific templates may also use shared template roots
+└── templates/          # optional
 ```
 
-The package `__init__.py` exposes a `register(app)` function. It should import any model module before schema metadata is used so migrations and local schema creation can see the module's tables.
-
-Example:
-
-```python
-from ledgerone.modules.example import models  # noqa: F401
-from ledgerone.modules.example.api import api_bp
-from ledgerone.modules.example.routes import bp
-
-
-def register(app):
-    app.register_blueprint(bp)
-    app.register_blueprint(api_bp)
-```
+The package `__init__.py` exposes `register(app)` and should import model metadata before schema/migration inspection.
 
 ## Manifest
 
-Every module requires `manifest.py` containing `MANIFEST = ModuleManifest(...)`.
-
-Typical fields:
+Every module requires `MANIFEST = ModuleManifest(...)`.
 
 ```python
 from ledgerone.module_registry import ModuleManifest
@@ -43,48 +28,56 @@ from ledgerone.module_registry import ModuleManifest
 MANIFEST = ModuleManifest(
     id="assets",
     name="Fixed Assets",
+    description="Asset register and depreciation.",
     home_name="Assets",
     professional_name="Fixed Assets",
-    description="Asset register and depreciation.",
     icon="archive",
     order=60,
     default_enabled=False,
-    permissions=(
-        "assets.read",
-        "assets.write",
-        "assets.post",
-    ),
+    permissions=("assets.read", "assets.write", "assets.post"),
     dependencies=("ledger",),
 )
 ```
 
-Use stable module ids because module state, permissions, API paths, audit events and future migration metadata can reference them.
-
-## Required API convention
-
-Functional modules should expose a versioned API beneath:
-
-```text
-/api/v1/<module-id>/...
-```
-
-A module is not considered complete when it only has browser routes. Its useful operations should also be accessible through authenticated APIs so integrations and LedgerOne AI can use the same business capability.
-
-Use `@require_api("permission.name")` on API endpoints. Resolve the active organisation from `g.access_context`; do not trust an organisation id supplied in request JSON to grant access.
+Use stable module ids because module state, permissions, APIs, audit events and workflow ownership can reference them.
 
 ## Service layer rule
 
-Routes, APIs and AI tools should call services rather than duplicate business logic.
+Routes, APIs and AI tools must call services rather than duplicate business logic.
 
-Preferred flow:
+For operations that do not need controlled approval:
 
 ```text
-Browser route ─┐
-REST API ──────┼─> Module service ─> LedgerService / module models
-AI tool ───────┘
+Browser ─┐
+REST API ├─> Module service -> module models / LedgerService where appropriate
+AI tool ─┘
 ```
 
-This gives all interfaces the same validation and transaction behaviour.
+For controlled financial creation when Workflows is enabled:
+
+```text
+Browser ─┐
+REST API ├─> Domain validation -> Workflow proposal -> User Actions
+AI tool ─┘                                      |
+                                                v
+                                     Manifest-owned adapter
+                                                |
+                                                v
+                                        Owning module service
+                                                |
+                                                v
+                                           LedgerService
+```
+
+There must not be a second posting implementation in the browser, API, AI tool or workflow adapter.
+
+## Required API convention
+
+Functional modules should expose a versioned API beneath `/api/v1/<module-id>/...` and protect operations with `@require_api(...)`.
+
+Resolve organisation scope from `g.access_context`. Never trust an organisation id supplied by request JSON to grant access.
+
+A browser-only module is incomplete where the capability is expected to be integrated or used by LedgerOne AI.
 
 ## Financial posting rule
 
@@ -92,36 +85,81 @@ Only the accounting kernel owns general-ledger posting. Financial modules reques
 
 For a domain document that posts financially:
 
-1. Validate module-specific data and its own module permission.
-2. Create/flush the module document.
-3. Call `LedgerService.post_journal(..., source_module="<module-id>", commit=False)`.
-4. `LedgerService` accepts the posting when the context has either `ledger.journals.post` or the matching `<module-id>.write` capability.
-5. Link the returned journal to the domain document.
-6. Commit the entire transaction once.
-7. On any error, roll back everything.
+1. validate domain data and module permissions;
+2. when the operation is workflow-controlled, create a proposal instead of a premature financial document/journal;
+3. perform review/approval through User Actions;
+4. require explicit Post plus the owning domain permission;
+5. call the owning module service from the workflow adapter;
+6. let the owning service create/flush the document and call `LedgerService(..., commit=False)`;
+7. link the resulting journal to the document;
+8. commit the business document and journal atomically; and
+9. roll back all parts on failure.
 
-This prevents an invoice, bill, payroll run or asset depreciation record from existing without its accounting entry—or vice versa. The public manual-journal API is separately protected by `ledger.journals.post`, so a Sales or Purchases user cannot turn module posting rights into arbitrary manual-journal access.
+A domain posting permission must not become arbitrary manual-journal authority. For example, `purchases.write` can authorise posting an approved Purchase Bill workflow, but not `POST /api/v1/ledger/journals`.
 
-## Models and organisation isolation
+## Workflow-aware modules
 
-Module-owned records should be organisation-scoped directly or through a parent record. Common patterns are:
+A module that owns a workflow-posted entity declares the integration in its manifest:
 
 ```python
-organisation_id = db.Column(
-    db.String(36),
-    db.ForeignKey("organisations.id"),
-    nullable=False,
-    index=True,
+MANIFEST = ModuleManifest(
+    id="purchases",
+    # ...
+    workflow_entity_type="purchase_bill",
+    workflow_adapter="ledgerone.modules.workflows.adapters:PurchaseBillWorkflowAdapter",
+    workflow_post_permission="purchases.write",
 )
 ```
 
-Every service query must constrain records to `context.organisation_id`.
+`workflow_entity_type` must be unique. The module registry rejects duplicate ownership and lazily imports the adapter only when that entity type is handled.
 
-Use UUID string ids through `new_id()` for consistency with the current platform.
+The common adapter contract is deliberately small:
+
+```text
+complete_action(context, action_id, decision, comments)
+post_action(context, action_id, payload, channel=...)
+browser_message(result)
+api_result(result)
+```
+
+Most modules inherit generic review/approval behaviour and customise only final posting. A module can override `complete_action` when a workflow decision has real domain consequences, as Expense Claims do when Return reopens the claim for editing.
+
+Adapters are orchestration code. They must call the authoritative domain service instead of reproducing accounting, VAT, numbering or status rules.
+
+## Validate before workflow creation
+
+Reviewers should not receive proposals that can never post. Before creating workflow state, validate all rules that are already knowable, including as applicable:
+
+- required fields and document numbers;
+- duplicate/open number reservation;
+- account existence, type and active status;
+- debit/credit balancing;
+- organisation base currency;
+- AR/AP/VAT control-account restrictions;
+- customer/supplier status;
+- tax-code use and amount calculation;
+- due-date rules; and
+- accounting-period policy, including locked dates.
+
+The owning service must revalidate again at Post because configuration or master data may have changed during review.
+
+## Returned proposals
+
+A Return must mean “correct and resubmit,” not “approve the same unchanged payload.”
+
+Expense Claims already implement return to editable draft followed by a new submission. Payload-backed Journal, Purchase Bill and Sales Invoice proposals are being moved to the same principle using replacement workflow instances so that revised data re-enters the complete review/approval chain.
+
+Do not implement resubmission by simply allowing the originator to approve a returned review action: that could allow a changed amount to bypass an approval threshold.
+
+## Models and organisation isolation
+
+Module-owned records should be organisation-scoped directly or through a parent record. Every service query must constrain access to `context.organisation_id`.
+
+Use UUID string ids through `new_id()` for consistency with the platform.
 
 ## Permissions
 
-Use capability-oriented names such as:
+Use capability-oriented permission names such as:
 
 ```text
 assets.read
@@ -130,80 +168,61 @@ assets.post
 assets.dispose
 ```
 
-Avoid UI-oriented names such as `can_click_asset_button`. Permissions describe business capability, not presentation.
-
-Owners/admins currently receive full access; scoped memberships and service keys can carry explicit permissions.
+Avoid UI-oriented permissions. Home/Apprentice and Professional mode change presentation, not the accounting permission model.
 
 ## Home / Apprentice and Professional UI
 
-Do not build separate business engines for the two UI modes. A route/service should be shared, while templates or labels adapt presentation.
+Do not build separate business engines. Share routes/services and adapt labels, explanations and visible complexity.
 
-Examples:
-
-- Home: `Money owed to you`
-- Professional: `Accounts Receivable`
-- Home: `Money you owe`
-- Professional: `Accounts Payable`
-
-A feature available only to professional users should be hidden or simplified in Home mode, not stored differently.
+A simpler Home UI must not silently weaken posting, period, control-account or workflow controls.
 
 ## AI integration
 
-LedgerOne AI should call explicit tool functions that wrap services. Do not expose unrestricted SQL execution or arbitrary Python execution to the model.
+LedgerOne AI should call narrow service-backed tools rather than SQL or arbitrary Python.
 
-A module that wants AI support should provide narrow operations, for example:
+AI writes must obey the requesting user's permissions and the same workflow boundary as browser/API writes. An AI proposal for a journal, bill or invoice must not call a hidden direct-post route merely because the model has identified all required fields.
 
-```text
-list_assets
-get_asset
-create_asset
-run_depreciation
-```
-
-Write operations should validate configuration such as `LOCAL_AI_ALLOW_WRITES` and be logged through the audit layer.
+Write configuration such as `LOCAL_AI_ALLOW_WRITES` is an upper bound, not a privilege grant. Consequential AI operations should be auditable and attributable to the requester.
 
 ## Audit events
 
-Significant administrative and financial operations should emit audit events containing:
+Significant administrative, workflow and financial operations should emit audit events containing organisation, actor, module, action, entity and non-secret detail.
 
-- organisation;
-- actor type/id;
-- module id;
-- action;
-- entity type/id;
-- non-secret detail.
-
-Never place passwords, API-key secrets or other credentials in audit detail.
+Do not place credentials, API-key secrets or passwords in audit detail.
 
 ## Database migrations
 
-Any model change requires an Alembic revision. Development may auto-create an empty SQLite schema, but production relies on migrations.
+Any model/schema change requires an Alembic revision. Production relies on migrations, not local auto-create behaviour.
 
-Workflow:
+Typical workflow:
 
 ```bash
 flask --app run.py db migrate -m "add fixed assets module"
-# inspect generated migration carefully
+# inspect the generated migration
 flask --app run.py db upgrade
 pytest
 ```
 
-Module migrations should be backwards-compatible where practical. Large data transformations should be staged instead of combining destructive schema and data changes in one step.
+CI must also pass `flask db check` with no unexpected schema drift.
 
 ## Module completion checklist
 
-A new functional module is ready when it has:
+A functional module is ready when it has:
 
-- manifest and dependency declaration;
+- manifest and dependencies;
 - browser route(s);
-- `/api/v1/<module>/...` API route(s);
-- permission checks;
+- versioned API route(s);
+- capability permission checks;
 - organisation isolation;
-- service-layer validation;
-- models/migration when persistence is required;
-- atomic ledger integration when financially relevant;
+- one authoritative service layer;
+- models/migrations where persistence is required;
+- atomic `LedgerService` integration for financial effects;
+- workflow manifest ownership/adapter when creation is controlled;
+- validation before proposal creation and revalidation at final Post;
+- no browser/API/AI workflow bypass;
 - Home/Apprentice and Professional presentation consideration;
-- AI tools where useful;
-- audit logging for consequential actions;
+- narrow AI tools where useful;
+- audit logging for consequential operations;
 - tests for normal, permission-denied and invalid-data paths;
-- documentation of any configuration values.
+- tests proving proposals do not prematurely create journals/AR/AP; and
+- documentation of configuration and workflow behaviour.
