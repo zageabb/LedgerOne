@@ -2,7 +2,7 @@
 
 **Status snapshot:** 15 September 2026  
 **Repository:** `zageabb/LedgerOne`  
-**Reviewed against `main` through:** `6371044e75d1c171482a9d82d0df000db199610d`  
+**Reviewed against `main` through:** `6771835dac1814a9e464da47a660adbbb08285e4`  
 **Purpose:** One place to see what is complete, what is in progress, and what remains outstanding.
 
 > **Status rule:** `[x]` means the capability is implemented and published on `main`. `[ ]` means it is not yet complete on `main`, even where partial work exists on a branch or pull request.
@@ -26,8 +26,8 @@ Related documents:
 | [x] | Transaction audit provenance | Complete | Full record -> journal -> accounts -> evidence -> audit-event trace published |
 | [x] | Audit assurance workspace/report | Complete | Audit workspace and 15-finding accounting/control review published |
 | [ ] | Accounting Assurance remediation | Not complete | 15 audit findings remain open; Critical/High items block unrestricted production use |
+| [ ] | AI workspace UX and business Knowledge | **Priority** | Chat-style conversation history/layout plus organisation-scoped Knowledge/RAG; AI permission inheritance is the first remediation item |
 | [ ] | User-facing balance visibility and accounting guidance | Not complete | Account-list balances, transaction workflow guidance and payment-account validation added to backlog |
-| [ ] | AI workspace UX and business Knowledge | Not complete | Chat-style conversation history/layout plus organisation-scoped Knowledge/RAG added to backlog |
 | [ ] | v0.4 Bank/document automation | Not started as a release | 8 roadmap items outstanding |
 | [ ] | v0.5 Projects/jobs/costing | Not started as a release | 8 roadmap items outstanding |
 | [ ] | v0.6 Fixed assets/inventory | Not started as a release | 8 roadmap items outstanding |
@@ -219,55 +219,9 @@ These findings are separate from ordinary feature-roadmap completion. They deter
 
 ---
 
-## 8A. User-requested usability, guidance and transaction-safety work — OUTSTANDING
+## 8A. AI workspace UX and organisation Knowledge — OUTSTANDING
 
-These items improve day-to-day usability while also reducing the chance that a non-accountant performs an apparently valid but economically incorrect transaction.
-
-### Account balances directly in account lists
-
-- [ ] Show the **current ledger balance** directly on the Chart of Accounts list so users do not need to open the full Trial Balance merely to see an account balance.
-- [ ] Show each **customer's current receivable/outstanding balance** on customer lists.
-- [ ] Show each **supplier's current payable/outstanding balance** on supplier lists.
-- [ ] Show the **current ledger/book balance** on bank-account lists where appropriate.
-- [ ] Use the same shared balance/reporting services as the Trial Balance, ageing and ledger reports so the displayed figures cannot drift from formal reports.
-- [ ] Avoid N+1 per-row queries; list balances must remain efficient for larger account/customer/supplier sets.
-- [ ] Make balance columns link to the relevant account/customer/supplier activity or detail view where practical.
-- [ ] Where an `as_of` concept is offered, clearly label whether the list shows today's/current balance or a historical balance.
-
-### Accounting transaction workflow guide with Mermaid diagrams
-
-- [ ] Create `docs/ACCOUNTING_WORKFLOWS.md` as a non-accountant-friendly guide explaining **where to start in LedgerOne and which workflow to use** for common transactions.
-- [ ] Include Mermaid workflows for at least: customer quote/order -> invoice -> payment/allocation; supplier PO -> bill -> payment/allocation; expense claim -> approval -> posting/reimbursement; bank receipt/payment; bank transfer; sales/purchase credit note and refund; manual journal; opening balance; recurring journal; VAT-related transaction path.
-- [ ] For each workflow show the expected accounting effect in plain English and, where useful, the debit/credit result.
-- [ ] Clearly distinguish business workflows from manual journals so users are guided to Sales/Purchases/Banking first rather than manually posting to AR/AP/VAT control accounts.
-- [ ] Link the workflow guide from the Home/Apprentice UI and Help/documentation area so it is usable inside the application rather than only as developer documentation.
-- [ ] Include common correction paths: reverse, credit, refund or cancel rather than editing posted accounting records.
-
-### Payment posting validation defect — bank and control account must not cancel each other
-
-Observed test case: a customer payment selected **Current Account (1000)** as both the bank account and the receivables account. LedgerOne then created equal debit and credit entries to the same ledger account, so the journal balanced but had zero economic effect.
-
-Expected customer-payment accounting:
-
-- Debit the selected bank/current account for the cash received.
-- Credit the Accounts Receivable control account for the amount no longer owed by the customer.
-
-Required remediation:
-
-- [ ] Customer payment posting must reject a transaction where the bank/cash account and Accounts Receivable account resolve to the same ledger account.
-- [ ] Supplier payment posting must likewise reject a transaction where the bank/cash account and Accounts Payable account resolve to the same ledger account.
-- [ ] Validate **account role and relationship**, not only account existence: customer payments require a compatible bank/cash debit account and AR control credit account; supplier payments require AP control debit and compatible bank/cash credit.
-- [ ] UI selectors should filter or clearly prevent incompatible account choices, but the service layer/API must independently enforce the rule so UI, API and AI cannot bypass it.
-- [ ] Add regression tests reproducing the same-account payment defect and proving that the transaction is rejected before any journal/payment/allocation state is committed.
-- [ ] Add equivalent tests for supplier payments and any other two-account module workflow where selecting the same account would make the intended business transaction cancel itself out.
-- [ ] Ensure failed validation does not mark the invoice/bill as paid, allocate settlement, consume a document number or leave a posted journal behind.
-- [ ] Treat this as directly related to **LO-AUD-012 account/posting-role validation** and **LO-AUD-003 control-account integrity** until implementation and retest are complete.
-
----
-
-## 8B. AI workspace UX and organisation Knowledge — OUTSTANDING
-
-These items make the local AI workspace behave like a normal chat application and let even a relatively small local LLM answer with organisation-specific business knowledge instead of relying only on model training.
+These items are deliberately prioritised before the other user-requested usability work. They make the local AI workspace behave like a normal chat application and let even a relatively small local LLM answer with organisation-specific business knowledge instead of relying only on model training.
 
 ### Chat-style AI workspace layout
 
@@ -310,6 +264,52 @@ These items make the local AI workspace behave like a normal chat application an
 - [ ] Knowledge should guide procedures and business context but must not weaken ledger validation, user permissions, period controls or other accounting safeguards.
 - [ ] Where the Knowledge answer is uncertain or no strong source is retrieved, the AI should say so rather than invent a business rule.
 - [ ] Make the Knowledge feature useful to the planned `docs/ACCOUNTING_WORKFLOWS.md` content as well, so the local AI can explain correct LedgerOne workflows conversationally.
+
+---
+
+## 8B. User-requested usability, guidance and transaction-safety work — OUTSTANDING
+
+These items improve day-to-day usability while also reducing the chance that a non-accountant performs an apparently valid but economically incorrect transaction.
+
+### Account balances directly in account lists
+
+- [ ] Show the **current ledger balance** directly on the Chart of Accounts list so users do not need to open the full Trial Balance merely to see an account balance.
+- [ ] Show each **customer's current receivable/outstanding balance** on customer lists.
+- [ ] Show each **supplier's current payable/outstanding balance** on supplier lists.
+- [ ] Show the **current ledger/book balance** on bank-account lists where appropriate.
+- [ ] Use the same shared balance/reporting services as the Trial Balance, ageing and ledger reports so the displayed figures cannot drift from formal reports.
+- [ ] Avoid N+1 per-row queries; list balances must remain efficient for larger account/customer/supplier sets.
+- [ ] Make balance columns link to the relevant account/customer/supplier activity or detail view where practical.
+- [ ] Where an `as_of` concept is offered, clearly label whether the list shows today's/current balance or a historical balance.
+
+### Accounting transaction workflow guide with Mermaid diagrams
+
+- [ ] Create `docs/ACCOUNTING_WORKFLOWS.md` as a non-accountant-friendly guide explaining **where to start in LedgerOne and which workflow to use** for common transactions.
+- [ ] Include Mermaid workflows for at least: customer quote/order -> invoice -> payment/allocation; supplier PO -> bill -> payment/allocation; expense claim -> approval -> posting/reimbursement; bank receipt/payment; bank transfer; sales/purchase credit note and refund; manual journal; opening balance; recurring journal; VAT-related transaction path.
+- [ ] For each workflow show the expected accounting effect in plain English and, where useful, the debit/credit result.
+- [ ] Clearly distinguish business workflows from manual journals so users are guided to Sales/Purchases/Banking first rather than manually posting to AR/AP/VAT control accounts.
+- [ ] Link the workflow guide from the Home/Apprentice UI and Help/documentation area so it is usable inside the application rather than only as developer documentation.
+- [ ] Include common correction paths: reverse, credit, refund or cancel rather than editing posted accounting records.
+
+### Payment posting validation defect — bank and control account must not cancel each other
+
+Observed test case: a customer payment selected **Current Account (1000)** as both the bank account and the receivables account. LedgerOne then created equal debit and credit entries to the same ledger account, so the journal balanced but had zero economic effect.
+
+Expected customer-payment accounting:
+
+- Debit the selected bank/current account for the cash received.
+- Credit the Accounts Receivable control account for the amount no longer owed by the customer.
+
+Required remediation:
+
+- [ ] Customer payment posting must reject a transaction where the bank/cash account and Accounts Receivable account resolve to the same ledger account.
+- [ ] Supplier payment posting must likewise reject a transaction where the bank/cash account and Accounts Payable account resolve to the same ledger account.
+- [ ] Validate **account role and relationship**, not only account existence: customer payments require a compatible bank/cash debit account and AR control credit account; supplier payments require AP control debit and compatible bank/cash credit.
+- [ ] UI selectors should filter or clearly prevent incompatible account choices, but the service layer/API must independently enforce the rule so UI, API and AI cannot bypass it.
+- [ ] Add regression tests reproducing the same-account payment defect and proving that the transaction is rejected before any journal/payment/allocation state is committed.
+- [ ] Add equivalent tests for supplier payments and any other two-account module workflow where selecting the same account would make the intended business transaction cancel itself out.
+- [ ] Ensure failed validation does not mark the invoice/bill as paid, allocate settlement, consume a document number or leave a posted journal behind.
+- [ ] Treat this as directly related to **LO-AUD-012 account/posting-role validation** and **LO-AUD-003 control-account integrity** until implementation and retest are complete.
 
 ---
 
@@ -401,7 +401,7 @@ These items make the local AI workspace behave like a normal chat application an
 | [ ] | Budget variance explanations | Outstanding |
 | [ ] | Explainable coding/reconciliation suggestions | Outstanding |
 | [ ] | AI approval policies by tool/action/risk | Outstanding; also required by LO-AUD-001/015 |
-| [ ] | Organisation-specific knowledge/RAG sources | Outstanding; detailed user-facing requirements now tracked in section 8B |
+| [ ] | Organisation-specific knowledge/RAG sources | Outstanding; detailed user-facing requirements now tracked in section 8A |
 | [ ] | Optional local-model profiles per organisation | Outstanding beyond current single organisation-level AI config |
 
 ---
@@ -424,22 +424,24 @@ These items make the local AI workspace behave like a normal chat application an
 
 ---
 
-## 16. Immediate recommended work order
+## 16. Immediate recommended work order — AI FIRST
+
+The AI work is intentionally first in the delivery queue. Complete the AI permission/control fix before extending AI capability, then make the workspace practical to use and add Knowledge/RAG before returning to the wider accounting backlog.
 
 | Priority | Complete | Work item | Why now |
 |---:|---|---|---|
-| 1 | [ ] | LO-AUD-001 — Fix AI permission inheritance | Critical authorisation risk |
-| 2 | [ ] | LO-AUD-002 — Enforce base currency until real FX exists | Critical financial-statement risk |
-| 3 | [ ] | LO-AUD-003 — Protect control accounts and add subledger reconciliation | High subledger/GL integrity risk |
-| 4 | [ ] | Fix same-account payment/account-role validation defect | A balanced zero-effect journal can otherwise make a payment workflow appear successful; related to LO-AUD-012/003 |
-| 5 | [ ] | LO-AUD-005 — Enforce mandatory accounting-period policy | High period close/cut-off risk |
-| 6 | [ ] | LO-AUD-008 — Make posted commercial documents immutable | High audit/subledger integrity risk |
-| 7 | [ ] | Reconcile and finish PR #3 numbering work | Completes a v0.3 item and addresses part of LO-AUD-009 |
-| 8 | [ ] | LO-AUD-004 — Period-aware TB/P&L/Balance Sheet/GL reports | Required for professional accounting |
-| 9 | [ ] | Show balances directly on account/customer/supplier/bank lists | Removes unnecessary navigation to the Trial Balance and improves day-to-day usability |
-| 10 | [ ] | Build Mermaid accounting transaction workflow guide | Gives non-accountants a correct starting point and reduces misuse of manual journals/control accounts |
-| 11 | [ ] | Redesign AI screen with conversation sidebar, scrollable chat and bottom composer | Makes the local AI practical for ongoing use rather than a single-page prompt form |
-| 12 | [ ] | Add organisation Knowledge/RAG workspace for local AI | Gives small local models business-process/manual context while keeping sources local, scoped and traceable |
+| 1 | [ ] | **LO-AUD-001 — Fix AI permission inheritance** | Critical authorisation risk; AI must never elevate the caller to system-level accounting access |
+| 2 | [ ] | **Redesign AI screen with conversation sidebar, scrollable chat and bottom composer** | Makes the local AI usable as an ongoing workspace with persistent conversations |
+| 3 | [ ] | **Add organisation Knowledge/RAG workspace for local AI** | Gives small local models business-process/manual context while keeping sources local, scoped and traceable |
+| 4 | [ ] | LO-AUD-002 — Enforce base currency until real FX exists | Critical financial-statement risk |
+| 5 | [ ] | LO-AUD-003 — Protect control accounts and add subledger reconciliation | High subledger/GL integrity risk |
+| 6 | [ ] | Fix same-account payment/account-role validation defect | A balanced zero-effect journal can otherwise make a payment workflow appear successful; related to LO-AUD-012/003 |
+| 7 | [ ] | LO-AUD-005 — Enforce mandatory accounting-period policy | High period close/cut-off risk |
+| 8 | [ ] | LO-AUD-008 — Make posted commercial documents immutable | High audit/subledger integrity risk |
+| 9 | [ ] | Reconcile and finish PR #3 numbering work | Completes a v0.3 item and addresses part of LO-AUD-009 |
+| 10 | [ ] | LO-AUD-004 — Period-aware TB/P&L/Balance Sheet/GL reports | Required for professional accounting |
+| 11 | [ ] | Show balances directly on account/customer/supplier/bank lists | Removes unnecessary navigation to the Trial Balance and improves day-to-day usability |
+| 12 | [ ] | Build Mermaid accounting transaction workflow guide | Gives non-accountants a correct starting point and reduces misuse of manual journals/control accounts |
 | 13 | [ ] | Contact/address improvements | Last ordinary v0.3 product feature and prerequisite for better VAT invoices |
 | 14 | [ ] | LO-AUD-006/007 — Complete VAT invoice and VAT-period controls | Required before UK VAT/MTD compliance claims |
 
