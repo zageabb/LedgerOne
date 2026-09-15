@@ -20,10 +20,11 @@ def create_app(config_overrides: dict | None = None):
     from ledgerone.models import User
     from ledgerone.services.control_accounts import install_control_account_service_guards
     from ledgerone.services.currency import install_currency_service_guards
+    from ledgerone.services.period_policy import install_period_policy_guards
 
     # Currency only depends on the core ledger models, so it is safe to install before
-    # module discovery. Cross-module control-account scopes are installed after every
-    # module package has finished importing to avoid circular package initialisation.
+    # module discovery. Cross-module accounting guards are installed after every module
+    # package has finished importing to avoid circular package initialisation.
     install_currency_service_guards()
 
     app = Flask(__name__)
@@ -42,6 +43,7 @@ def create_app(config_overrides: dict | None = None):
 
     module_registry.discover()
     install_control_account_service_guards()
+    install_period_policy_guards()
     module_registry.register_blueprints(app)
 
     @app.before_request
