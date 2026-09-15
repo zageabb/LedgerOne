@@ -80,9 +80,30 @@ def _create_account(context, args):
 
 
 def _post_journal(context, args):
+    journal_date = date.fromisoformat(args.get("date") or date.today().isoformat())
+    if module_registry.is_enabled(context.organisation_id, "workflows"):
+        from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
+
+        workflow = JournalWorkflowService.create_request(
+            context,
+            journal_date=journal_date,
+            description=args.get("description", "AI journal"),
+            reference=args.get("reference"),
+            lines=args.get("lines") or [],
+            source_module="ai",
+            source_reference=args.get("source_reference"),
+            metadata={"created_by": "ledgerone_ai"},
+        )
+        return {
+            "workflow_instance_id": workflow.id,
+            "status": workflow.status,
+            "posted": False,
+            "message": "Journal proposal submitted to User Actions for controlled review/posting.",
+        }
+
     row = LedgerService.post_journal(
         context,
-        journal_date=date.fromisoformat(args.get("date") or date.today().isoformat()),
+        journal_date=journal_date,
         description=args.get("description", "AI journal"),
         reference=args.get("reference"),
         lines=args.get("lines") or [],
@@ -90,7 +111,7 @@ def _post_journal(context, args):
         source_reference=args.get("source_reference"),
         metadata={"created_by": "ledgerone_ai"},
     )
-    return {"id": row.id, "status": row.status}
+    return {"id": row.id, "status": row.status, "posted": True}
 
 
 def _bank_accounts(context, args):
@@ -211,7 +232,7 @@ TOOLS = {
         ToolSpec("ledger.trial_balance", "ledger", "Return the current trial balance.", False, "ledger.read", _trial_balance),
         ToolSpec("ledger.list_journals", "ledger", "List recent posted journals.", False, "ledger.read", _list_journals),
         ToolSpec("ledger.create_account", "ledger", "Create a chart-of-accounts account.", True, "ledger.accounts.write", _create_account),
-        ToolSpec("ledger.post_journal", "ledger", "Post a balanced journal. Requires account IDs and debit/credit lines.", True, "ledger.journals.post", _post_journal),
+        ToolSpec("ledger.post_journal", "ledger", "Submit a balanced journal. When Workflows is enabled it creates a User Action and does not post automatically.", True, "ledger.journals.post", _post_journal),
         ToolSpec("banking.list_accounts", "banking", "List bank accounts.", False, "banking.read", _bank_accounts),
         ToolSpec("banking.list_transactions", "banking", "List recent bank transactions.", False, "banking.read", _bank_transactions),
         ToolSpec("sales.list_customers", "sales", "List customers and IDs.", False, "sales.read", _customers),
