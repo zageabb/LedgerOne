@@ -4,8 +4,9 @@
 <div class="page-head">
   <div>
     <h1>Expense Claims</h1>
-    <p>{{ 'Record money you have spent, attach receipts, then submit it for approval.' if ui_mode == 'home' else 'Capture employee expenses, attach source evidence, approve claims and post them to expense, VAT and reimbursement-control accounts.' }}</p>
+    <p>{{ 'Record money you have spent, attach receipts, then submit it for approval.' if ui_mode == 'home' else 'Capture employee expenses and source evidence. Submitted claims are reviewed in User Actions before any expense, VAT or reimbursement posting is created.' }}</p>
   </div>
+  {% if workflows_enabled %}<div class="actions"><a class="button button-secondary" href="{{ url_for('workflows.actions') }}">User Actions</a></div>{% endif %}
 </div>
 
 <div class="grid grid-2">
@@ -34,9 +35,14 @@
   <div class="card">
     <div class="card-head"><h2>Workflow</h2></div>
     <div class="card-body">
+      {% if workflows_enabled %}
+      <p><strong>Draft → Submitted → Review / approval → Ready to Post → Posted</strong></p>
+      <p class="muted">Submitting freezes the claim and creates a User Action. Returning a claim reopens it as a draft so it can be corrected and resubmitted.</p>
+      <p class="muted">No accounting entry is created until the final controlled Post action.</p>
+      {% else %}
       <p><strong>Draft → Submitted → Approved & posted</strong></p>
-      <p class="muted">A reviewer can reject a submitted claim without creating any accounting entry.</p>
-      <p class="muted">When approved, LedgerOne debits the expense and recoverable VAT accounts and credits Employee Reimbursements. Accounting-period locks still apply.</p>
+      <p class="muted">Workflows is disabled, so the legacy direct approval path remains active.</p>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -67,12 +73,16 @@
             {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for tax in tax_codes %}<option value="{{ tax.id }}">{{ tax.code }} · {{ tax.name }}</option>{% endfor %}</select></div>{% endif %}
             <div class="field field-full"><label>Description</label><input name="description" required></div><div class="field-full"><button class="button button-small" type="submit">Add line</button></div>
           </form></div></details>
-          <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="submit"><input type="hidden" name="claim_id" value="{{ row.id }}"><button class="button button-small" type="submit">Submit</button></form>
+          <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="submit"><input type="hidden" name="claim_id" value="{{ row.id }}"><button class="button button-small" type="submit">{{ 'Resubmit' if row.metadata_json.get('returned_from_workflow_id') else 'Submit' }}</button></form>
           {% elif row.status == 'submitted' %}
-          {% if can_approve %}<details><summary class="button button-small">Review</summary><div style="min-width:300px;margin-top:.5rem">
-            <form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Posting date</label><input type="date" name="posting_date" value="{{ today }}" required></div><div class="field-full"><button class="button button-small" type="submit">Approve & post</button></div></form>
-            <hr><form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reject"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Reason</label><input name="reason"></div><div class="field-full"><button class="button button-small button-secondary" type="submit">Reject</button></div></form>
-          </div></details>{% endif %}
+            {% if workflows_enabled and row.metadata_json.get('workflow_instance_id') %}
+              <a class="button button-small" href="{{ url_for('workflows.actions') }}">In User Actions</a>
+            {% elif can_approve %}
+            <details><summary class="button button-small">Review legacy claim</summary><div style="min-width:300px;margin-top:.5rem">
+              <form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Posting date</label><input type="date" name="posting_date" value="{{ today }}" required></div><div class="field-full"><button class="button button-small" type="submit">Approve & post</button></div></form>
+              <hr><form method="post" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reject"><input type="hidden" name="claim_id" value="{{ row.id }}"><div class="field field-full"><label>Reason</label><input name="reason"></div><div class="field-full"><button class="button button-small button-secondary" type="submit">Reject</button></div></form>
+            </div></details>
+            {% endif %}
           {% endif %}
         </td>
       </tr>
