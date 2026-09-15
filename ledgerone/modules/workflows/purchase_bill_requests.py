@@ -36,7 +36,7 @@ class PurchaseBillWorkflowService:
         rows = WorkflowInstance.query.filter_by(
             organisation_id=organisation_id,
             entity_type=PurchaseBillWorkflowService.ENTITY_TYPE,
-        ).filter(WorkflowInstance.status.notin_(["rejected", "posted"])).all()
+        ).filter(WorkflowInstance.status.notin_(["rejected", "posted", "superseded"])).all()
         target = bill_number.casefold()
         for row in rows:
             payload = (row.metadata_json or {}).get("purchase_bill_request") or {}
@@ -61,11 +61,7 @@ class PurchaseBillWorkflowService:
     ) -> tuple[dict, Decimal]:
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
-
-        # The simple AP workflow posts on the bill date. Reject locked dates before a
-        # reviewer spends time on an item that cannot legally enter the ledger.
         LedgerService.assert_posting_date_open(context, bill_date)
-
         clean_number = (bill_number or "").strip()
         if not clean_number:
             raise WorkflowError("Bill number is required")
@@ -76,15 +72,12 @@ class PurchaseBillWorkflowService:
             raise WorkflowError("Bill number already exists")
         if PurchaseBillWorkflowService._pending_number_exists(context.organisation_id, clean_number):
             raise WorkflowError("Bill number already exists in an open workflow")
-
         supplier = db.session.get(Supplier, supplier_id)
         if not supplier or supplier.organisation_id != context.organisation_id or not supplier.is_active:
             raise WorkflowError("Invalid or inactive supplier")
-
         net_amount = PurchaseBillWorkflowService._money(amount)
         if net_amount <= 0:
             raise WorkflowError("Bill amount must be greater than zero")
-
         effective_due = due_date or PaymentTermsService.supplier_due_date(
             context.organisation_id,
             bill_date,
@@ -92,7 +85,6 @@ class PurchaseBillWorkflowService:
         )
         if effective_due < bill_date:
             raise WorkflowError("Bill due date cannot be before the bill date")
-
         payable = db.session.get(Account, payable_account_id)
         expense = db.session.get(Account, expense_account_id)
         if (
@@ -109,7 +101,6 @@ class PurchaseBillWorkflowService:
             or expense.account_type != "expense"
         ):
             raise WorkflowError("Expense account must be an active expense account")
-
         base_currency = organisation_base_currency(context)
         clean_currency = (currency or base_currency).strip().upper()
         if clean_currency != base_currency:
@@ -117,11 +108,9 @@ class PurchaseBillWorkflowService:
                 "Multi-currency accounting is not yet enabled for this organisation. "
                 f"Purchase bill uses {clean_currency}, but the organisation base currency is {base_currency}."
             )
-
         tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
-
         payload = {
             "supplier_id": supplier.id,
             "supplier_name": supplier.name,
@@ -241,7 +230,6 @@ class PurchaseBillWorkflowService:
             raise PermissionError("workflows.post")
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
-
         action = db.session.get(UserAction, action_id)
         if not action or action.organisation_id != context.organisation_id or action.status != "open":
             raise WorkflowError("Open posting action not found")
@@ -249,7 +237,6 @@ class PurchaseBillWorkflowService:
             raise WorkflowError("This user action is not a posting action")
         if not WorkflowService._can_access_action(context, action):
             raise PermissionError("This action is assigned to another user or role")
-
         instance = action.workflow_instance
         if instance.entity_type != PurchaseBillWorkflowService.ENTITY_TYPE or instance.status != "ready_to_post":
             raise WorkflowError("Purchase bill workflow is not ready for posting")
@@ -258,7 +245,6 @@ class PurchaseBillWorkflowService:
             raise WorkflowError("Purchase bill workflow payload is missing")
         if (instance.metadata_json or {}).get("posted_purchase_bill_id"):
             raise WorkflowError("Purchase bill workflow has already been posted")
-
         PurchaseBillWorkflowService._assert_reviewed_total_still_valid(context, instance, payload)
         bill = PurchasesService.create_bill(
             context,
@@ -280,7 +266,6 @@ class PurchaseBillWorkflowService:
             },
             commit=False,
         )
-
         instance.status = "posted"
         instance.completed_at = utcnow()
         instance.metadata_json = {
@@ -295,7 +280,6 @@ class PurchaseBillWorkflowService:
         for other in instance.actions:
             if other.id != action.id and other.status == "open":
                 other.status = "cancelled"
-
         record_audit_event(
             context,
             module_id="purchases",
