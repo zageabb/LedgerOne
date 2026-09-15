@@ -6,7 +6,8 @@ from flask_login import login_required
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
-from ledgerone.modules.workflows.models import ScheduledTransaction
+from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
+from ledgerone.modules.workflows.models import ScheduledTransaction, UserAction
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -182,13 +183,19 @@ def action_decision(action_id):
 def post_action(action_id):
     context = browser_context()
     try:
-        item = RecurringTransactionService.post_from_action(
-            context,
-            action_id,
-            actual_amount=request.form.get("actual_amount") or None,
-            posting_date=date.fromisoformat(request.form.get("posting_date") or date.today().isoformat()),
-        )
-        flash(f"{item.template.name} posted to the ledger.", "success")
+        action = db.session.get(UserAction, action_id)
+        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
+        if entity_type == JournalWorkflowService.ENTITY_TYPE:
+            journal = JournalWorkflowService.post_from_action(context, action_id)
+            flash(f"Journal {journal.reference or journal.id[:8]} posted to the ledger.", "success")
+        else:
+            item = RecurringTransactionService.post_from_action(
+                context,
+                action_id,
+                actual_amount=request.form.get("actual_amount") or None,
+                posting_date=date.fromisoformat(request.form.get("posting_date") or date.today().isoformat()),
+            )
+            flash(f"{item.template.name} posted to the ledger.", "success")
     except (WorkflowError, PermissionError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("workflows.actions"))
