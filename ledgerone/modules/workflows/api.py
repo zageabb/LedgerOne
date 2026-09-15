@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
 
+from ledgerone.extensions import db
+from ledgerone.models.core import Organisation
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -15,6 +17,11 @@ api_bp = Blueprint("workflows_api", __name__, url_prefix="/api/v1/workflows")
 
 def _money(value):
     return str(Decimal(value or 0).quantize(Decimal("0.01"))) if value is not None else None
+
+
+def _base_currency(context):
+    organisation = db.session.get(Organisation, context.organisation_id)
+    return organisation.base_currency if organisation else "GBP"
 
 
 def _template_json(row):
@@ -93,7 +100,7 @@ def create_template():
             amount_mode=payload.get("amount_mode", "expected"),
             expected_amount=payload.get("expected_amount"),
             tolerance=payload.get("tolerance"),
-            currency=payload.get("currency", "GBP"),
+            currency=payload.get("currency") or _base_currency(g.access_context),
             bank_account_id=payload.get("bank_account_id", ""),
             counter_account_id=payload.get("counter_account_id", ""),
             frequency=payload.get("frequency", "monthly"),
@@ -189,7 +196,7 @@ def create_instance():
             entity_id=payload.get("entity_id", ""),
             title=payload.get("title", "Workflow item"),
             amount=payload.get("amount"),
-            currency=payload.get("currency", "GBP"),
+            currency=payload.get("currency") or _base_currency(g.access_context),
             source_module=payload.get("source_module", "api"),
             metadata=payload.get("metadata") or {},
             definition_id=payload.get("workflow_definition_id"),
