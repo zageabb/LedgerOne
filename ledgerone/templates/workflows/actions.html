@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>User Actions</h1>
-    <p>Everything LedgerOne needs a person to review, approve or post. Scheduled items, journal proposals, supplier bills and expense claims appear here instead of posting automatically.</p>
+    <p>Everything LedgerOne needs a person to review, approve or post. Scheduled items, journal proposals, supplier bills, sales invoices and expense claims appear here instead of posting automatically.</p>
   </div>
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('workflows.index') }}">Scheduled Transactions</a>
@@ -24,6 +24,7 @@
         {% set item = action_items.get(action.id) %}
         {% set journal_request = instance.metadata_json.get('journal_request') if instance.entity_type == 'journal' else none %}
         {% set purchase_request = instance.metadata_json.get('purchase_bill_request') if instance.entity_type == 'purchase_bill' else none %}
+        {% set sales_request = instance.metadata_json.get('sales_invoice_request') if instance.entity_type == 'sales_invoice' else none %}
         {% set expense_claim = instance.metadata_json.get('expense_claim_snapshot') if instance.entity_type == 'expense_claim' else none %}
         {% set can_post_item = post_access.get(action.id, false) %}
         <tr>
@@ -41,6 +42,11 @@
               <br><small>Bill date {{ purchase_request.get('bill_date') }} · Due {{ purchase_request.get('due_date') }}</small>
               <br><small>Expense: {{ purchase_request.get('expense_account_code') }} {{ purchase_request.get('expense_account_name') }}</small>
               <br><small>Payable: {{ purchase_request.get('payable_account_code') }} {{ purchase_request.get('payable_account_name') }}{% if purchase_request.get('tax_code') %} · VAT {{ purchase_request.get('tax_code') }} {{ instance.currency }} {{ purchase_request.get('tax_amount') }}{% endif %}</small>
+            {% elif sales_request %}
+              <br><small>Customer: {{ sales_request.get('customer_name') }} · Invoice {{ sales_request.get('invoice_number') }}</small>
+              <br><small>Invoice date {{ sales_request.get('invoice_date') }} · Due {{ sales_request.get('due_date') }}</small>
+              <br><small>Revenue: {{ sales_request.get('revenue_account_code') }} {{ sales_request.get('revenue_account_name') }}</small>
+              <br><small>Receivable: {{ sales_request.get('receivable_account_code') }} {{ sales_request.get('receivable_account_name') }}{% if sales_request.get('tax_code') %} · VAT {{ sales_request.get('tax_code') }} {{ instance.currency }} {{ sales_request.get('tax_amount') }}{% endif %}</small>
             {% elif expense_claim %}
               <br><small>Claim {{ expense_claim.get('claim_number') }} · {{ expense_claim.get('claimant_name') }} · {{ expense_claim.get('claim_date') }}</small>
               <br><small>{{ expense_claim.get('lines', [])|length }} expense line(s) · VAT {{ instance.currency }} {{ expense_claim.get('tax_total') }}</small>
@@ -84,6 +90,12 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="field field-full"><p class="help">Posting creates the supplier bill and AP journal only now. VAT and the reviewed total are rechecked first.</p></div>
                 <div class="field field-full"><button class="button" type="submit">Post bill to Accounts Payable</button></div>
+              </form>
+              {% elif can_post_item and sales_request %}
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field field-full"><p class="help">Posting creates the customer invoice and AR journal only now. VAT and the reviewed total are rechecked first.</p></div>
+                <div class="field field-full"><button class="button" type="submit">Post invoice to Accounts Receivable</button></div>
               </form>
               {% elif can_post_item and expense_claim %}
               <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
