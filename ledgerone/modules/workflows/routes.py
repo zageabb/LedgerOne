@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ledgerone.extensions import db
+from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
 from ledgerone.modules.workflows.models import ScheduledTransaction
 from ledgerone.modules.workflows.services import (
@@ -25,6 +26,7 @@ def _optional_date(value: str | None):
 @require_module("workflows")
 def index():
     context = browser_context()
+    organisation = db.session.get(Organisation, context.organisation_id)
     if request.method == "POST":
         action = request.form.get("action")
         try:
@@ -37,7 +39,7 @@ def index():
                     amount_mode=request.form.get("amount_mode", "expected"),
                     expected_amount=request.form.get("expected_amount") or None,
                     tolerance=request.form.get("tolerance") or None,
-                    currency=request.form.get("currency") or "GBP",
+                    currency=organisation.base_currency,
                     bank_account_id=request.form.get("bank_account_id", ""),
                     counter_account_id=request.form.get("counter_account_id", ""),
                     frequency=request.form.get("frequency", "monthly"),
@@ -66,6 +68,7 @@ def index():
         settlement_accounts=settlement_accounts,
         category_accounts=category_accounts,
         frequencies=RecurringTransactionService.FREQUENCIES,
+        base_currency=organisation.base_currency,
         today=date.today().isoformat(),
         can_write=context.can("workflows.write"),
         can_manage=context.can("workflows.manage"),
