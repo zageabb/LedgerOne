@@ -11,6 +11,7 @@ class PostedDocumentImmutableError(RuntimeError):
 _guard_installed = False
 
 # Settlement status may legitimately move posted -> part_paid -> paid after allocation.
+# Credit settlement may likewise move posted/part_paid -> part_credited -> credited.
 # Everything below is accounting/source-document evidence and must instead be corrected
 # through credit notes, reversals or other explicit correction workflows.
 SALES_INVOICE_PROTECTED_FIELDS = frozenset(
@@ -151,8 +152,8 @@ def _guard_posted_documents(session: Session, flush_context, instances) -> None:
     from ledgerone.modules.sales.credit_models import SalesCreditNote
     from ledgerone.modules.sales.models import SalesInvoice, SalesInvoiceLine
 
-    invoice_posted = frozenset({"posted", "part_paid", "paid", "credited"})
-    bill_posted = frozenset({"posted", "part_paid", "paid", "credited"})
+    invoice_posted = frozenset({"posted", "part_paid", "paid", "part_credited", "credited"})
+    bill_posted = frozenset({"posted", "part_paid", "paid", "part_credited", "credited"})
     claim_posted = frozenset({"posted"})
     credit_posted = frozenset({"posted"})
 
