@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>User Actions</h1>
-    <p>Everything LedgerOne needs a person to review, approve or post. Generated recurring items appear here instead of posting automatically.</p>
+    <p>Everything LedgerOne needs a person to review, approve or post. Generated recurring items and journal proposals appear here instead of posting automatically.</p>
   </div>
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('workflows.index') }}">Scheduled Transactions</a>
@@ -22,9 +22,20 @@
       {% for action in actions %}
         {% set instance = action.workflow_instance %}
         {% set item = action_items.get(action.id) %}
+        {% set journal_request = instance.metadata_json.get('journal_request') if instance.entity_type == 'journal' else none %}
         <tr>
           <td><span class="badge">{{ action.action_type|title }}</span><br><small>{{ action.created_at.strftime('%d %b %Y %H:%M') }}</small></td>
-          <td><strong>{{ instance.title }}</strong><br><small>{{ instance.entity_type.replace('_', ' ')|title }} · {{ instance.status.replace('_', ' ')|title }}</small>{% if action.instructions %}<br><small>{{ action.instructions }}</small>{% endif %}</td>
+          <td>
+            <strong>{{ instance.title }}</strong><br>
+            <small>{{ instance.entity_type.replace('_', ' ')|title }} · {{ instance.status.replace('_', ' ')|title }}</small>
+            {% if journal_request %}
+              <br><small>{{ journal_request.get('journal_date') }}{% if journal_request.get('reference') %} · Ref {{ journal_request.get('reference') }}{% endif %} · {{ journal_request.get('lines', [])|length }} lines</small>
+              {% for line in journal_request.get('lines', []) %}
+                <br><small>{{ line.get('account_code') }} {{ line.get('account_name') }} — {% if line.get('debit') != '0.00' %}Dr {{ instance.currency }} {{ line.get('debit') }}{% else %}Cr {{ instance.currency }} {{ line.get('credit') }}{% endif %}</small>
+              {% endfor %}
+            {% endif %}
+            {% if action.instructions %}<br><small>{{ action.instructions }}</small>{% endif %}
+          </td>
           <td>{% if instance.amount is not none %}{{ instance.currency }} {{ '%.2f'|format(instance.amount) }}{% elif item and item.expected_amount is not none %}{{ item.currency }} {{ '%.2f'|format(item.expected_amount) }}{% else %}Variable{% endif %}</td>
           <td>{% if action.assigned_user %}{{ action.assigned_user.name }}{% elif action.assigned_role %}Role: {{ action.assigned_role }}{% else %}Any authorised user{% endif %}</td>
           <td>
@@ -48,13 +59,19 @@
                 <div class="field"><label>Posting date</label><input name="posting_date" type="date" value="{{ item.scheduled_date.isoformat() }}" required></div>
                 <div class="field field-full"><button class="button" type="submit">Post to ledger</button></div>
               </form>
+              {% elif can_post and journal_request %}
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field field-full"><p class="help">Posting date {{ journal_request.get('journal_date') }}. The journal will be revalidated against period, currency and control-account rules when posted.</p></div>
+                <div class="field field-full"><button class="button" type="submit">Post journal to ledger</button></div>
+              </form>
+              {% else %}<small>Posting requires both workflow and ledger posting permission.</small>{% endif %}
               <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="comments" value="Returned from posting step for review">
                 <button class="button button-small button-secondary" name="decision" value="return" type="submit">Return for review</button>
                 <button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject</button>
               </form>
-              {% else %}<small>Posting requires both workflow and ledger posting permission.</small>{% endif %}
             {% else %}
               <small>No handler is configured for this action type yet.</small>
             {% endif %}
