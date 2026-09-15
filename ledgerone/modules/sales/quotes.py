@@ -183,15 +183,14 @@ class SalesQuoteService:
                 revenue_account_id=line.revenue_account_id,
                 currency=quote.currency,
                 tax_code_id=line.tax_code_id,
+                metadata={
+                    "source_quote_id": quote.id,
+                    "source_quote_number": quote.quote_number,
+                },
                 commit=False,
             )
             quote.status = "converted"
             quote.converted_invoice_id = invoice.id
-            invoice.metadata_json = {
-                **(invoice.metadata_json or {}),
-                "source_quote_id": quote.id,
-                "source_quote_number": quote.quote_number,
-            }
             record_audit_event(
                 context,
                 module_id="sales",
