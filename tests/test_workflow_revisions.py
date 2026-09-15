@@ -302,6 +302,7 @@ def test_api_can_revise_returned_sales_proposal_without_posting(app, client):
         db.session.add(key)
         db.session.commit()
         action_id = returned_action.id
+        workflow_id = workflow.id
         invoice_count = SalesInvoice.query.count()
         journal_count = Journal.query.count()
 
@@ -313,7 +314,7 @@ def test_api_can_revise_returned_sales_proposal_without_posting(app, client):
     assert response.status_code == 201
     data = response.get_json()
     assert data["replacement"]["status"] == "awaiting_review"
-    assert data["replaces_workflow_instance_id"] == workflow.id
+    assert data["replaces_workflow_instance_id"] == workflow_id
     with app.app_context():
         assert SalesInvoice.query.count() == invoice_count
         assert Journal.query.count() == journal_count
