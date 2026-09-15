@@ -12,6 +12,8 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 class Config:
+    APP_VERSION = os.getenv("LEDGERONE_VERSION", "0.3.0-dev")
+
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL", f"sqlite:///{BASE_DIR / 'ledgerone.db'}"
