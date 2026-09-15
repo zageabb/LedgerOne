@@ -2,6 +2,7 @@ from datetime import date
 
 from flask import Blueprint, g, jsonify, request
 
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.security import require_api
 from ledgerone.services.ledger import LedgerError
@@ -60,12 +61,39 @@ def invoices():
 def create_invoice():
     payload = request.get_json(silent=True) or {}
     try:
+        invoice_date = date.fromisoformat(payload.get("invoice_date") or date.today().isoformat())
+        due_date = date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None
+        if module_registry.is_enabled(g.access_context.organisation_id, "workflows"):
+            from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
+
+            workflow = SalesInvoiceWorkflowService.create_request(
+                g.access_context,
+                customer_id=payload["customer_id"],
+                invoice_number=payload["invoice_number"],
+                invoice_date=invoice_date,
+                due_date=due_date,
+                description=payload.get("description", "Sales"),
+                amount=payload["amount"],
+                receivable_account_id=payload["receivable_account_id"],
+                revenue_account_id=payload["revenue_account_id"],
+                currency=payload.get("currency", "GBP"),
+                tax_code_id=payload.get("tax_code_id"),
+                source_module="api",
+                source_reference=payload.get("source_reference"),
+                metadata={"created_by": "sales_api"},
+            )
+            return jsonify({
+                "workflow_instance_id": workflow.id,
+                "status": workflow.status,
+                "posted": False,
+            }), 201
+
         row = SalesService.create_invoice(
             g.access_context,
             customer_id=payload["customer_id"],
             invoice_number=payload["invoice_number"],
-            invoice_date=date.fromisoformat(payload.get("invoice_date") or date.today().isoformat()),
-            due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
+            invoice_date=invoice_date,
+            due_date=due_date,
             description=payload.get("description", "Sales"),
             amount=payload["amount"],
             receivable_account_id=payload["receivable_account_id"],
@@ -81,6 +109,7 @@ def create_invoice():
             "tax_total": str(row.tax_total),
             "total": str(row.total),
             "journal_id": row.posted_journal_id,
+            "posted": True,
         }), 201
     except (KeyError, ValueError, PermissionError, LedgerError) as exc:
         return jsonify({"error": str(exc)}), 400
