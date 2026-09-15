@@ -27,9 +27,9 @@ __all__ = [
     "RecurringJournalRun",
 ]
 
-# Install cross-module accounting safeguards after the core model classes are loaded.
-# The guard sits below browser/API/AI/module services, so every ORM-backed financial
-# posting receives the same base-currency enforcement.
-from ledgerone.services.currency import install_currency_guard
+# Install only the ORM-level safeguard while model modules are initialising. Service
+# wrappers are installed by create_app after model imports are complete, avoiding an
+# import cycle for standalone code that imports LedgerService directly.
+from ledgerone.services.currency import install_currency_orm_guard
 
-install_currency_guard()
+install_currency_orm_guard()

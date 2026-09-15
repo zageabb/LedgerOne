@@ -18,6 +18,11 @@ def create_app(config_overrides: dict | None = None):
     from ledgerone.extensions import csrf, db, login_manager, migrate
     from ledgerone.module_registry import module_registry
     from ledgerone.models import User
+    from ledgerone.services.currency import install_currency_service_guards
+
+    # Models are fully loaded at this point, so service-level accounting guards can be
+    # installed without creating a models <-> LedgerService import cycle.
+    install_currency_service_guards()
 
     app = Flask(__name__)
     app.config.from_object(get_config())

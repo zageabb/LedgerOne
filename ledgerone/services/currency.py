@@ -18,7 +18,8 @@ class CurrencyPolicyError(ValueError):
 # own subledger guard in addition to the central journal-posting check.
 _DIRECT_CURRENCY_TABLES = {"sales_payments", "purchase_payments"}
 
-_installed = False
+_orm_guard_installed = False
+_service_guards_installed = False
 
 
 def _normalise(currency: str | None) -> str | None:
@@ -177,9 +178,25 @@ def _enforce_orm_base_currency(session: Session, flush_context, instances) -> No
             _validate_journal_line(session, obj, organisation_cache)
 
 
-def _install_service_guards() -> None:
-    # Import here to avoid a models -> currency -> ledger-service import cycle while the
-    # model package is still initialising.
+def install_currency_orm_guard() -> None:
+    """Install the model-level defence without importing LedgerService.
+
+    Models call this during package initialisation. Keeping it free of service imports
+    avoids circular-import failures in scripts that import LedgerService directly.
+    """
+    global _orm_guard_installed
+    if _orm_guard_installed:
+        return
+    event.listen(Session, "before_flush", _enforce_orm_base_currency)
+    _orm_guard_installed = True
+
+
+def install_currency_service_guards() -> None:
+    """Wrap normal posting services after the model package has finished importing."""
+    global _service_guards_installed
+    if _service_guards_installed:
+        return
+
     from ledgerone.services.ledger import LedgerService
 
     if not getattr(LedgerService.post_journal, "_base_currency_guarded", False):
@@ -207,12 +224,10 @@ def _install_service_guards() -> None:
         guarded_create_recurring._base_currency_guarded = True
         LedgerService.create_recurring_journal = staticmethod(guarded_create_recurring)
 
+    _service_guards_installed = True
+
 
 def install_currency_guard() -> None:
-    """Install central service and ORM base-currency enforcement exactly once."""
-    global _installed
-    if _installed:
-        return
-    _install_service_guards()
-    event.listen(Session, "before_flush", _enforce_orm_base_currency)
-    _installed = True
+    """Backward-compatible convenience installer for already-initialised applications."""
+    install_currency_orm_guard()
+    install_currency_service_guards()
