@@ -21,6 +21,11 @@ def register(app):
     def generate_due_work_items_once_daily():
         if not app.config.get("WORKFLOW_AUTO_GENERATE_DUE", True):
             return None
+        # Generation is an unrelated background-style housekeeping mutation. Never let
+        # a POST/PUT/PATCH/DELETE request create work before that request's own security
+        # and validation have completed (for example, before CSRF rejection).
+        if request.method not in {"GET", "HEAD"}:
+            return None
         if request.path.startswith("/static/") or not current_user.is_authenticated:
             return None
         context = browser_context()
