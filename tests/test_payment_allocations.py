@@ -3,11 +3,20 @@ from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.purchases.models import PurchaseBill
 from ledgerone.modules.sales.models import SalesInvoice
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _setup(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        # Allocation tests exercise posted AR/AP documents and their settlement logic.
+        # The proposal/approval boundary has dedicated workflow and API tests.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="payment-allocation-test",
             organisation_id=organisation.id,
