@@ -207,6 +207,7 @@ def test_sales_purchase_payments_and_expenses_cannot_post_foreign_currency(app):
             description="Foreign expense",
             amount="20.00",
             expense_account_id=accounts["5000"].id,
+            reimbursement_account_id=accounts["2100"].id,
             currency="USD",
         )
         ExpenseClaimService.submit(context, claim.id)
