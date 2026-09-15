@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>User Actions</h1>
-    <p>Everything LedgerOne needs a person to review, approve or post. Generated recurring items and journal proposals appear here instead of posting automatically.</p>
+    <p>Everything LedgerOne needs a person to review, approve or post. Scheduled items, journal proposals and supplier bills appear here instead of posting automatically.</p>
   </div>
   <div class="actions">
     <a class="button button-secondary" href="{{ url_for('workflows.index') }}">Scheduled Transactions</a>
@@ -23,6 +23,8 @@
         {% set instance = action.workflow_instance %}
         {% set item = action_items.get(action.id) %}
         {% set journal_request = instance.metadata_json.get('journal_request') if instance.entity_type == 'journal' else none %}
+        {% set purchase_request = instance.metadata_json.get('purchase_bill_request') if instance.entity_type == 'purchase_bill' else none %}
+        {% set can_post_item = post_access.get(action.id, false) %}
         <tr>
           <td><span class="badge">{{ action.action_type|title }}</span><br><small>{{ action.created_at.strftime('%d %b %Y %H:%M') }}</small></td>
           <td>
@@ -33,6 +35,11 @@
               {% for line in journal_request.get('lines', []) %}
                 <br><small>{{ line.get('account_code') }} {{ line.get('account_name') }} — {% if line.get('debit') != '0.00' %}Dr {{ instance.currency }} {{ line.get('debit') }}{% else %}Cr {{ instance.currency }} {{ line.get('credit') }}{% endif %}</small>
               {% endfor %}
+            {% elif purchase_request %}
+              <br><small>Supplier: {{ purchase_request.get('supplier_name') }} · Bill {{ purchase_request.get('bill_number') }}</small>
+              <br><small>Bill date {{ purchase_request.get('bill_date') }} · Due {{ purchase_request.get('due_date') }}</small>
+              <br><small>Expense: {{ purchase_request.get('expense_account_code') }} {{ purchase_request.get('expense_account_name') }}</small>
+              <br><small>Payable: {{ purchase_request.get('payable_account_code') }} {{ purchase_request.get('payable_account_name') }}{% if purchase_request.get('tax_code') %} · VAT {{ purchase_request.get('tax_code') }} {{ instance.currency }} {{ purchase_request.get('tax_amount') }}{% endif %}</small>
             {% endif %}
             {% if action.instructions %}<br><small>{{ action.instructions }}</small>{% endif %}
           </td>
@@ -52,20 +59,26 @@
               </form>
               {% else %}<small>You do not have permission to complete this step.</small>{% endif %}
             {% elif action.action_type == 'post' %}
-              {% if can_post and item %}
+              {% if can_post_item and item %}
               <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="field"><label>Actual amount</label><input name="actual_amount" type="number" min="0" step="0.01" value="{{ item.expected_amount if item.expected_amount is not none else '' }}" required></div>
                 <div class="field"><label>Posting date</label><input name="posting_date" type="date" value="{{ item.scheduled_date.isoformat() }}" required></div>
                 <div class="field field-full"><button class="button" type="submit">Post to ledger</button></div>
               </form>
-              {% elif can_post and journal_request %}
+              {% elif can_post_item and journal_request %}
               <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="field field-full"><p class="help">Posting date {{ journal_request.get('journal_date') }}. The journal will be revalidated against period, currency and control-account rules when posted.</p></div>
                 <div class="field field-full"><button class="button" type="submit">Post journal to ledger</button></div>
               </form>
-              {% else %}<small>Posting requires both workflow and ledger posting permission.</small>{% endif %}
+              {% elif can_post_item and purchase_request %}
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field field-full"><p class="help">Posting creates the supplier bill and AP journal only now. VAT and the reviewed total are rechecked first.</p></div>
+                <div class="field field-full"><button class="button" type="submit">Post bill to Accounts Payable</button></div>
+              </form>
+              {% else %}<small>You do not have the workflow and domain permission required to post this item.</small>{% endif %}
               <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="comments" value="Returned from posting step for review">
