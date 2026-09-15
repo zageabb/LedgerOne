@@ -51,6 +51,26 @@ class JournalWorkflowService:
         return serialised, total_debit
 
     @staticmethod
+    def _workflow_submission_context(context: AccessContext) -> AccessContext:
+        """Permit a domain-authorised caller to create its controlled workflow record.
+
+        `workflows.write` remains required for the generic workflow API. Domain adapters
+        such as journal submission instead prove their own business permission first and
+        receive only the internal workflow-create capability needed to route the work.
+        This does not grant review, approval, posting, or any additional accounting right.
+        """
+        if context.can("workflows.write"):
+            return context
+        return AccessContext(
+            identity_type=context.identity_type,
+            organisation_id=context.organisation_id,
+            user_id=context.user_id,
+            api_key_id=context.api_key_id,
+            full_access=context.full_access,
+            permissions=frozenset(set(context.permissions) | {"workflows.write"}),
+        )
+
+    @staticmethod
     def create_request(
         context: AccessContext,
         *,
@@ -65,13 +85,13 @@ class JournalWorkflowService:
     ) -> WorkflowInstance:
         if not context.can("ledger.journals.post"):
             raise PermissionError("ledger.journals.post")
-        if not context.can("workflows.write"):
-            raise PermissionError("workflows.write")
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
 
         clean_description = (description or "").strip() or "Manual journal"
         clean_reference = (reference or "").strip() or None
+        # Validate the accounting request before creating any workflow state. This also
+        # preserves the existing error contract for unsupported currency/control entries.
         serialised_lines, total = JournalWorkflowService._serialise_lines(context, lines)
         request_id = new_id()
         base_currency = organisation_base_currency(context)
@@ -91,7 +111,7 @@ class JournalWorkflowService:
         )
 
         workflow = WorkflowService.start(
-            context,
+            JournalWorkflowService._workflow_submission_context(context),
             entity_type=JournalWorkflowService.ENTITY_TYPE,
             entity_id=request_id,
             title=clean_description,
