@@ -6,6 +6,7 @@ from flask_login import login_required
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
+from ledgerone.modules.workflows.expense_claim_requests import ExpenseClaimWorkflowService
 from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import ScheduledTransaction, UserAction
 from ledgerone.modules.workflows.posting import can_post_action
@@ -169,12 +170,22 @@ def actions():
 def action_decision(action_id):
     context = browser_context()
     try:
-        instance = WorkflowService.complete_action(
-            context,
-            action_id,
-            decision=request.form.get("decision") or "approve",
-            comments=request.form.get("comments") or None,
-        )
+        action = db.session.get(UserAction, action_id)
+        entity_type = action.workflow_instance.entity_type if action and action.workflow_instance else None
+        if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
+            instance = ExpenseClaimWorkflowService.complete_action(
+                context,
+                action_id,
+                decision=request.form.get("decision") or "approve",
+                comments=request.form.get("comments") or None,
+            )
+        else:
+            instance = WorkflowService.complete_action(
+                context,
+                action_id,
+                decision=request.form.get("decision") or "approve",
+                comments=request.form.get("comments") or None,
+            )
         flash(f"Action completed. Workflow is now {instance.status.replace('_', ' ')}.", "success")
     except (WorkflowError, PermissionError) as exc:
         flash(str(exc), "danger")
@@ -195,6 +206,13 @@ def post_action(action_id):
         elif entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
             bill = PurchaseBillWorkflowService.post_from_action(context, action_id)
             flash(f"Bill {bill.bill_number} posted to Accounts Payable.", "success")
+        elif entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
+            claim = ExpenseClaimWorkflowService.post_from_action(
+                context,
+                action_id,
+                posting_date=date.fromisoformat(request.form.get("posting_date") or date.today().isoformat()),
+            )
+            flash(f"Expense claim {claim.claim_number} approved and posted.", "success")
         else:
             item = RecurringTransactionService.post_from_action(
                 context,
