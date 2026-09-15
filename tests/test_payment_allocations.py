@@ -26,7 +26,7 @@ def _headers(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_customer_partial_payment_then_bank_journal_adoption_settles_invoice(client, app):
+def test_customer_partial_payments_match_bank_and_settle_invoice(client, app):
     token, accounts = _setup(app)
     headers = _headers(token)
 
@@ -80,6 +80,22 @@ def test_customer_partial_payment_then_bank_journal_adoption_settles_invoice(cli
     assert invoice["allocated"] == "60.00"
     assert invoice["outstanding"] == "40.00"
 
+    final_payment = client.post(
+        "/api/v1/sales/payments",
+        headers=headers,
+        json={
+            "customer_id": customer,
+            "date": "2026-09-14",
+            "amount": "40.00",
+            "bank_account_id": accounts["1000"],
+            "receivable_account_id": accounts["1200"],
+            "reference": "BANK-40",
+        },
+    )
+    assert final_payment.status_code == 201
+    final_payment_id = final_payment.get_json()["id"]
+    final_payment_journal_id = final_payment.get_json()["journal_id"]
+
     bank_account = client.post(
         "/api/v1/banking/accounts",
         headers=headers,
@@ -99,33 +115,16 @@ def test_customer_partial_payment_then_bank_journal_adoption_settles_invoice(cli
             "amount": "40.00",
         },
     ).get_json()["id"]
-    reconciliation = client.post(
-        f"/api/v1/banking/transactions/{bank_transaction}/post-and-match",
+    matched = client.post(
+        f"/api/v1/banking/transactions/{bank_transaction}/match",
         headers=headers,
-        json={
-            "offset_account_id": accounts["1200"],
-            "reference": "BANK-40",
-            "description": "Final customer receipt",
-        },
+        json={"journal_id": final_payment_journal_id},
     )
-    assert reconciliation.status_code == 201
-    bank_journal_id = reconciliation.get_json()["journal_id"]
-
-    adopted = client.post(
-        "/api/v1/sales/payments/adopt-journal",
-        headers=headers,
-        json={
-            "customer_id": customer,
-            "journal_id": bank_journal_id,
-            "receivable_account_id": accounts["1200"],
-        },
-    )
-    assert adopted.status_code == 201
-    assert adopted.get_json()["amount"] == "40.00"
-    adopted_payment_id = adopted.get_json()["id"]
+    assert matched.status_code == 200
+    assert matched.get_json()["matched_journal_id"] == final_payment_journal_id
 
     final_allocation = client.post(
-        f"/api/v1/sales/payments/{adopted_payment_id}/allocate",
+        f"/api/v1/sales/payments/{final_payment_id}/allocate",
         headers=headers,
         json={"allocations": [{"invoice_id": invoice_id, "amount": "40.00"}]},
     )
@@ -137,7 +136,7 @@ def test_customer_partial_payment_then_bank_journal_adoption_settles_invoice(cli
     assert invoice["outstanding"] == "0.00"
 
     with app.app_context():
-        assert Journal.query.count() == 3  # invoice, first payment, reconciled bank journal
+        assert Journal.query.count() == 3  # invoice plus two sales payment journals
         stored = db.session.get(SalesInvoice, invoice_id)
         assert stored.status == "paid"
 
