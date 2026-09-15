@@ -13,42 +13,88 @@ from ledgerone.modules.sales.models import (
     SalesPaymentAllocation,
 )
 from ledgerone.services.context import AccessContext
-from ledgerone.services.ledger import LedgerService
+from ledgerone.services.reporting import FinancialReportingService
 
 
 class ReportsService:
     AGING_BUCKETS = ("current", "1_30", "31_60", "61_90", "90_plus")
 
     @staticmethod
-    def summary(context: AccessContext):
-        rows = LedgerService.trial_balance(context)
-        assets = [row for row in rows if row["account_type"] == "asset"]
-        liabilities = [row for row in rows if row["account_type"] == "liability"]
-        equity = [row for row in rows if row["account_type"] == "equity"]
-        income = [row for row in rows if row["account_type"] == "income"]
-        expenses = [row for row in rows if row["account_type"] == "expense"]
+    def summary(
+        context: AccessContext,
+        *,
+        from_date: date | None = None,
+        to_date: date | None = None,
+        compare_from: date | None = None,
+        compare_to: date | None = None,
+        compare_as_of: date | None = None,
+    ):
+        return FinancialReportingService.summary(
+            context,
+            from_date=from_date,
+            to_date=to_date,
+            compare_from=compare_from,
+            compare_to=compare_to,
+            compare_as_of=compare_as_of,
+        )
 
-        total_assets = sum((row["balance"] for row in assets), Decimal("0"))
-        total_liabilities = sum((-row["balance"] for row in liabilities), Decimal("0"))
-        total_equity = sum((-row["balance"] for row in equity), Decimal("0"))
-        total_income = sum((-row["balance"] for row in income), Decimal("0"))
-        total_expenses = sum((row["balance"] for row in expenses), Decimal("0"))
-        net_profit = total_income - total_expenses
+    @staticmethod
+    def profit_and_loss(
+        context: AccessContext,
+        *,
+        from_date: date,
+        to_date: date,
+        compare_from: date | None = None,
+        compare_to: date | None = None,
+    ):
+        return FinancialReportingService.profit_and_loss(
+            context,
+            from_date=from_date,
+            to_date=to_date,
+            compare_from=compare_from,
+            compare_to=compare_to,
+        )
 
-        return {
-            "assets": assets,
-            "liabilities": liabilities,
-            "equity": equity,
-            "income": income,
-            "expenses": expenses,
-            "total_assets": total_assets,
-            "total_liabilities": total_liabilities,
-            "total_equity": total_equity,
-            "total_income": total_income,
-            "total_expenses": total_expenses,
-            "net_profit": net_profit,
-            "net_worth": total_assets - total_liabilities,
-        }
+    @staticmethod
+    def balance_sheet(
+        context: AccessContext,
+        *,
+        as_of: date,
+        compare_as_of: date | None = None,
+    ):
+        return FinancialReportingService.balance_sheet(
+            context,
+            as_of=as_of,
+            compare_as_of=compare_as_of,
+        )
+
+    @staticmethod
+    def trial_balance(
+        context: AccessContext,
+        *,
+        as_of: date | None = None,
+        from_date: date | None = None,
+    ):
+        return FinancialReportingService.trial_balance(
+            context,
+            as_of=as_of,
+            from_date=from_date,
+        )
+
+    @staticmethod
+    def general_ledger(
+        context: AccessContext,
+        *,
+        from_date: date,
+        to_date: date,
+        account_id: str | None = None,
+    ):
+        return FinancialReportingService.general_ledger(
+            context,
+            from_date=from_date,
+            to_date=to_date,
+            account_id=account_id,
+        )
 
     @staticmethod
     def _bucket(days_overdue: int) -> str:
