@@ -9,6 +9,7 @@ from ledgerone.modules.workflows.expense_claim_requests import ExpenseClaimWorkf
 from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import UserAction
 from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
+from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -69,7 +70,7 @@ def _item_json(row):
 def _instance_json(row):
     return {
         "id": row.id,
-        "definition_id": row.workflow_definition_id,
+        "definition_id": row.workflow_instance_id if hasattr(row, "workflow_instance_id") else row.workflow_definition_id,
         "entity_type": row.entity_type,
         "entity_id": row.entity_id,
         "source_module": row.source_module,
@@ -105,6 +106,22 @@ def _purchase_bill_json(row):
         "supplier_id": row.supplier_id,
         "bill_number": row.bill_number,
         "bill_date": row.bill_date.isoformat(),
+        "due_date": row.due_date.isoformat() if row.due_date else None,
+        "currency": row.currency,
+        "subtotal": _money(row.subtotal),
+        "tax_total": _money(row.tax_total),
+        "total": _money(row.total),
+        "status": row.status,
+        "journal_id": row.posted_journal_id,
+    }
+
+
+def _sales_invoice_json(row):
+    return {
+        "id": row.id,
+        "customer_id": row.customer_id,
+        "invoice_number": row.invoice_number,
+        "invoice_date": row.invoice_date.isoformat(),
         "due_date": row.due_date.isoformat() if row.due_date else None,
         "currency": row.currency,
         "subtotal": _money(row.subtotal),
@@ -320,6 +337,9 @@ def post_action(action_id):
         if entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
             row = PurchaseBillWorkflowService.post_from_action(g.access_context, action_id)
             return jsonify({"entity_type": "purchase_bill", "purchase_bill": _purchase_bill_json(row)})
+        if entity_type == SalesInvoiceWorkflowService.ENTITY_TYPE:
+            row = SalesInvoiceWorkflowService.post_from_action(g.access_context, action_id)
+            return jsonify({"entity_type": "sales_invoice", "sales_invoice": _sales_invoice_json(row)})
         if entity_type == ExpenseClaimWorkflowService.ENTITY_TYPE:
             row = ExpenseClaimWorkflowService.post_from_action(
                 g.access_context,
