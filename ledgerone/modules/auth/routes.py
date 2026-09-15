@@ -45,8 +45,12 @@ def login():
 @bp.post("/logout")
 @login_required
 def logout():
-    logout_user()
+    # Clear application session state first, then let Flask-Login mark the
+    # remember-me cookie for deletion. Calling session.clear() after
+    # logout_user() would remove Flask-Login's `_remember = "clear"` marker,
+    # allowing the persistent cookie to authenticate the user again immediately.
     session.clear()
+    logout_user()
     return redirect(url_for("auth.login"))
 
 
