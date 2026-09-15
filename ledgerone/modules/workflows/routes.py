@@ -8,6 +8,8 @@ from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
 from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import ScheduledTransaction, UserAction
+from ledgerone.modules.workflows.posting import can_post_action
+from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
 from ledgerone.modules.workflows.services import (
     RecurringTransactionService,
     WorkflowError,
@@ -143,18 +145,20 @@ def actions():
     context = browser_context()
     rows = WorkflowService.open_actions(context)
     item_map = {}
+    post_access = {}
     for action in rows:
         instance = action.workflow_instance
         if instance.entity_type == "scheduled_transaction":
             item_map[action.id] = db.session.get(ScheduledTransaction, instance.entity_id)
+        post_access[action.id] = can_post_action(context, action)
     return render_template(
         "workflows/actions.html",
         actions=rows,
         recent_actions=WorkflowService.recent_actions(context),
         action_items=item_map,
+        post_access=post_access,
         can_review=context.can("workflows.review"),
         can_approve=context.can("workflows.approve"),
-        can_post=context.can("workflows.post") and context.can("ledger.journals.post"),
         today=date.today().isoformat(),
     )
 
@@ -188,6 +192,9 @@ def post_action(action_id):
         if entity_type == JournalWorkflowService.ENTITY_TYPE:
             journal = JournalWorkflowService.post_from_action(context, action_id)
             flash(f"Journal {journal.reference or journal.id[:8]} posted to the ledger.", "success")
+        elif entity_type == PurchaseBillWorkflowService.ENTITY_TYPE:
+            bill = PurchaseBillWorkflowService.post_from_action(context, action_id)
+            flash(f"Bill {bill.bill_number} posted to Accounts Payable.", "success")
         else:
             item = RecurringTransactionService.post_from_action(
                 context,
