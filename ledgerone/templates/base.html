@@ -62,7 +62,7 @@
           </select>
         </form>
         {% endif %}
-        {% if current_organisation and ledgerone_user_action_count is defined %}
+        {% if ledgerone_user_actions_enabled %}
           <a class="button button-secondary button-small" href="{{ url_for('workflows.actions') }}" title="Items waiting for your review, approval or posting">
             Actions{% if ledgerone_user_action_count %} <span class="badge">{{ ledgerone_user_action_count }}</span>{% endif %}
           </a>
