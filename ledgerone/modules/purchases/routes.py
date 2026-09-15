@@ -6,7 +6,6 @@ from flask_login import login_required
 from ledgerone.models.ledger import Journal
 from ledgerone.module_registry import module_registry
 from ledgerone.modules.purchases.services import PurchasesService
-from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
 from ledgerone.security import browser_context, require_module
 from ledgerone.services.ledger import LedgerError, LedgerService
 
@@ -38,6 +37,11 @@ def index():
                 due_date_raw = request.form.get("due_date")
                 due_date = datetime.strptime(due_date_raw, "%Y-%m-%d").date() if due_date_raw else None
                 if module_registry.is_enabled(context.organisation_id, "workflows"):
+                    # Lazy import avoids a registry-discovery cycle: Workflows itself
+                    # imports the purchase adapter so Purchases must not import it while
+                    # the module packages are still being discovered.
+                    from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
+
                     workflow = PurchaseBillWorkflowService.create_request(
                         context,
                         supplier_id=request.form.get("supplier_id", ""),
