@@ -16,6 +16,7 @@ bp = Blueprint("expense_claims", __name__, url_prefix="/expense-claims")
 @require_module("expense_claims")
 def index():
     context = browser_context()
+    workflows_enabled = module_registry.is_enabled(context.organisation_id, "workflows")
     if request.method == "POST":
         action = request.form.get("action")
         try:
@@ -48,19 +49,39 @@ def index():
                 )
                 flash("Expense line added.", "success")
             elif action == "submit":
+                if workflows_enabled:
+                    # Lazy import avoids coupling Expense Claims package discovery back
+                    # into the Workflows package that owns this adapter.
+                    from ledgerone.modules.workflows.expense_claim_requests import ExpenseClaimWorkflowService
+
+                    workflow = ExpenseClaimWorkflowService.submit_request(
+                        context,
+                        request.form.get("claim_id", ""),
+                    )
+                    flash(
+                        f"Expense claim submitted to workflow. Status: {workflow.status.replace('_', ' ')}.",
+                        "success",
+                    )
+                    return redirect(url_for("workflows.actions"))
                 ExpenseClaimService.submit(context, request.form.get("claim_id", ""))
                 flash("Expense claim submitted for approval.", "success")
             elif action == "approve":
+                claim = ExpenseClaimService._claim(context, request.form.get("claim_id", ""))
+                if workflows_enabled and (claim.metadata_json or {}).get("workflow_instance_id"):
+                    raise ExpenseClaimError("This claim is controlled by User Actions; approve/post it there")
                 ExpenseClaimService.approve_and_post(
                     context,
-                    request.form.get("claim_id", ""),
+                    claim.id,
                     posting_date=date.fromisoformat(request.form.get("posting_date") or date.today().isoformat()),
                 )
                 flash("Expense claim approved and posted to the ledger.", "success")
             elif action == "reject":
+                claim = ExpenseClaimService._claim(context, request.form.get("claim_id", ""))
+                if workflows_enabled and (claim.metadata_json or {}).get("workflow_instance_id"):
+                    raise ExpenseClaimError("This claim is controlled by User Actions; reject it there")
                 ExpenseClaimService.reject(
                     context,
-                    request.form.get("claim_id", ""),
+                    claim.id,
                     reason=request.form.get("reason") or None,
                 )
                 flash("Expense claim rejected.", "success")
@@ -83,5 +104,6 @@ def index():
         tax_codes=tax_codes,
         claimant_name=current_user.name,
         can_approve=context.can("expense_claims.approve"),
+        workflows_enabled=workflows_enabled,
         today=date.today().isoformat(),
     )
