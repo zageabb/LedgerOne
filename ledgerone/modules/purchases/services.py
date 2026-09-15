@@ -107,7 +107,7 @@ class PurchasesService:
                     bill_date, due_date, description: str, amount,
                     payable_account_id: str, expense_account_id: str,
                     currency: str = "GBP", tax_code_id: str | None = None,
-                    commit: bool = True):
+                    metadata: dict | None = None, commit: bool = True):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -145,6 +145,7 @@ class PurchasesService:
             subtotal=amount,
             tax_total=tax_amount,
             total=total,
+            metadata_json=dict(metadata or {}),
         )
         db.session.add(bill)
         db.session.flush()
