@@ -18,6 +18,7 @@ from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.modules.sales.models import SalesInvoice, SalesPayment
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.services.context import AccessContext
+from ledgerone.services.control_accounts import ControlAccountService
 from ledgerone.services.currency import CurrencyPolicyError
 from ledgerone.services.ledger import LedgerService
 
@@ -197,6 +198,8 @@ def test_sales_purchase_payments_and_expenses_cannot_post_foreign_currency(app):
             )
         assert PurchasePayment.query.count() == 0
 
+        ExpenseClaimService.seed_defaults(organisation.id)
+        _, accounts = _organisation_and_accounts()
         claim = ExpenseClaimService.create_claim(
             context,
             claimant_name="Test Claimant",
@@ -207,7 +210,7 @@ def test_sales_purchase_payments_and_expenses_cannot_post_foreign_currency(app):
             description="Foreign expense",
             amount="20.00",
             expense_account_id=accounts["5000"].id,
-            reimbursement_account_id=accounts["2100"].id,
+            reimbursement_account_id=accounts["2150"].id,
             currency="USD",
         )
         ExpenseClaimService.submit(context, claim.id)
@@ -228,10 +231,11 @@ def test_payment_adoption_cannot_relabel_base_currency_journal_as_foreign(app):
         context = AccessContext.system(organisation.id)
         customer = SalesService.create_customer(context, name="Adoption Customer")
 
-        journal = LedgerService.post_journal(
+        journal = ControlAccountService.post_adjustment(
             context,
             journal_date=date(2026, 9, 15),
-            description="Customer receipt",
+            description="Authorised legacy customer receipt",
+            reason="Test legacy customer-receipt adoption under the control-account policy",
             lines=[
                 {"account_id": accounts["1000"].id, "debit": "50.00", "credit": "0", "currency": "GBP"},
                 {"account_id": accounts["1200"].id, "debit": "0", "credit": "50.00", "currency": "GBP"},
@@ -296,7 +300,7 @@ def test_foreign_currency_recurring_journal_is_rejected_before_schedule_creation
                 next_run_date=date(2026, 10, 1),
                 lines=[
                     {"account_id": accounts["5000"].id, "debit": "15.00", "credit": "0", "currency": "USD"},
-                    {"account_id": accounts["2100"].id, "debit": "0", "credit": "15.00", "currency": "USD"},
+                    {"account_id": accounts["2000"].id, "debit": "0", "credit": "15.00", "currency": "USD"},
                 ],
             )
         assert RecurringJournal.query.count() == 0
