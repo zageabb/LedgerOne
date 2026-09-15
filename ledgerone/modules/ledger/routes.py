@@ -306,8 +306,9 @@ def set_recurring_active(recurring_id):
 @login_required
 @require_module("ledger")
 def trial_balance():
-    context = browser_context()
-    return render_template(
-        "ledger/trial_balance.html",
-        rows=LedgerService.trial_balance(context),
-    )
+    query = {}
+    if request.args.get("as_of"):
+        query["as_of"] = request.args["as_of"]
+    if request.args.get("from_date"):
+        query["from_date"] = request.args["from_date"]
+    return redirect(url_for("reports.trial_balance", **query))
