@@ -266,6 +266,33 @@ def action_decision(action_id):
         return jsonify({"error": str(exc)}), 400
 
 
+@api_bp.post("/actions/<action_id>/revise")
+@require_api()
+def revise_action(action_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        action = db.session.get(UserAction, action_id)
+        adapter = _adapter_for_action(action)
+        if not adapter or not getattr(adapter, "supports_revision", False):
+            raise WorkflowError("This workflow item does not support controlled revision")
+        replacement = adapter.revise_action(
+            g.access_context,
+            action_id,
+            payload,
+            channel="api",
+        )
+        return jsonify(
+            {
+                "replacement": _instance_json(replacement),
+                "replaces_workflow_instance_id": (replacement.metadata_json or {}).get(
+                    "replaces_workflow_instance_id"
+                ),
+            }
+        ), 201
+    except (WorkflowError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @api_bp.post("/actions/<action_id>/post")
 @require_api("workflows.post")
 def post_action(action_id):
