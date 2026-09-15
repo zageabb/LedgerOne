@@ -10,7 +10,7 @@
     <a class="button button-secondary" href="{{ url_for('reports.general_ledger', from_date=from_date.isoformat(), to_date=to_date.isoformat()) }}">{{ 'Account activity' if ui_mode == 'home' else 'General ledger' }}</a>
     <a class="button button-secondary" href="{{ url_for('reports.aging') }}">{{ 'Who owes what' if ui_mode == 'home' else 'Aged balances' }}</a>
     <a class="button button-secondary" href="{{ url_for('control_account_reports.index') }}">{{ 'Account checks' if ui_mode == 'home' else 'Control reconciliation' }}</a>
-    <a class="button button-secondary" href="{{ url_for('ledger.trial_balance', as_of=to_date.isoformat()) }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a>
+    <a class="button button-secondary" href="{{ url_for('reports.trial_balance', as_of=to_date.isoformat()) }}">{{ 'Account totals' if ui_mode == 'home' else 'Trial balance' }}</a>
   </div>
 </div>
 
