@@ -107,7 +107,7 @@ class SalesService:
                        invoice_date, due_date, description: str, amount,
                        receivable_account_id: str, revenue_account_id: str,
                        currency: str = "GBP", tax_code_id: str | None = None,
-                       commit: bool = True):
+                       metadata: dict | None = None, commit: bool = True):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         amount = _money(amount)
@@ -145,6 +145,7 @@ class SalesService:
             subtotal=amount,
             tax_total=tax_amount,
             total=total,
+            metadata_json=dict(metadata or {}),
         )
         db.session.add(invoice)
         db.session.flush()
