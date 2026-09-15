@@ -150,20 +150,49 @@ def _create_customer(context, args):
 
 
 def _create_invoice(context, args):
+    invoice_date = date.fromisoformat(args.get("invoice_date") or date.today().isoformat())
+    due_date = date.fromisoformat(args["due_date"]) if args.get("due_date") else None
+    if module_registry.is_enabled(context.organisation_id, "workflows"):
+        from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
+
+        workflow = SalesInvoiceWorkflowService.create_request(
+            context,
+            customer_id=args["customer_id"],
+            invoice_number=args["invoice_number"],
+            invoice_date=invoice_date,
+            due_date=due_date,
+            description=args.get("description", "Sales"),
+            amount=args["amount"],
+            receivable_account_id=args["receivable_account_id"],
+            revenue_account_id=args["revenue_account_id"],
+            currency=args.get("currency", "GBP"),
+            tax_code_id=args.get("tax_code_id"),
+            source_module="ai",
+            source_reference=args.get("source_reference"),
+            metadata={"created_by": "ledgerone_ai"},
+        )
+        return {
+            "workflow_instance_id": workflow.id,
+            "status": workflow.status,
+            "posted": False,
+            "message": "Sales invoice proposal submitted to User Actions for controlled review/posting.",
+        }
+
     from ledgerone.modules.sales.services import SalesService
     row = SalesService.create_invoice(
         context,
         customer_id=args["customer_id"],
         invoice_number=args["invoice_number"],
-        invoice_date=date.fromisoformat(args.get("invoice_date") or date.today().isoformat()),
-        due_date=date.fromisoformat(args["due_date"]) if args.get("due_date") else None,
+        invoice_date=invoice_date,
+        due_date=due_date,
         description=args.get("description", "Sales"),
         amount=args["amount"],
         receivable_account_id=args["receivable_account_id"],
         revenue_account_id=args["revenue_account_id"],
         currency=args.get("currency", "GBP"),
+        tax_code_id=args.get("tax_code_id"),
     )
-    return {"id": row.id, "status": row.status, "journal_id": row.posted_journal_id}
+    return {"id": row.id, "status": row.status, "journal_id": row.posted_journal_id, "posted": True}
 
 
 def _suppliers(context, args):
@@ -267,7 +296,7 @@ TOOLS = {
         ToolSpec("sales.list_customers", "sales", "List customers and IDs.", False, "sales.read", _customers),
         ToolSpec("sales.list_invoices", "sales", "List sales invoices.", False, "sales.read", _sales_invoices),
         ToolSpec("sales.create_customer", "sales", "Create a customer.", True, "sales.write", _create_customer),
-        ToolSpec("sales.create_invoice", "sales", "Create and post a simple sales invoice.", True, "sales.write", _create_invoice),
+        ToolSpec("sales.create_invoice", "sales", "Submit a sales invoice. When Workflows is enabled it creates a User Action and does not post automatically.", True, "sales.write", _create_invoice),
         ToolSpec("purchases.list_suppliers", "purchases", "List suppliers and IDs.", False, "purchases.read", _suppliers),
         ToolSpec("purchases.list_bills", "purchases", "List purchase bills.", False, "purchases.read", _purchase_bills),
         ToolSpec("purchases.create_supplier", "purchases", "Create a supplier.", True, "purchases.write", _create_supplier),
