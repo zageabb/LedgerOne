@@ -11,9 +11,10 @@ from ledgerone.models.core import Setting, utcnow
 from ledgerone.models.ledger import AccountingPeriod
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
+from ledgerone.services.ledger import LedgerError
 
 
-class PeriodPolicyError(ValueError):
+class PeriodPolicyError(LedgerError):
     """Raised when accounting-period governance prevents a posting or transition."""
 
 
@@ -239,12 +240,18 @@ def install_period_policy_guards() -> None:
     if not getattr(original_lock, "_period_policy_guarded", False):
         @wraps(original_lock)
         def guarded_lock(context, period_id, *, locked: bool, reason: str | None = None):
-            return PeriodPolicyService.set_period_status(
+            row = PeriodPolicyService.set_period_status(
                 context,
                 period_id,
                 status=PERIOD_HARD_CLOSED if locked else PERIOD_OPEN,
                 reason=reason,
             )
+            # Keep the v0.2 lock API/browser contract stable while treating legacy
+            # `locked` exactly like `hard_closed` in the central posting policy.
+            if locked and row.status == PERIOD_HARD_CLOSED:
+                row.status = LEGACY_HARD_CLOSED
+                db.session.commit()
+            return row
 
         guarded_lock._period_policy_guarded = True
         LedgerService.set_period_locked = staticmethod(guarded_lock)
