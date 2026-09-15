@@ -22,6 +22,10 @@ flowchart LR
     F -->|Review / Approve| G[Ready to Post]
     F -->|Return| H[Correction required]
     F -->|Reject| I[Rejected]
+    H --> R[Revise + revalidate]
+    R --> S[Supersede returned workflow]
+    S --> T[Replacement workflow]
+    T --> E
     G --> J[Explicit Post]
     J --> K[Manifest-owned workflow adapter]
     K --> L[Owning domain service]
@@ -79,9 +83,12 @@ awaiting_review
 awaiting_approval
 ready_to_post
 returned
+superseded
 rejected
 posted
 ```
+
+`superseded` is used when a returned payload-backed proposal is corrected by creating a replacement workflow. The old workflow remains history and is not reused for approval or posting.
 
 These are workflow states, not journal states.
 
@@ -92,10 +99,13 @@ The **User Actions** page is LedgerOne's common controlled-work inbox. Typical a
 - Review;
 - Approve;
 - Post;
-- Return; and
+- Return;
+- Correct & resubmit; and
 - Reject.
 
 Actions can be assigned to a user or role. Maker/checker separation can prevent an originator from approving their own item where the workflow definition requires independent approval.
+
+For returned Journal, Purchase Bill and Sales Invoice proposals, the browser exposes a correction form rather than allowing the unchanged returned task to be approved. The same rule is enforced server-side so an API client cannot bypass the correction requirement.
 
 ## Home / Apprentice and Professional modes
 
@@ -130,9 +140,11 @@ workflow_post_permission="purchases.write"
 
 The adapter is loaded only when an action for that entity type is handled. It provides the small translation layer between generic User Actions and the owning domain service; it must not duplicate accounting rules.
 
+Adapters expose the common completion/posting contract and may additionally expose controlled revision support. Journal, Purchase Bill and Sales Invoice adapters support `revise_action(...)`; Expense Claims retain their domain-owned draft/edit/resubmit flow.
+
 ## Expense Claim return/resubmit behaviour
 
-Expense Claims currently implement the complete correction loop:
+Expense Claims implement the correction loop through the domain document itself:
 
 ```text
 Draft -> Submit -> Review -> Return -> Draft/Edit -> Resubmit -> Review -> Post
@@ -142,9 +154,39 @@ The submitted claim is snapshotted. If underlying claim data changes after revie
 
 ## Returned Journal/Bill/Invoice proposals
 
-Manual Journal, Purchase Bill and Sales Invoice proposals can currently be returned, but their pending payloads do not yet have a dedicated edit-and-resubmit surface. They must not be treated as fully corrected merely by acknowledging the returned review task.
+Manual Journal, Purchase Bill and Sales Invoice proposals implement **replacement workflow resubmission**.
 
-The intended next control is a **replacement workflow** model: revise and revalidate the proposal, preserve the returned workflow as history, create a new workflow instance and re-run the complete applicable review/approval chain. This prevents a changed amount or coding decision from bypassing a newly applicable approval rule.
+The controlled sequence is:
+
+```text
+Review -> Return -> Correct -> Revalidate -> Supersede old workflow
+                                      |
+                                      v
+                           New workflow instance
+                                      |
+                                      v
+                    Re-run current review/approval rules
+```
+
+The important controls are:
+
+- the returned workflow is preserved as immutable workflow/audit history;
+- the returned workflow becomes `superseded` only after the corrected proposal validates successfully;
+- the replacement links to the old workflow and the old workflow links to the replacement through metadata;
+- correction itself creates **no** Journal, AR invoice or AP bill;
+- validation failure rolls the revision transaction back and leaves the returned workflow open for correction;
+- document dates, amounts, descriptions and coding are revalidated using the same domain rules used for initial proposal creation;
+- workflow-definition selection is run again instead of inheriting the old definition, so a revised amount can move into a higher approval band;
+- a returned revisable proposal cannot be approved unchanged through the normal decision endpoint; it must be corrected/resubmitted or rejected; and
+- superseded Sales/Purchase workflows release their open document-number reservation so a legitimate second return/resubmit cycle can keep the same invoice/bill number.
+
+The browser User Actions page provides the correction surface. REST callers use:
+
+```text
+POST /api/v1/workflows/actions/<action_id>/revise
+```
+
+The response identifies the replacement workflow. It does not represent a posted accounting transaction.
 
 ## Scheduled transactions
 
@@ -174,6 +216,8 @@ The workflow API is under `/api/v1/workflows` and includes templates, generation
 
 When Workflows is enabled, normal domain creation APIs for journals, purchase bills and sales invoices return a proposal response rather than a posted record. HTTP `201` may be retained for compatibility, but the response explicitly reports that the work is not posted and identifies the workflow instance.
 
+Returned Journal/Bill/Invoice proposals are revised through the generic action revision endpoint. Revision goes through the manifest-owned adapter, the owning domain validator and the replacement workflow service; it does not create accounting effects.
+
 API callers therefore cannot bypass the same User Actions boundary used by browser and AI channels.
 
 ## Permissions
@@ -191,6 +235,8 @@ workflows.manage
 
 `workflows.post` is necessary but not sufficient. The caller must also hold the owning module's `workflow_post_permission` declared in its manifest.
 
+Revision is also constrained by the owning domain permission. For example, revising a returned Sales Invoice proposal requires the Sales write authority used by that domain flow; a generic workflow caller does not gain Sales mutation rights merely because the workflow is visible.
+
 ## Design rule for workflow-aware modules
 
 A new controlled financial module should:
@@ -200,22 +246,38 @@ A new controlled financial module should:
 3. declare `workflow_entity_type`, `workflow_adapter` and `workflow_post_permission` in its manifest;
 4. let the common engine create review/approval/post User Actions;
 5. let its adapter translate the final action into the owning domain service call;
-6. revalidate at final posting;
-7. route financial effects through `LedgerService`; and
-8. test browser, API and AI paths so none can bypass the boundary.
+6. if returned data is editable, require a formal correction/resubmission path that revalidates and re-runs current approval rules;
+7. revalidate at final posting;
+8. route financial effects through `LedgerService`; and
+9. test browser, API and AI paths so none can bypass the boundary.
 
 The adapter is orchestration only. The owning service remains authoritative for the business document and accounting transaction.
+
+## Acceptance coverage
+
+The replacement/resubmission implementation is covered by regression tests for:
+
+- Sales Invoice replacement and later posting;
+- approval-threshold re-evaluation after an amount change;
+- failed revision rollback;
+- Purchase Bill replacement without premature AP accounting;
+- Journal replacement without premature posting;
+- REST revision without premature accounting;
+- blocking stale returned-workflow approval;
+- repeated return/resubmit cycles using the same valid document number; and
+- browser rendering of the returned correction form.
+
+The integrated acceptance run on 15 September 2026 completed with **160 passed, 3 skipped**, with Python compilation and Alembic migration-drift checks also clean.
 
 ## Next integrations
 
 The next workflow-control increments are:
 
-1. editable replacement/resubmission for returned Journal, Purchase Bill and Sales Invoice proposals;
-2. purchase-order approval workflows;
-3. sales/purchase credit-note approval rules;
-4. bank-reconciliation exception review;
-5. accounting-period reopen/override approval;
-6. control-account adjustment approval; and
-7. supplier/customer master-data changes such as bank details.
+1. purchase-order approval workflows;
+2. sales/purchase credit-note approval rules;
+3. bank-reconciliation exception review;
+4. accounting-period reopen/override approval;
+5. control-account adjustment approval; and
+6. supplier/customer master-data changes such as bank details.
 
 AI-proposed writes should continue to reuse these same domain workflows rather than receiving a separate approval mechanism.
