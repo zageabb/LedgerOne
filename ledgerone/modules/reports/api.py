@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
 
@@ -8,25 +9,33 @@ from ledgerone.security import require_api
 api_bp = Blueprint("reports_api", __name__, url_prefix="/api/v1/reports")
 
 
-def _serialise(report):
-    result = {}
-    for key, value in report.items():
-        if isinstance(value, list):
-            result[key] = [
-                {item_key: str(item_value) if item_key in {"debit", "credit", "balance"} else item_value
-                 for item_key, item_value in row.items()}
-                for row in value
-            ]
-        else:
-            result[key] = str(value)
-    return result
+def _json_value(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
+    return value
+
+
+def _date_arg(name: str, default: date | None = None) -> date | None:
+    raw = (request.args.get(name) or "").strip()
+    if not raw:
+        return default
+    return date.fromisoformat(raw)
 
 
 def _as_of():
-    raw = (request.args.get("as_of") or "").strip()
-    if not raw:
-        return date.today()
-    return date.fromisoformat(raw)
+    return _date_arg("as_of", date.today())
+
+
+def _period_dates() -> tuple[date, date]:
+    to_date = _date_arg("to_date", date.today())
+    from_date = _date_arg("from_date", date(to_date.year, 1, 1))
+    return from_date, to_date
 
 
 def _serialise_aging(report):
@@ -51,39 +60,92 @@ def _serialise_aging(report):
 @api_bp.get("/summary")
 @require_api("reports.read")
 def summary():
-    return jsonify(_serialise(ReportsService.summary(g.access_context)))
+    try:
+        from_date, to_date = _period_dates()
+        report = ReportsService.summary(
+            g.access_context,
+            from_date=from_date,
+            to_date=to_date,
+            compare_from=_date_arg("compare_from"),
+            compare_to=_date_arg("compare_to"),
+            compare_as_of=_date_arg("compare_as_of"),
+        )
+        return jsonify(_json_value(report))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @api_bp.get("/profit-loss")
 @require_api("reports.read")
 def profit_loss():
-    report = ReportsService.summary(g.access_context)
-    return jsonify(
-        {
-            "income": _serialise({"rows": report["income"]})["rows"],
-            "expenses": _serialise({"rows": report["expenses"]})["rows"],
-            "total_income": str(report["total_income"]),
-            "total_expenses": str(report["total_expenses"]),
-            "net_profit": str(report["net_profit"]),
-        }
-    )
+    try:
+        from_date, to_date = _period_dates()
+        return jsonify(
+            _json_value(
+                ReportsService.profit_and_loss(
+                    g.access_context,
+                    from_date=from_date,
+                    to_date=to_date,
+                    compare_from=_date_arg("compare_from"),
+                    compare_to=_date_arg("compare_to"),
+                )
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @api_bp.get("/balance-sheet")
 @require_api("reports.read")
 def balance_sheet():
-    report = ReportsService.summary(g.access_context)
-    return jsonify(
-        {
-            "assets": _serialise({"rows": report["assets"]})["rows"],
-            "liabilities": _serialise({"rows": report["liabilities"]})["rows"],
-            "equity": _serialise({"rows": report["equity"]})["rows"],
-            "total_assets": str(report["total_assets"]),
-            "total_liabilities": str(report["total_liabilities"]),
-            "total_equity": str(report["total_equity"]),
-            "net_worth": str(report["net_worth"]),
-        }
-    )
+    try:
+        return jsonify(
+            _json_value(
+                ReportsService.balance_sheet(
+                    g.access_context,
+                    as_of=_as_of(),
+                    compare_as_of=_date_arg("compare_as_of"),
+                )
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/trial-balance")
+@require_api("reports.read")
+def trial_balance():
+    try:
+        return jsonify(
+            _json_value(
+                ReportsService.trial_balance(
+                    g.access_context,
+                    as_of=_as_of(),
+                    from_date=_date_arg("from_date"),
+                )
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/general-ledger")
+@require_api("reports.read")
+def general_ledger():
+    try:
+        from_date, to_date = _period_dates()
+        return jsonify(
+            _json_value(
+                ReportsService.general_ledger(
+                    g.access_context,
+                    from_date=from_date,
+                    to_date=to_date,
+                    account_id=(request.args.get("account_id") or "").strip() or None,
+                )
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @api_bp.get("/aged-receivables")
