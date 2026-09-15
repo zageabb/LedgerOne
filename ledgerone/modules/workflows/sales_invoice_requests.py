@@ -36,7 +36,7 @@ class SalesInvoiceWorkflowService:
         rows = WorkflowInstance.query.filter_by(
             organisation_id=organisation_id,
             entity_type=SalesInvoiceWorkflowService.ENTITY_TYPE,
-        ).filter(WorkflowInstance.status.notin_(["rejected", "posted"])).all()
+        ).filter(WorkflowInstance.status.notin_(["rejected", "posted", "superseded"])).all()
         target = invoice_number.casefold()
         for row in rows:
             payload = (row.metadata_json or {}).get("sales_invoice_request") or {}
@@ -61,11 +61,7 @@ class SalesInvoiceWorkflowService:
     ) -> tuple[dict, Decimal]:
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
-
-        # Invoice date is the posting date for the simple sales workflow. Do not let an
-        # impossible locked-period invoice enter review; the guard runs again at Post.
         LedgerService.assert_posting_date_open(context, invoice_date)
-
         clean_number = (invoice_number or "").strip()
         if not clean_number:
             raise WorkflowError("Invoice number is required")
@@ -76,15 +72,12 @@ class SalesInvoiceWorkflowService:
             raise WorkflowError("Invoice number already exists")
         if SalesInvoiceWorkflowService._pending_number_exists(context.organisation_id, clean_number):
             raise WorkflowError("Invoice number already exists in an open workflow")
-
         customer = db.session.get(Customer, customer_id)
         if not customer or customer.organisation_id != context.organisation_id or not customer.is_active:
             raise WorkflowError("Invalid or inactive customer")
-
         net_amount = SalesInvoiceWorkflowService._money(amount)
         if net_amount <= 0:
             raise WorkflowError("Invoice amount must be greater than zero")
-
         effective_due = due_date or PaymentTermsService.customer_due_date(
             context.organisation_id,
             invoice_date,
@@ -92,7 +85,6 @@ class SalesInvoiceWorkflowService:
         )
         if effective_due < invoice_date:
             raise WorkflowError("Invoice due date cannot be before the invoice date")
-
         receivable = db.session.get(Account, receivable_account_id)
         revenue = db.session.get(Account, revenue_account_id)
         if (
@@ -109,7 +101,6 @@ class SalesInvoiceWorkflowService:
             or revenue.account_type != "income"
         ):
             raise WorkflowError("Revenue account must be an active income account")
-
         base_currency = organisation_base_currency(context)
         clean_currency = (currency or base_currency).strip().upper()
         if clean_currency != base_currency:
@@ -117,11 +108,9 @@ class SalesInvoiceWorkflowService:
                 "Multi-currency accounting is not yet enabled for this organisation. "
                 f"Sales invoice uses {clean_currency}, but the organisation base currency is {base_currency}."
             )
-
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
-
         payload = {
             "customer_id": customer.id,
             "customer_name": customer.name,
@@ -245,7 +234,6 @@ class SalesInvoiceWorkflowService:
             raise PermissionError("workflows.post")
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
-
         action = db.session.get(UserAction, action_id)
         if not action or action.organisation_id != context.organisation_id or action.status != "open":
             raise WorkflowError("Open posting action not found")
@@ -253,7 +241,6 @@ class SalesInvoiceWorkflowService:
             raise WorkflowError("This user action is not a posting action")
         if not WorkflowService._can_access_action(context, action):
             raise PermissionError("This action is assigned to another user or role")
-
         instance = action.workflow_instance
         if instance.entity_type != SalesInvoiceWorkflowService.ENTITY_TYPE or instance.status != "ready_to_post":
             raise WorkflowError("Sales invoice workflow is not ready for posting")
@@ -262,7 +249,6 @@ class SalesInvoiceWorkflowService:
             raise WorkflowError("Sales invoice workflow payload is missing")
         if (instance.metadata_json or {}).get("posted_sales_invoice_id"):
             raise WorkflowError("Sales invoice workflow has already been posted")
-
         SalesInvoiceWorkflowService._assert_reviewed_total_still_valid(context, instance, payload)
         invoice = SalesService.create_invoice(
             context,
@@ -284,7 +270,6 @@ class SalesInvoiceWorkflowService:
             },
             commit=False,
         )
-
         instance.status = "posted"
         instance.completed_at = utcnow()
         instance.metadata_json = {
@@ -299,7 +284,6 @@ class SalesInvoiceWorkflowService:
         for other in instance.actions:
             if other.id != action.id and other.status == "open":
                 other.status = "cancelled"
-
         record_audit_event(
             context,
             module_id="sales",
