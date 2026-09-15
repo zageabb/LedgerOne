@@ -25,6 +25,11 @@ class ModuleManifest:
     professional_visible: bool = True
     permissions: tuple[str, ...] = field(default_factory=tuple)
     dependencies: tuple[str, ...] = field(default_factory=tuple)
+    # Optional workflow integration. The adapter is stored as an import string instead
+    # of a class reference so module discovery never has to import another domain package.
+    workflow_entity_type: str | None = None
+    workflow_adapter: str | None = None
+    workflow_post_permission: str | None = None
 
     def display_name(self, mode: str) -> str:
         if mode == "home" and self.home_name:
@@ -38,6 +43,8 @@ class ModuleRegistry:
     def __init__(self):
         self._manifests: dict[str, ModuleManifest] = {}
         self._packages: dict[str, object] = {}
+        self._workflow_modules: dict[str, str] = {}
+        self._workflow_adapters: dict[str, object] = {}
 
     @property
     def manifests(self):
@@ -49,6 +56,10 @@ class ModuleRegistry:
     def discover(self):
         import ledgerone.modules as modules_package
 
+        # App factories are created repeatedly in tests. Rebuild the lightweight lookup
+        # indexes so stale adapters from an earlier app cannot leak into a new registry pass.
+        self._workflow_modules.clear()
+        self._workflow_adapters.clear()
         for info in pkgutil.iter_modules(modules_package.__path__):
             if info.name.startswith("_"):
                 continue
@@ -58,11 +69,48 @@ class ModuleRegistry:
             manifest = getattr(manifest_module, "MANIFEST")
             self._manifests[manifest.id] = manifest
             self._packages[manifest.id] = package
+            if manifest.workflow_entity_type:
+                existing = self._workflow_modules.get(manifest.workflow_entity_type)
+                if existing and existing != manifest.id:
+                    raise RuntimeError(
+                        f"Workflow entity type {manifest.workflow_entity_type!r} is declared by both "
+                        f"{existing!r} and {manifest.id!r}"
+                    )
+                if not manifest.workflow_adapter or not manifest.workflow_post_permission:
+                    raise RuntimeError(
+                        f"Module {manifest.id!r} declares workflow entity "
+                        f"{manifest.workflow_entity_type!r} without adapter/post permission"
+                    )
+                self._workflow_modules[manifest.workflow_entity_type] = manifest.id
 
     def register_blueprints(self, app):
         for manifest in self.manifests:
             package = self._packages[manifest.id]
             package.register(app)
+
+    def workflow_manifest(self, entity_type: str | None) -> ModuleManifest | None:
+        if not entity_type:
+            return None
+        module_id = self._workflow_modules.get(entity_type)
+        return self._manifests.get(module_id) if module_id else None
+
+    def workflow_adapter(self, entity_type: str | None):
+        """Lazily load the adapter declared by the module that owns an entity type."""
+        manifest = self.workflow_manifest(entity_type)
+        if not manifest or not manifest.workflow_adapter:
+            return None
+        cached = self._workflow_adapters.get(entity_type)
+        if cached is not None:
+            return cached
+        module_name, separator, attribute_name = manifest.workflow_adapter.partition(":")
+        if not separator or not module_name or not attribute_name:
+            raise RuntimeError(
+                f"Invalid workflow adapter path {manifest.workflow_adapter!r} for module {manifest.id!r}"
+            )
+        module = importlib.import_module(module_name)
+        adapter = getattr(module, attribute_name)
+        self._workflow_adapters[entity_type] = adapter
+        return adapter
 
     def ensure_org_states(self, organisation_id: str):
         for manifest in self.manifests:
