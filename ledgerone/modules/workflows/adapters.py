@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from ledgerone.modules.workflows.services import WorkflowService
+from ledgerone.extensions import db
+from ledgerone.modules.workflows.models import UserAction
+from ledgerone.modules.workflows.services import WorkflowError, WorkflowService
 from ledgerone.services.context import AccessContext
 
 
@@ -24,18 +26,31 @@ class BaseWorkflowAdapter:
 
     supports_revision = False
 
-    @staticmethod
+    @classmethod
     def complete_action(
+        cls,
         context: AccessContext,
         action_id: str,
         *,
         decision: str,
         comments: str | None = None,
     ):
+        action = db.session.get(UserAction, action_id)
+        clean_decision = (decision or "approve").strip().lower()
+        if (
+            cls.supports_revision
+            and action
+            and action.workflow_instance
+            and action.workflow_instance.status == "returned"
+            and clean_decision != "reject"
+        ):
+            raise WorkflowError(
+                "Returned accounting proposals must be corrected and resubmitted as a replacement workflow, or rejected."
+            )
         return WorkflowService.complete_action(
             context,
             action_id,
-            decision=decision,
+            decision=clean_decision,
             comments=comments,
         )
 
