@@ -70,7 +70,7 @@ def _item_json(row):
 def _instance_json(row):
     return {
         "id": row.id,
-        "definition_id": row.workflow_instance_id if hasattr(row, "workflow_instance_id") else row.workflow_definition_id,
+        "definition_id": row.workflow_definition_id,
         "entity_type": row.entity_type,
         "entity_id": row.entity_id,
         "source_module": row.source_module,
