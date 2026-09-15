@@ -75,7 +75,7 @@ class PeriodPolicyService:
     def set_policy(context: AccessContext, *, mode: str):
         if not context.can("ledger.periods.manage"):
             raise PermissionError("ledger.periods.manage")
-        mode = _normalise_policy(mode)
+        mode = (mode or "").strip().lower()
         if mode not in POLICIES:
             raise PeriodPolicyError("Posting-period policy must be optional or required")
         row = Setting.query.filter_by(
@@ -126,7 +126,7 @@ class PeriodPolicyService:
         status = _normalise_status(period.status)
         if status == PERIOD_HARD_CLOSED:
             raise PeriodPolicyError(
-                f"Posting date {posting_date.isoformat()} is in hard-closed period {period.name}"
+                f"Posting date {posting_date.isoformat()} is in locked period {period.name} (hard closed)"
             )
         if status == PERIOD_SOFT_CLOSED:
             reason = _override_reason.get()
