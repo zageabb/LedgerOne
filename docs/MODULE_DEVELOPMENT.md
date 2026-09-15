@@ -122,7 +122,16 @@ browser_message(result)
 api_result(result)
 ```
 
+Modules whose returned payloads can be corrected may additionally expose:
+
+```text
+supports_revision = True
+revise_action(context, action_id, payload, channel=...)
+```
+
 Most modules inherit generic review/approval behaviour and customise only final posting. A module can override `complete_action` when a workflow decision has real domain consequences, as Expense Claims do when Return reopens the claim for editing.
+
+For payload-backed Journal, Purchase Bill and Sales Invoice workflows, the adapter also blocks normal approval of a returned item and routes correction through the replacement workflow service instead.
 
 Adapters are orchestration code. They must call the authoritative domain service instead of reproducing accounting, VAT, numbering or status rules.
 
@@ -143,13 +152,57 @@ Reviewers should not receive proposals that can never post. Before creating work
 
 The owning service must revalidate again at Post because configuration or master data may have changed during review.
 
+The same principle applies to a correction. A revised payload must be revalidated before the historical returned workflow is superseded.
+
 ## Returned proposals
 
-A Return must mean “correct and resubmit,” not “approve the same unchanged payload.”
+A Return means **correct and resubmit**, not “approve the same unchanged payload.”
 
-Expense Claims already implement return to editable draft followed by a new submission. Payload-backed Journal, Purchase Bill and Sales Invoice proposals are being moved to the same principle using replacement workflow instances so that revised data re-enters the complete review/approval chain.
+Expense Claims implement return to editable draft followed by a new submission.
 
-Do not implement resubmission by simply allowing the originator to approve a returned review action: that could allow a changed amount to bypass an approval threshold.
+Payload-backed Journal, Purchase Bill and Sales Invoice proposals use replacement workflow instances:
+
+```text
+Returned workflow
+      |
+      v
+Correct payload
+      |
+      v
+Domain revalidation
+      |
+      v
+Create replacement workflow
+      |
+      v
+Re-run current workflow-definition selection and approval chain
+      |
+      v
+Mark old workflow superseded
+```
+
+The implementation rules are:
+
+- preserve the old workflow and its completed User Actions as history;
+- create a new workflow/entity id rather than editing the old reviewed workflow in place;
+- link the old and replacement instances through metadata;
+- do not create a financial document or journal during correction;
+- roll back the complete revision if validation or replacement creation fails;
+- resolve the current workflow definition again, because changed values may trigger a different approval requirement;
+- do not allow a returned revisable workflow to be approved through the normal decision path;
+- require the owning domain permission for revision;
+- ensure superseded invoice/bill proposals do not continue reserving their document number; and
+- support repeated controlled return/resubmit cycles without losing the historical chain.
+
+The generic REST correction endpoint is:
+
+```text
+POST /api/v1/workflows/actions/<action_id>/revise
+```
+
+The manifest-owned adapter converts that generic request into the entity-specific correction service.
+
+Do not implement resubmission by mutating `metadata_json` on the returned workflow and then completing its old review task. That would destroy the reviewed history and could let a changed amount bypass an approval threshold.
 
 ## Models and organisation isolation
 
@@ -170,6 +223,8 @@ assets.dispose
 
 Avoid UI-oriented permissions. Home/Apprentice and Professional mode change presentation, not the accounting permission model.
 
+A workflow permission does not replace the owning domain permission. Read/review/post/revision paths must enforce both the workflow-level capability where applicable and the business-module authority for the underlying entity.
+
 ## Home / Apprentice and Professional UI
 
 Do not build separate business engines. Share routes/services and adapt labels, explanations and visible complexity.
@@ -182,11 +237,15 @@ LedgerOne AI should call narrow service-backed tools rather than SQL or arbitrar
 
 AI writes must obey the requesting user's permissions and the same workflow boundary as browser/API writes. An AI proposal for a journal, bill or invoice must not call a hidden direct-post route merely because the model has identified all required fields.
 
+AI corrections to returned proposals must use the same revision/replacement service as browser/API corrections; the model must not rewrite the reviewed workflow payload in place.
+
 Write configuration such as `LOCAL_AI_ALLOW_WRITES` is an upper bound, not a privilege grant. Consequential AI operations should be auditable and attributable to the requester.
 
 ## Audit events
 
 Significant administrative, workflow and financial operations should emit audit events containing organisation, actor, module, action, entity and non-secret detail.
+
+For replacement workflows, record both the generic workflow replacement event and an owning-domain resubmission event with the old/new workflow ids and the material business reference/amount information needed for audit reconstruction.
 
 Do not place credentials, API-key secrets or passwords in audit detail.
 
@@ -205,6 +264,8 @@ pytest
 
 CI must also pass `flask db check` with no unexpected schema drift.
 
+A workflow behaviour change that only uses existing workflow metadata/status fields does not need a migration, but this should be verified with `flask db check` rather than assumed.
+
 ## Module completion checklist
 
 A functional module is ready when it has:
@@ -219,10 +280,17 @@ A functional module is ready when it has:
 - atomic `LedgerService` integration for financial effects;
 - workflow manifest ownership/adapter when creation is controlled;
 - validation before proposal creation and revalidation at final Post;
+- controlled correction/resubmission for returned editable proposals;
+- no stale returned-workflow approval path;
 - no browser/API/AI workflow bypass;
 - Home/Apprentice and Professional presentation consideration;
 - narrow AI tools where useful;
 - audit logging for consequential operations;
 - tests for normal, permission-denied and invalid-data paths;
-- tests proving proposals do not prematurely create journals/AR/AP; and
+- tests proving proposals and corrections do not prematurely create journals/AR/AP;
+- tests proving revisions can reselect a stronger approval rule; and
 - documentation of configuration and workflow behaviour.
+
+## Current acceptance baseline
+
+As of 15 September 2026, the integrated workflow replacement/resubmission baseline passes **160 tests with 3 skipped**, with Python compilation and Alembic migration-drift validation clean.
