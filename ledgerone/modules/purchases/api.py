@@ -2,6 +2,7 @@ from datetime import date
 
 from flask import Blueprint, g, jsonify, request
 
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.security import require_api
 from ledgerone.services.ledger import LedgerError
@@ -60,12 +61,39 @@ def bills():
 def create_bill():
     payload = request.get_json(silent=True) or {}
     try:
+        bill_date = date.fromisoformat(payload.get("bill_date") or date.today().isoformat())
+        due_date = date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None
+        if module_registry.is_enabled(g.access_context.organisation_id, "workflows"):
+            from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
+
+            workflow = PurchaseBillWorkflowService.create_request(
+                g.access_context,
+                supplier_id=payload["supplier_id"],
+                bill_number=payload["bill_number"],
+                bill_date=bill_date,
+                due_date=due_date,
+                description=payload.get("description", "Purchase"),
+                amount=payload["amount"],
+                payable_account_id=payload["payable_account_id"],
+                expense_account_id=payload["expense_account_id"],
+                currency=payload.get("currency", "GBP"),
+                tax_code_id=payload.get("tax_code_id"),
+                source_module="api",
+                source_reference=payload.get("source_reference"),
+                metadata={"created_by": "purchases_api"},
+            )
+            return jsonify({
+                "workflow_instance_id": workflow.id,
+                "status": workflow.status,
+                "posted": False,
+            }), 201
+
         row = PurchasesService.create_bill(
             g.access_context,
             supplier_id=payload["supplier_id"],
             bill_number=payload["bill_number"],
-            bill_date=date.fromisoformat(payload.get("bill_date") or date.today().isoformat()),
-            due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
+            bill_date=bill_date,
+            due_date=due_date,
             description=payload.get("description", "Purchase"),
             amount=payload["amount"],
             payable_account_id=payload["payable_account_id"],
@@ -81,6 +109,7 @@ def create_bill():
             "tax_total": str(row.tax_total),
             "total": str(row.total),
             "journal_id": row.posted_journal_id,
+            "posted": True,
         }), 201
     except (KeyError, ValueError, PermissionError, LedgerError) as exc:
         return jsonify({"error": str(exc)}), 400
