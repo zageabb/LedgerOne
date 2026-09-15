@@ -4,6 +4,8 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ledgerone.models.ledger import Journal
+from ledgerone.module_registry import module_registry
+from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.security import browser_context, require_module
 from ledgerone.services.ledger import LedgerError, LedgerService
 
@@ -80,6 +82,21 @@ def new_journal():
             journal_date = datetime.strptime(
                 request.form.get("journal_date") or date.today().isoformat(), "%Y-%m-%d"
             ).date()
+            if module_registry.is_enabled(context.organisation_id, "workflows"):
+                workflow = JournalWorkflowService.create_request(
+                    context,
+                    journal_date=journal_date,
+                    description=request.form.get("description", "Manual journal"),
+                    reference=request.form.get("reference") or None,
+                    lines=lines,
+                    source_module="ledger",
+                )
+                flash(
+                    f"Journal submitted to workflow. Status: {workflow.status.replace('_', ' ')}.",
+                    "success",
+                )
+                return redirect(url_for("workflows.actions"))
+
             LedgerService.post_journal(
                 context,
                 journal_date=journal_date,
