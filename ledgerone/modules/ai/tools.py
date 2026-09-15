@@ -17,6 +17,7 @@ class ToolSpec:
     module_id: str
     description: str
     write: bool
+    permission: str
     handler: Callable[[AccessContext, dict], object]
 
 
@@ -43,6 +44,8 @@ def _trial_balance(context, args):
 
 
 def _list_journals(context, args):
+    if not context.can("ledger.read"):
+        raise PermissionError("Missing permission: ledger.read")
     limit = min(int(args.get("limit", 50)), 200)
     rows = (
         Journal.query.filter_by(organisation_id=context.organisation_id)
@@ -204,30 +207,38 @@ def _audit_events(context, args):
 TOOLS = {
     spec.name: spec
     for spec in [
-        ToolSpec("ledger.list_accounts", "ledger", "List chart-of-account records and IDs.", False, _list_accounts),
-        ToolSpec("ledger.trial_balance", "ledger", "Return the current trial balance.", False, _trial_balance),
-        ToolSpec("ledger.list_journals", "ledger", "List recent posted journals.", False, _list_journals),
-        ToolSpec("ledger.create_account", "ledger", "Create a chart-of-accounts account.", True, _create_account),
-        ToolSpec("ledger.post_journal", "ledger", "Post a balanced journal. Requires account IDs and debit/credit lines.", True, _post_journal),
-        ToolSpec("banking.list_accounts", "banking", "List bank accounts.", False, _bank_accounts),
-        ToolSpec("banking.list_transactions", "banking", "List recent bank transactions.", False, _bank_transactions),
-        ToolSpec("sales.list_customers", "sales", "List customers and IDs.", False, _customers),
-        ToolSpec("sales.list_invoices", "sales", "List sales invoices.", False, _sales_invoices),
-        ToolSpec("sales.create_customer", "sales", "Create a customer.", True, _create_customer),
-        ToolSpec("sales.create_invoice", "sales", "Create and post a simple sales invoice.", True, _create_invoice),
-        ToolSpec("purchases.list_suppliers", "purchases", "List suppliers and IDs.", False, _suppliers),
-        ToolSpec("purchases.list_bills", "purchases", "List purchase bills.", False, _purchase_bills),
-        ToolSpec("purchases.create_supplier", "purchases", "Create a supplier.", True, _create_supplier),
-        ToolSpec("purchases.create_bill", "purchases", "Create and post a simple purchase bill.", True, _create_bill),
-        ToolSpec("audit.list_events", "audit", "Search recent LedgerOne audit events. Supports module_id, action, actor_type, entity_type, from_date, to_date, text and limit.", False, _audit_events),
+        ToolSpec("ledger.list_accounts", "ledger", "List chart-of-account records and IDs.", False, "ledger.read", _list_accounts),
+        ToolSpec("ledger.trial_balance", "ledger", "Return the current trial balance.", False, "ledger.read", _trial_balance),
+        ToolSpec("ledger.list_journals", "ledger", "List recent posted journals.", False, "ledger.read", _list_journals),
+        ToolSpec("ledger.create_account", "ledger", "Create a chart-of-accounts account.", True, "ledger.accounts.write", _create_account),
+        ToolSpec("ledger.post_journal", "ledger", "Post a balanced journal. Requires account IDs and debit/credit lines.", True, "ledger.journals.post", _post_journal),
+        ToolSpec("banking.list_accounts", "banking", "List bank accounts.", False, "banking.read", _bank_accounts),
+        ToolSpec("banking.list_transactions", "banking", "List recent bank transactions.", False, "banking.read", _bank_transactions),
+        ToolSpec("sales.list_customers", "sales", "List customers and IDs.", False, "sales.read", _customers),
+        ToolSpec("sales.list_invoices", "sales", "List sales invoices.", False, "sales.read", _sales_invoices),
+        ToolSpec("sales.create_customer", "sales", "Create a customer.", True, "sales.write", _create_customer),
+        ToolSpec("sales.create_invoice", "sales", "Create and post a simple sales invoice.", True, "sales.write", _create_invoice),
+        ToolSpec("purchases.list_suppliers", "purchases", "List suppliers and IDs.", False, "purchases.read", _suppliers),
+        ToolSpec("purchases.list_bills", "purchases", "List purchase bills.", False, "purchases.read", _purchase_bills),
+        ToolSpec("purchases.create_supplier", "purchases", "Create a supplier.", True, "purchases.write", _create_supplier),
+        ToolSpec("purchases.create_bill", "purchases", "Create and post a simple purchase bill.", True, "purchases.write", _create_bill),
+        ToolSpec("audit.list_events", "audit", "Search recent LedgerOne audit events. Supports module_id, action, actor_type, entity_type, from_date, to_date, text and limit.", False, "audit.read", _audit_events),
     ]
 }
 
 
-def available_tools(organisation_id: str, *, allow_writes: bool = True):
+def available_tools(context: AccessContext, *, allow_writes: bool = True):
+    """Return only tools that both organisation policy and caller permissions allow.
+
+    The organisation-level AI write policy can remove write capability, but it can never
+    add a permission the requesting user/API key does not already possess.
+    """
+    if not context or not context.organisation_id:
+        return {}
     return {
         name: spec
         for name, spec in TOOLS.items()
-        if module_registry.is_enabled(organisation_id, spec.module_id)
+        if module_registry.is_enabled(context.organisation_id, spec.module_id)
+        and context.can(spec.permission)
         and (allow_writes or not spec.write)
     }

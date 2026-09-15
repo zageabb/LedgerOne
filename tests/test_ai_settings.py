@@ -38,7 +38,13 @@ def test_ai_settings_persist_per_organisation(app):
 def test_ai_read_only_mode_removes_write_tools(app):
     with app.app_context():
         organisation = Organisation.query.first()
-        read_only = available_tools(organisation.id, allow_writes=False)
+        context = AccessContext(
+            identity_type="user",
+            organisation_id=organisation.id,
+            user_id="reader",
+            permissions=frozenset({"ledger.read"}),
+        )
+        read_only = available_tools(context, allow_writes=False)
         assert "ledger.list_accounts" in read_only
         assert "ledger.create_account" not in read_only
         assert "ledger.post_journal" not in read_only

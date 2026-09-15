@@ -9,7 +9,8 @@ LedgerOne is a modular Flask/Python accounting platform designed to scale from p
 - **Two user experiences** — switch between **Home / Apprentice** and **Professional** UI without changing the underlying ledger.
 - **API-first modules** — functional modules expose versioned API routes under `/api/v1/...`.
 - **Secure external API** — service-key/session authentication and role/permission checks.
-- **Trusted local AI** — the built-in AI uses the same service layer with a system identity. No unauthenticated HTTP back door is required.
+- **Permission-bound local AI** — the built-in AI calls the same service layer under the requesting user/API key's exact access context. AI policy can restrict access further but never expands caller permissions.
+- **Organisation-scoped Knowledge** — business manuals, procedures and process guidance can be indexed locally and retrieved only within the owning organisation.
 - **Scale-ready persistence** — SQLite is supported for easy local deployment; PostgreSQL can be selected through `DATABASE_URL` for larger installations.
 - **Migration-controlled production schema** — Flask-Migrate/Alembic is the production upgrade path.
 
@@ -25,7 +26,7 @@ LedgerOne is a modular Flask/Python accounting platform designed to scale from p
 - Audit Trail with filters, API and CSV export
 - Source Documents with file uploads, hashes and external evidence references
 - Settings / module controls / API key expiry, rotation and revocation
-- LedgerOne AI workspace, organisation-level Ollama settings and audited tool access
+- LedgerOne AI chat workspace with persistent conversations, caller-scoped audited tools and organisation Knowledge
 - API authentication and discovery
 
 Banking, Sales and Purchases own their own domain records but do not create a parallel accounting engine. Financial effects are posted through the central `LedgerService`.
@@ -34,7 +35,7 @@ Banking, Sales and Purchases own their own domain records but do not create a pa
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
 python run.py
@@ -96,7 +97,9 @@ Authorization: Bearer <service-key>
 
 Human browser/API sessions are authenticated separately. Service keys are stored hashed in the database, can be scoped to an organisation/permission set, can have an expiry date and can be rotated without changing their access scope. Revoked or expired keys are rejected automatically.
 
-The built-in local AI does **not** need to authenticate back into LedgerOne over HTTP; it receives a trusted system context and calls the same Python service layer as the API. If an out-of-process local AI is required, create a dedicated service key and restrict its permissions/network exposure appropriately.
+The built-in local AI does **not** authenticate back into LedgerOne over HTTP. Instead, the browser session or API key's resolved `AccessContext` is passed into the AI service and every tool is filtered and executed under that exact context. A user with `ai.use` but without `sales.write`, `purchases.write` or `ledger.journals.post` cannot gain those permissions through the AI.
+
+Organisation-level `LOCAL_AI_ALLOW_WRITES` is only an upper bound. A write-capable AI request also needs explicit per-message approval and the caller must already hold the underlying module permission. Tool calls retain requester identity in the audit trail.
 
 ## Example API endpoints
 
@@ -120,6 +123,10 @@ POST /api/v1/documents/reference
 GET  /api/v1/settings/members
 POST /api/v1/settings/api-keys/<key-id>/rotate
 GET  /api/v1/ai/status
+GET  /api/v1/ai/conversations
+POST /api/v1/ai/chat
+GET  /api/v1/ai/knowledge
+POST /api/v1/ai/knowledge
 ```
 
 ## Local AI
@@ -131,9 +138,32 @@ LOCAL_AI_ENABLED=true
 LOCAL_AI_BASE_URL=http://127.0.0.1:11434
 LOCAL_AI_MODEL=qwen3:14b
 LOCAL_AI_ALLOW_WRITES=true
+LEDGERONE_KNOWLEDGE_MAX_BYTES=10485760
 ```
 
-These defaults can be overridden per organisation from **Settings → LedgerOne AI** without restarting Flask. The model list is discovered from the configured Ollama-compatible server. When AI writes are disabled, write tools are removed from the AI tool registry rather than merely hidden in the UI.
+These defaults can be overridden per organisation from **Settings → LedgerOne AI** without restarting Flask. The model list is discovered from the configured Ollama-compatible server.
+
+The AI workspace keeps conversations in a left-hand history panel, uses a scrollable central message pane, and keeps the prompt composer at the bottom. Previous pre-conversation browser interactions are adopted into one-message conversations for the same signed-in user.
+
+When AI writes are disabled, write tools are removed from the tool registry. When writes are enabled, they are still hidden unless the current message explicitly approves writes, and the caller must hold each tool's required permission.
+
+## Organisation Knowledge
+
+The AI Knowledge workspace can store organisation-specific manuals, procedures, process notes, policies, FAQs and similar guidance. Supported source types include plain text/Markdown/CSV/JSON/YAML plus PDF and DOCX.
+
+Knowledge is:
+
+- isolated by organisation;
+- searchable/browsable independently of the AI chat;
+- chunked locally into compact retrieval passages;
+- retrieved locally before a prompt is sent to the configured local model;
+- permission-controlled through `ai.knowledge.read` and `ai.knowledge.manage`;
+- auditable for create, re-index, enable/disable and delete actions;
+- source-attributed in AI answers/tooling metadata.
+
+The initial retrieval implementation uses deterministic local lexical ranking. This is deliberately lightweight for small/offline deployments and can later be extended with local embeddings without changing the organisation/security boundary.
+
+LedgerOne service data and accounting controls remain authoritative when narrative Knowledge conflicts with live accounting data or a posting rule.
 
 ## Source document storage
 
@@ -170,6 +200,9 @@ The committed tests cover the accounting/security invariants and major workflows
 - ledger API pagination/filtering;
 - source-document upload/download/reference isolation;
 - local AI configuration and read-only tool enforcement;
+- AI caller-permission inheritance and per-message write approval;
+- persistent AI conversations and requester isolation;
+- organisation-isolated Knowledge retrieval and source provenance;
 - CashLink legacy importer behaviour.
 
 GitHub Actions compiles the source, upgrades a clean database through every committed Alembic revision, checks for migration drift and runs pytest.
@@ -206,4 +239,5 @@ See [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) for the reverse-enginee
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — platform layers, security, persistence and accounting invariants.
 - [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — standalone module/API/service contract.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path from the v0.1 foundation to enterprise capabilities.
+- [`docs/TODO.md`](docs/TODO.md) — master delivery and accounting-assurance backlog.
 - [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) — legacy CashLink reverse-engineering notes.

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}AI Knowledge · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>AI Knowledge</h1>
+    <p>Organisation-specific manuals, procedures and business-process guidance used by the local AI.</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('ai.index') }}">Back to AI</a></div>
+</div>
+
+{% if can_manage %}
+<div class="card">
+  <div class="card-head"><h2>Add Knowledge</h2></div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="grid grid-2">
+        <div class="field">
+          <label>Title</label>
+          <input name="title" placeholder="e.g. Customer payment procedure">
+        </div>
+        <div class="field">
+          <label>Document</label>
+          <input type="file" name="file" accept=".txt,.md,.csv,.json,.yaml,.yml,.pdf,.docx">
+          <div class="help">TXT, Markdown, CSV, JSON, YAML, PDF or Word (.docx), processed locally.</div>
+        </div>
+      </div>
+      <div class="field section">
+        <label>Or paste Knowledge text</label>
+        <textarea name="content" rows="7" placeholder="Paste a business process, manual section, accounting policy or FAQ…"></textarea>
+      </div>
+      <button class="button" type="submit">Add and index</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card section">
+  <div class="card-head"><h2>Knowledge sources</h2></div>
+  <div class="table-wrap">
+    {% if sources %}
+    <table>
+      <thead><tr><th>Source</th><th>Status</th><th>Chunks</th><th>Updated</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for source in sources %}
+        <tr>
+          <td><strong>{{ source.title }}</strong>{% if source.filename %}<div class="help">{{ source.filename }}</div>{% endif %}</td>
+          <td><span class="badge {{ 'badge-success' if source.enabled and source.status == 'ready' else 'badge-warning' }}">{{ source.status }} · {{ 'Enabled' if source.enabled else 'Disabled' }}</span></td>
+          <td>{{ source.chunks|length }}</td>
+          <td>{{ source.updated_at.strftime('%d %b %Y %H:%M') }}</td>
+          <td>
+            {% if can_manage %}
+            <div class="actions">
+              <form method="post" action="{{ url_for('ai.toggle_knowledge', source_id=source.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="enabled" value="{{ '0' if source.enabled else '1' }}">
+                <button class="button button-secondary" type="submit">{{ 'Disable' if source.enabled else 'Enable' }}</button>
+              </form>
+              <form method="post" action="{{ url_for('ai.reindex_knowledge', source_id=source.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-secondary" type="submit">Re-index</button>
+              </form>
+              <form method="post" action="{{ url_for('ai.delete_knowledge', source_id=source.id) }}" onsubmit="return confirm('Delete this Knowledge source?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-secondary" type="submit">Delete</button>
+              </form>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="empty">No Knowledge sources yet. Add a manual, procedure or business-process note above.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-body">
+    <strong>How LedgerOne uses Knowledge</strong>
+    <p class="help">Relevant passages are retrieved locally and added to the AI context. LedgerOne live data and accounting controls remain authoritative. Knowledge does not grant extra permissions or bypass accounting safeguards.</p>
+  </div>
+</div>
+{% endblock %}

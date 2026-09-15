@@ -29,6 +29,7 @@ class Config:
     LOCAL_AI_MODEL = os.getenv("LOCAL_AI_MODEL", "qwen3:14b")
     LOCAL_AI_TIMEOUT = int(os.getenv("LOCAL_AI_TIMEOUT", "120"))
     LOCAL_AI_ALLOW_WRITES = _env_bool("LOCAL_AI_ALLOW_WRITES", True)
+    KNOWLEDGE_MAX_BYTES = int(os.getenv("LEDGERONE_KNOWLEDGE_MAX_BYTES", str(10 * 1024 * 1024)))
 
     DOCUMENT_STORAGE_DIR = os.getenv(
         "LEDGERONE_DOCUMENT_STORAGE_DIR", str(BASE_DIR / "data" / "documents")

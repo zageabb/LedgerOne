@@ -1,48 +1,242 @@
 {% extends "base.html" %}
 {% block title %}LedgerOne AI{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>{{ 'Ask LedgerOne' if ui_mode == 'home' else 'AI workspace' }}</h1>
-    <p>{{ 'Ask questions about your accounts or tell LedgerOne to record something for you.' if ui_mode == 'home' else 'Local AI orchestration over audited LedgerOne module tools using a trusted full-access system identity.' }}</p>
-  </div>
-  <div class="actions"><span class="badge {{ 'badge-success' if ai_status.reachable else 'badge-warning' }}">{{ ai_status.model }} · {{ 'Online' if ai_status.reachable else 'Offline' }}</span></div>
-</div>
+<style>
+  .ai-page { min-width: 0; }
+  .ai-shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    height: calc(100vh - 215px);
+    min-height: 560px;
+    overflow: hidden;
+    border: 1px solid var(--border, #d7dde5);
+    border-radius: 14px;
+    background: var(--surface, #fff);
+  }
+  .ai-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--border, #d7dde5);
+    background: rgba(0,0,0,.018);
+  }
+  .ai-sidebar-head { padding: 14px; border-bottom: 1px solid var(--border, #d7dde5); }
+  .ai-conversation-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    padding: 10px;
+  }
+  .ai-conversation {
+    display: block;
+    padding: 10px 11px;
+    margin-bottom: 6px;
+    border-radius: 9px;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid transparent;
+  }
+  .ai-conversation:hover { background: rgba(0,0,0,.035); }
+  .ai-conversation.active {
+    background: rgba(50, 105, 255, .09);
+    border-color: rgba(50, 105, 255, .25);
+  }
+  .ai-conversation-title { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-conversation-time { font-size: .76rem; opacity: .68; margin-top: 3px; }
+  .ai-conversation-actions { padding: 0 10px 10px; }
+  .ai-conversation-actions details { font-size: .82rem; }
+  .ai-conversation-actions form { margin-top: 8px; }
+  .ai-conversation-actions input { width: 100%; margin-bottom: 6px; }
 
-<div class="grid grid-2">
-  <div class="card">
-    <div class="card-head"><h2>Conversation</h2></div>
-    <div class="card-body">
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="field"><label>What would you like LedgerOne to do?</label><textarea name="prompt" placeholder="Examples: What did I spend the most on? Show my trial balance. Create a customer called Acme Ltd..." required>{{ prompt }}</textarea></div>
-        <br><button class="button" type="submit">Ask LedgerOne AI</button>
-      </form>
-      <p class="help">The built-in local AI can use enabled module services with full internal access. Tool calls are logged. It does not require an unauthenticated HTTP endpoint.</p>
+  .ai-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .ai-chat-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border, #d7dde5);
+    flex: 0 0 auto;
+  }
+  .ai-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+    scrollbar-gutter: stable;
+    padding: 18px clamp(14px, 4vw, 46px);
+    scroll-behavior: smooth;
+  }
+  .ai-message { max-width: 900px; margin: 0 auto 18px; }
+  .ai-message-role { font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .62; margin-bottom: 5px; }
+  .ai-bubble {
+    border: 1px solid var(--border, #d7dde5);
+    border-radius: 12px;
+    padding: 12px 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .ai-user .ai-bubble { background: rgba(50, 105, 255, .07); }
+  .ai-assistant .ai-bubble { background: rgba(0,0,0,.018); }
+  .ai-meta { margin-top: 7px; font-size: .78rem; opacity: .72; }
+  .ai-meta details { margin-top: 5px; }
+  .ai-meta pre { max-width: 100%; overflow: auto; }
+  .ai-empty { max-width: 700px; margin: 12vh auto 0; text-align: center; opacity: .72; }
+
+  .ai-composer {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--border, #d7dde5);
+    padding: 12px 14px;
+    background: var(--surface, #fff);
+  }
+  .ai-composer-row { display: flex; gap: 10px; align-items: flex-end; }
+  .ai-composer textarea {
+    flex: 1;
+    min-height: 54px;
+    max-height: 180px;
+    resize: vertical;
+    overflow-y: auto;
+  }
+  .ai-write-approval { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: .82rem; }
+  .ai-write-approval input { width: auto; }
+  .ai-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  @media (max-width: 820px) {
+    .ai-shell { grid-template-columns: 1fr; height: auto; min-height: 0; overflow: visible; }
+    .ai-sidebar { border-right: 0; border-bottom: 1px solid var(--border, #d7dde5); max-height: 220px; }
+    .ai-conversation-list { max-height: 150px; }
+    .ai-main { height: calc(100vh - 330px); min-height: 520px; }
+  }
+</style>
+
+<div class="ai-page">
+  <div class="page-head">
+    <div>
+      <h1>{{ 'Ask LedgerOne' if ui_mode == 'home' else 'AI workspace' }}</h1>
+      <p>Local AI using your own LedgerOne permissions{% if can_read_knowledge %}, organisation Knowledge{% endif %}, and audited tools.</p>
+    </div>
+    <div class="ai-toolbar">
+      <span class="badge {{ 'badge-success' if ai_status.reachable else 'badge-warning' }}">{{ ai_status.model }} · {{ 'Online' if ai_status.reachable else 'Offline' }}</span>
+      {% if can_read_knowledge or can_manage_knowledge %}<a class="button button-secondary" href="{{ url_for('ai.knowledge') }}">Knowledge</a>{% endif %}
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-head"><h2>Response</h2></div>
-    <div class="card-body">
-      {% if answer %}<div class="ai-answer">{{ answer }}</div>{% elif not ai_status.reachable %}<div class="flash flash-warning">Local AI is not reachable at {{ ai_status.base_url }}. Check Ollama/local model settings.</div>{% else %}<div class="empty">Ask a question to start.</div>{% endif %}
-      {% if tool_log %}
-      <div class="tool-log section"><strong>Tool activity</strong>
-        {% for item in tool_log %}<details><summary>{{ item.tool }}</summary><pre>{{ item.arguments|tojson(indent=2) }}</pre><pre>{{ item.result|tojson(indent=2) }}</pre></details>{% endfor %}
+  <div class="ai-shell">
+    <aside class="ai-sidebar">
+      <div class="ai-sidebar-head">
+        <a class="button" style="width:100%;text-align:center" href="{{ url_for('ai.index', new=1) }}">+ New conversation</a>
+      </div>
+      <div class="ai-conversation-list">
+        {% for conversation in conversations %}
+          <a class="ai-conversation {{ 'active' if active_conversation and active_conversation.id == conversation.id else '' }}"
+             href="{{ url_for('ai.index', conversation=conversation.id) }}">
+            <div class="ai-conversation-title">{{ conversation.title }}</div>
+            <div class="ai-conversation-time">{{ conversation.updated_at.strftime('%d %b %H:%M') }}</div>
+          </a>
+        {% else %}
+          <div class="empty">No conversations yet.</div>
+        {% endfor %}
+      </div>
+      {% if active_conversation %}
+      <div class="ai-conversation-actions">
+        <details>
+          <summary>Conversation options</summary>
+          <form method="post" action="{{ url_for('ai.rename_conversation', conversation_id=active_conversation.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input name="title" value="{{ active_conversation.title }}" maxlength="180" aria-label="Conversation title">
+            <button class="button button-secondary" type="submit">Rename</button>
+          </form>
+          <form method="post" action="{{ url_for('ai.archive_conversation', conversation_id=active_conversation.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button button-secondary" type="submit">Archive</button>
+          </form>
+        </details>
       </div>
       {% endif %}
-    </div>
+    </aside>
+
+    <section class="ai-main">
+      <div class="ai-chat-head">
+        <strong>{{ active_conversation.title if active_conversation else 'New conversation' }}</strong>
+        <span class="help">{{ 'Writes available with per-message approval' if ai_status.allow_writes else 'Read-only AI policy' }}</span>
+      </div>
+
+      <div class="ai-messages" id="ai-messages">
+        {% if interactions %}
+          {% for row in interactions %}
+            <div class="ai-message ai-user">
+              <div class="ai-message-role">You</div>
+              <div class="ai-bubble">{{ row.prompt }}</div>
+            </div>
+            <div class="ai-message ai-assistant">
+              <div class="ai-message-role">LedgerOne AI</div>
+              <div class="ai-bubble">{{ row.response if row.response else (row.error or 'No response') }}</div>
+              {% if row.knowledge_log or row.tool_log %}
+              <div class="ai-meta">
+                {% if row.knowledge_log %}
+                  <details>
+                    <summary>Knowledge used ({{ row.knowledge_log|length }})</summary>
+                    {% for item in row.knowledge_log %}
+                      <div>[Knowledge: {{ item.title }}]{% if item.filename %} · {{ item.filename }}{% endif %}</div>
+                    {% endfor %}
+                  </details>
+                {% endif %}
+                {% if row.tool_log %}
+                  <details>
+                    <summary>Tool activity ({{ row.tool_log|length }})</summary>
+                    {% for item in row.tool_log %}
+                      <strong>{{ item.tool }}</strong>
+                      <pre>{{ item.arguments|tojson(indent=2) }}</pre>
+                      <pre>{{ item.result|tojson(indent=2) }}</pre>
+                    {% endfor %}
+                  </details>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% elif not ai_status.reachable and ai_status.enabled %}
+          <div class="flash flash-warning">Local AI is not reachable at {{ ai_status.base_url }}. Check Ollama/local model settings.</div>
+        {% elif not ai_status.enabled %}
+          <div class="ai-empty">Local AI is disabled for this organisation. Enable it in Settings to start chatting.</div>
+        {% else %}
+          <div class="ai-empty"><h2>What can I help with?</h2><p>Ask about your accounts, business process Knowledge, or an accounting task.</p></div>
+        {% endif %}
+      </div>
+
+      <form class="ai-composer" method="post" action="{{ url_for('ai.index') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="conversation_id" value="{{ active_conversation.id if active_conversation else '' }}">
+        <div class="ai-composer-row">
+          <textarea id="ai-prompt" name="prompt" placeholder="Message LedgerOne AI…" required></textarea>
+          <button class="button" type="submit">Send</button>
+        </div>
+        {% if ai_status.allow_writes %}
+          <label class="ai-write-approval">
+            <input type="checkbox" name="approve_writes" value="1">
+            Allow LedgerOne AI to make accounting changes for this message. Your own permissions still apply.
+          </label>
+        {% endif %}
+      </form>
+    </section>
   </div>
 </div>
 
-<div class="card section">
-  <div class="card-head"><h2>Recent AI activity</h2></div>
-  <div class="table-wrap">
-    {% if history %}
-    <table><thead><tr><th>When</th><th>Request</th><th>Result</th><th>Tools</th></tr></thead><tbody>
-    {% for row in history %}<tr><td>{{ row.created_at.strftime('%d %b %H:%M') }}</td><td>{{ row.prompt[:180] }}</td><td>{{ row.response[:220] if row.response else (row.error or '—') }}</td><td>{{ row.tool_log|length }}</td></tr>{% endfor %}
-    </tbody></table>
-    {% else %}<div class="empty">No AI interactions yet.</div>{% endif %}
-  </div>
-</div>
+<script>
+(() => {
+  const messages = document.getElementById('ai-messages');
+  if (messages) messages.scrollTop = messages.scrollHeight;
+
+  const prompt = document.getElementById('ai-prompt');
+  if (!prompt) return;
+  prompt.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      if (prompt.value.trim()) prompt.form.requestSubmit();
+    }
+  });
+})();
+</script>
 {% endblock %}
