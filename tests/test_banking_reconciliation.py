@@ -4,11 +4,20 @@ from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.banking.models import BankTransaction
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _setup(app):
     with app.app_context():
         organisation = Organisation.query.one()
+        # Reconciliation tests need concrete posted journals to match against. Workflow
+        # routing is covered separately, so keep these fixtures on the direct-post path.
+        SettingsService.set_module_enabled(
+            AccessContext.system(organisation.id),
+            "workflows",
+            False,
+        )
         key, token = ApiKey.issue(
             name="bank-reconcile-test",
             organisation_id=organisation.id,
