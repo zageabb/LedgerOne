@@ -90,6 +90,20 @@ class LocalAIService:
             for name, spec in tools.items()
         ) or "- No LedgerOne data tools are permitted for this caller."
 
+        convention_help = {
+            "ledger.create_account": "code, name, account_type, optional currency, parent_id.",
+            "ledger.post_journal": "date YYYY-MM-DD, description, optional reference, lines[] with account_id, debit, credit, optional description/dimensions.",
+            "sales.create_customer": "name, optional email, phone.",
+            "sales.create_invoice": "customer_id, invoice_number, amount, receivable_account_id, revenue_account_id, optional invoice_date, due_date, description, currency.",
+            "purchases.create_supplier": "name, optional email, phone.",
+            "purchases.create_bill": "supplier_id, bill_number, amount, payable_account_id, expense_account_id, optional bill_date, due_date, description, currency.",
+        }
+        convention_lines = "\n".join(
+            f"- {name}: {convention_help[name]}"
+            for name in tools
+            if name in convention_help
+        ) or "- No special write-tool argument conventions apply to the tools permitted for this caller."
+
         write_policy = (
             "WRITE SAFETY: This message has explicit write approval. You may use a WRITE tool only if it is listed below and the user's request clearly requires that change. The caller's own permissions still apply."
             if allow_writes
@@ -124,13 +138,8 @@ If no tool is needed, return an empty tool_calls array. After tool results are s
 Available tools:
 {tool_lines}
 
-Important argument conventions:
-- ledger.create_account: code, name, account_type, optional currency, parent_id.
-- ledger.post_journal: date YYYY-MM-DD, description, optional reference, lines[] with account_id, debit, credit, optional description/dimensions.
-- sales.create_customer: name, optional email, phone.
-- sales.create_invoice: customer_id, invoice_number, amount, receivable_account_id, revenue_account_id, optional invoice_date, due_date, description, currency.
-- purchases.create_supplier: name, optional email, phone.
-- purchases.create_bill: supplier_id, bill_number, amount, payable_account_id, expense_account_id, optional bill_date, due_date, description, currency.
+Important argument conventions for permitted tools only:
+{convention_lines}
 Read-list tools accept an optional limit where relevant.
 {knowledge_text}
 """
