@@ -62,6 +62,11 @@
           </select>
         </form>
         {% endif %}
+        {% if current_organisation and ledgerone_user_action_count is defined %}
+          <a class="button button-secondary button-small" href="{{ url_for('workflows.actions') }}" title="Items waiting for your review, approval or posting">
+            Actions{% if ledgerone_user_action_count %} <span class="badge">{{ ledgerone_user_action_count }}</span>{% endif %}
+          </a>
+        {% endif %}
         <span class="user-chip" title="LedgerOne application version">v{{ config['APP_VERSION'] }}</span>
         <span class="user-chip">{{ current_user.name }}</span>
         <form method="post" action="{{ url_for('auth.logout') }}">

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}User Actions · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>User Actions</h1>
+    <p>Everything LedgerOne needs a person to review, approve or post. Generated recurring items appear here instead of posting automatically.</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('workflows.index') }}">Scheduled Transactions</a>
+    <a class="button button-secondary" href="{{ url_for('workflows.definitions') }}">Approval Rules</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Open actions</h2><span class="badge">{{ actions|length }}</span></div>
+  <div class="table-wrap">
+    {% if actions %}
+    <table>
+      <thead><tr><th>Action</th><th>Item</th><th>Amount</th><th>Assigned</th><th>Controls</th></tr></thead>
+      <tbody>
+      {% for action in actions %}
+        {% set instance = action.workflow_instance %}
+        {% set item = action_items.get(action.id) %}
+        <tr>
+          <td><span class="badge">{{ action.action_type|title }}</span><br><small>{{ action.created_at.strftime('%d %b %Y %H:%M') }}</small></td>
+          <td><strong>{{ instance.title }}</strong><br><small>{{ instance.entity_type.replace('_', ' ')|title }} · {{ instance.status.replace('_', ' ')|title }}</small>{% if action.instructions %}<br><small>{{ action.instructions }}</small>{% endif %}</td>
+          <td>{% if instance.amount is not none %}{{ instance.currency }} {{ '%.2f'|format(instance.amount) }}{% elif item and item.expected_amount is not none %}{{ item.currency }} {{ '%.2f'|format(item.expected_amount) }}{% else %}Variable{% endif %}</td>
+          <td>{% if action.assigned_user %}{{ action.assigned_user.name }}{% elif action.assigned_role %}Role: {{ action.assigned_role }}{% else %}Any authorised user{% endif %}</td>
+          <td>
+            {% if action.action_type in ['review', 'approve'] %}
+              {% if (action.action_type == 'review' and can_review) or (action.action_type == 'approve' and can_approve) %}
+              <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field field-full"><input name="comments" placeholder="Optional comment / approval note"></div>
+                <div class="actions field-full">
+                  <button class="button button-small" name="decision" value="approve" type="submit">{{ 'Approve' if action.action_type == 'approve' else 'Complete review' }}</button>
+                  <button class="button button-small button-secondary" name="decision" value="return" type="submit">Return</button>
+                  <button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject</button>
+                </div>
+              </form>
+              {% else %}<small>You do not have permission to complete this step.</small>{% endif %}
+            {% elif action.action_type == 'post' %}
+              {% if can_post and item %}
+              <form method="post" action="{{ url_for('workflows.post_action', action_id=action.id) }}" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field"><label>Actual amount</label><input name="actual_amount" type="number" min="0" step="0.01" value="{{ item.expected_amount if item.expected_amount is not none else '' }}" required></div>
+                <div class="field"><label>Posting date</label><input name="posting_date" type="date" value="{{ item.scheduled_date.isoformat() }}" required></div>
+                <div class="field field-full"><button class="button" type="submit">Post to ledger</button></div>
+              </form>
+              <form method="post" action="{{ url_for('workflows.action_decision', action_id=action.id) }}" class="actions">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="comments" value="Returned from posting step for review">
+                <button class="button button-small button-secondary" name="decision" value="return" type="submit">Return for review</button>
+                <button class="button button-small button-danger" name="decision" value="reject" type="submit">Reject</button>
+              </form>
+              {% else %}<small>Posting requires both workflow and ledger posting permission.</small>{% endif %}
+            {% else %}
+              <small>No handler is configured for this action type yet.</small>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">Nothing needs your attention.</div>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Recent completed actions</h2><span class="badge">{{ recent_actions|length }}</span></div>
+  <div class="table-wrap">
+    {% if recent_actions %}
+    <table>
+      <thead><tr><th>Completed</th><th>Action</th><th>Item</th><th>Decision</th><th>By</th></tr></thead>
+      <tbody>
+      {% for action in recent_actions %}
+        <tr>
+          <td>{{ action.completed_at.strftime('%d %b %Y %H:%M') if action.completed_at else '—' }}</td>
+          <td>{{ action.action_type|title }}</td>
+          <td>{{ action.workflow_instance.title }}</td>
+          <td>{{ (action.decision or action.status).replace('_', ' ')|title }}</td>
+          <td>{{ action.completed_by.name if action.completed_by else 'System / unknown' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No completed actions yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

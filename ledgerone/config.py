@@ -12,7 +12,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 class Config:
-    APP_VERSION = os.getenv("LEDGERONE_VERSION", "0.3.0-dev")
+    APP_VERSION = os.getenv("LEDGERONE_VERSION", "0.4.0-dev")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL", f"sqlite:///{BASE_DIR / 'ledgerone.db'}"
@@ -36,6 +36,10 @@ class Config:
         "LEDGERONE_DOCUMENT_STORAGE_DIR", str(BASE_DIR / "data" / "documents")
     )
     DOCUMENT_MAX_BYTES = int(os.getenv("LEDGERONE_DOCUMENT_MAX_BYTES", str(25 * 1024 * 1024)))
+
+    # Scheduled transactions may be generated automatically, but generation only creates
+    # workflow work items. Ledger posting is always a separate explicit action.
+    WORKFLOW_AUTO_GENERATE_DUE = _env_bool("LEDGERONE_WORKFLOW_AUTO_GENERATE_DUE", True)
 
     # Development/home installations can opt into strict posting periods. Production
     # defaults to requiring a defined period for every posting date.

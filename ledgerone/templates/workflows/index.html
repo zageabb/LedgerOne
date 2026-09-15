@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Scheduled transactions' if ui_mode == 'home' else 'Workflow & approvals' }} · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Scheduled income & bills' if ui_mode == 'home' else 'Workflow & approvals' }}</h1>
+    <p>{{ 'Set up regular money in, bills and transfers. LedgerOne creates a work item when each one is due, but never posts it automatically.' if ui_mode == 'home' else 'Reusable transaction templates generate controlled work items. Review, approval and explicit posting remain separate control steps.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="button" href="{{ url_for('workflows.actions') }}">User Actions</a>
+    <a class="button button-secondary" href="{{ url_for('workflows.definitions') }}">Approval Rules</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  {% if can_write %}
+  <div class="card">
+    <div class="card-head"><h2>Create recurring template</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create_template">
+        <div class="field field-full"><label>Name</label><input name="name" placeholder="Monthly Salary / Council Tax" required></div>
+        <div class="field field-full"><label>Description</label><input name="description" placeholder="Optional transaction description"></div>
+        <div class="field">
+          <label>Type</label>
+          <select name="transaction_type" required>
+            <option value="income">Money in / income</option>
+            <option value="expense">Bill / expense</option>
+            <option value="transfer">Transfer between accounts</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Amount behaviour</label>
+          <select name="amount_mode" required>
+            <option value="expected">Expected — actual may vary</option>
+            <option value="fixed">Fixed — must match</option>
+            <option value="variable">Variable — enter when posting</option>
+          </select>
+        </div>
+        <div class="field"><label>Expected amount</label><input name="expected_amount" type="number" min="0" step="0.01" placeholder="2300.00"></div>
+        <div class="field"><label>Tolerance</label><input name="tolerance" type="number" min="0" step="0.01" placeholder="Optional"></div>
+        <div class="field">
+          <label>Payment / deposit account</label>
+          <select name="bank_account_id" required>
+            <option value="">Select account</option>
+            {% for row in settlement_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Category / destination</label>
+          <select name="counter_account_id" required>
+            <option value="">Select account</option>
+            {% for row in category_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ row.account_type }})</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Frequency</label>
+          <select name="frequency" required>
+            {% for value in frequencies %}<option value="{{ value }}">{{ value.replace('_', ' ')|title }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>First / next expected date</label><input type="date" name="next_run_date" value="{{ today }}" required></div>
+        <div class="field"><label>End date</label><input type="date" name="end_date"></div>
+        <div class="field"><label>Reference</label><input name="reference" placeholder="PAYROLL / COUNCIL TAX"></div>
+        <div class="field field-full">
+          <label>Workflow rule</label>
+          <select name="workflow_definition_id">
+            <option value="">Automatic default</option>
+            {% for row in definitions %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}
+          </select>
+          <p class="help">Professional mode defaults to a review step. Approval Rules can add maker/checker approval and amount thresholds.</p>
+        </div>
+        <div class="field field-full">
+          <button class="button" type="submit">Create template</button>
+          <p class="help">Posting mode is manual. Generation creates a work item only; it never changes the ledger or bank balance.</p>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-head"><h2>Recurring templates</h2><span class="badge">{{ templates|length }}</span></div>
+    <div class="table-wrap">
+      {% if templates %}
+      <table>
+        <thead><tr><th>Template</th><th>Schedule</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for row in templates %}
+          <tr>
+            <td><strong>{{ row.name }}</strong><br><small>{{ row.transaction_type|title }} · {{ row.bank_account.name }} → {{ row.counter_account.name }}</small></td>
+            <td>{{ row.frequency.replace('_', ' ')|title }}<br><small>Next {{ row.next_run_date.strftime('%d %b %Y') }}</small></td>
+            <td>{% if row.expected_amount is not none %}{{ row.currency }} {{ '%.2f'|format(row.expected_amount) }}{% else %}Variable{% endif %}<br><small>{{ row.amount_mode|title }}</small></td>
+            <td><span class="badge {{ 'badge-success' if row.is_active else '' }}">{{ 'Active' if row.is_active else 'Paused' }}</span></td>
+            <td>
+              {% if can_write %}
+              <form method="post" action="{{ url_for('workflows.set_template_active', template_id=row.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="active" value="{{ '0' if row.is_active else '1' }}">
+                <button class="button button-small button-secondary" type="submit">{{ 'Pause' if row.is_active else 'Enable' }}</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">No recurring templates yet.</div>{% endif %}
+    </div>
+    {% if can_write %}
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="generate_due">
+        <button class="button button-secondary" type="submit">Generate anything due now</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Generated work items</h2><span class="badge">{{ items|length }}</span></div>
+  <div class="table-wrap">
+    {% if items %}
+    <table>
+      <thead><tr><th>Date</th><th>Item</th><th>Expected</th><th>Actual</th><th>Workflow status</th><th>Journal</th></tr></thead>
+      <tbody>
+      {% for row in items %}
+        <tr>
+          <td>{{ row.scheduled_date.strftime('%d %b %Y') }}</td>
+          <td><strong>{{ row.template.name }}</strong><br><small>{{ row.transaction_type|title }}</small></td>
+          <td>{% if row.expected_amount is not none %}{{ row.currency }} {{ '%.2f'|format(row.expected_amount) }}{% else %}—{% endif %}</td>
+          <td>{% if row.actual_amount is not none %}{{ row.currency }} {{ '%.2f'|format(row.actual_amount) }}{% else %}—{% endif %}</td>
+          <td><span class="badge {{ 'badge-success' if row.status == 'posted' else '' }}">{{ row.status.replace('_', ' ')|title }}</span></td>
+          <td>{{ row.journal.reference if row.journal else 'Not posted' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No work items have been generated yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
