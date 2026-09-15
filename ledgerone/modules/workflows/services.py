@@ -4,7 +4,7 @@ import calendar
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Membership, Organisation, Setting, User, utcnow
@@ -422,7 +422,7 @@ class WorkflowService:
         if not (context.full_access or "*" in context.permissions):
             role = _membership_role(context)
             filters = [
-                db.and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))
+                and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))
             ]
             if context.user_id:
                 filters.append(UserAction.assigned_user_id == context.user_id)
@@ -460,19 +460,22 @@ class WorkflowService:
         action = db.session.get(UserAction, action_id)
         if not action or action.organisation_id != context.organisation_id or action.status != "open":
             raise WorkflowError("Open user action not found")
+
+        clean_decision = (decision or "approve").strip().lower()
+        if clean_decision not in {"approve", "reject", "return"}:
+            raise WorkflowError("Decision must be approve, reject or return")
         if action.action_type == "post":
-            raise WorkflowError("Posting actions must use the controlled post operation")
-        permission = "workflows.approve" if action.action_type == "approve" else "workflows.review"
+            if clean_decision not in {"reject", "return"}:
+                raise WorkflowError("Posting actions must use the controlled post operation")
+            permission = "workflows.post"
+        else:
+            permission = "workflows.approve" if action.action_type == "approve" else "workflows.review"
         if not context.can(permission):
             raise PermissionError(permission)
         if not WorkflowService._can_access_action(context, action):
             raise PermissionError("This action is assigned to another user or role")
 
         instance = action.workflow_instance
-        clean_decision = (decision or "approve").strip().lower()
-        if clean_decision not in {"approve", "reject", "return"}:
-            raise WorkflowError("Decision must be approve, reject or return")
-
         if action.action_type == "approve" and instance.originator_user_id == context.user_id:
             rules = instance.definition.rules_json if instance.definition else {}
             if (rules or {}).get("separate_approver", True):
@@ -615,9 +618,13 @@ class RecurringTransactionService:
             context, transaction_type, bank_account_id, counter_account_id
         )
         if workflow_definition_id:
-            definition = db.session.get(WorkflowDefinition, workflow_definition_id)
-            if not definition or definition.organisation_id != context.organisation_id or not definition.is_active:
-                raise WorkflowError("Selected workflow definition is not available")
+            WorkflowService.resolve_definition(
+                context,
+                entity_type="scheduled_transaction",
+                amount=expected,
+                metadata={"transaction_type": transaction_type, "source_module": "workflows"},
+                definition_id=workflow_definition_id,
+            )
 
         row = TransactionTemplate(
             organisation_id=context.organisation_id,
