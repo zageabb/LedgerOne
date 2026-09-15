@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>{{ 'Documents' if ui_mode == 'home' else 'Source Documents' }}</h1>
-    <p>{{ 'Keep receipts, invoices and useful links beside the transaction they belong to.' if ui_mode == 'home' else 'Store supporting files and external evidence references against accounting records.' }}</p>
+    <h1>{{ 'Documents' if ui_mode == 'home' else 'Source Documents & Audit Trace' }}</h1>
+    <p>{{ 'Keep receipts and links beside a transaction, and see exactly where the value came from and where it was posted.' if ui_mode == 'home' else 'Supporting evidence plus full transaction provenance: source workflow, database record, journal, ledger accounts, evidence location and audit events.' }}</p>
   </div>
 </div>
 
@@ -45,18 +45,120 @@
   </div>
 </div>
 
+{% if audit_error %}
+<div class="card section"><div class="card-body"><div class="empty">Audit trace unavailable: {{ audit_error }}</div></div></div>
+{% endif %}
+
+{% if audit_trace %}
+<div class="card section">
+  <div class="card-head"><h2>Full audit trace</h2><span class="badge">{{ audit_trace.target.entity_type|replace('_',' ')|title }}</span></div>
+  <div class="card-body">
+    <div class="grid grid-2">
+      <div>
+        <h3>Record and origin</h3>
+        <table>
+          <tbody>
+            <tr><th>Reference</th><td>{{ audit_trace.target.reference or '—' }}</td></tr>
+            <tr><th>Record ID</th><td><span class="code">{{ audit_trace.target.entity_id }}</span></td></tr>
+            <tr><th>Database table</th><td><span class="code">{{ audit_trace.target.table }}</span></td></tr>
+            <tr><th>Record location</th><td><span class="code">{{ audit_trace.target.record_location }}</span></td></tr>
+            <tr><th>Date</th><td>{{ audit_trace.target.date or '—' }}</td></tr>
+            <tr><th>Status</th><td>{{ audit_trace.target.status|replace('_',' ')|title }}</td></tr>
+            <tr><th>Party</th><td>{{ audit_trace.target.party or '—' }}</td></tr>
+            <tr><th>Value</th><td>{% if audit_trace.target.total is not none %}{{ audit_trace.target.currency or '' }} {{ audit_trace.target.total }}{% else %}—{% endif %}</td></tr>
+            <tr><th>Created</th><td>{{ audit_trace.target.created_at or '—' }}</td></tr>
+            <tr><th>Updated</th><td>{{ audit_trace.target.updated_at or '—' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>Where it came from</h3>
+        <table><tbody>
+          <tr><th>Origin</th><td>{{ audit_trace.origin.label if audit_trace.origin else '—' }}</td></tr>
+          <tr><th>Source type</th><td>{{ audit_trace.origin.entity_type|replace('_',' ')|title if audit_trace.origin and audit_trace.origin.entity_type else '—' }}</td></tr>
+          <tr><th>Source reference</th><td>{{ audit_trace.origin.reference if audit_trace.origin and audit_trace.origin.reference else '—' }}</td></tr>
+          <tr><th>Source ID</th><td>{% if audit_trace.origin and audit_trace.origin.entity_id %}<span class="code">{{ audit_trace.origin.entity_id }}</span>{% else %}—{% endif %}</td></tr>
+          {% if audit_trace.origin and audit_trace.origin.ledger_account %}<tr><th>Bank ledger account</th><td>{{ audit_trace.origin.ledger_account }}</td></tr>{% endif %}
+        </tbody></table>
+        <h3>Posted journal</h3>
+        {% if audit_trace.journal %}
+        <table><tbody>
+          <tr><th>Journal ID</th><td><span class="code">{{ audit_trace.journal.id }}</span></td></tr>
+          <tr><th>Journal location</th><td><span class="code">{{ audit_trace.journal.record_location }}</span></td></tr>
+          <tr><th>Date</th><td>{{ audit_trace.journal.date }}</td></tr>
+          <tr><th>Reference</th><td>{{ audit_trace.journal.reference or '—' }}</td></tr>
+          <tr><th>Source module</th><td>{{ audit_trace.journal.source_module }}</td></tr>
+          <tr><th>Source record</th><td><span class="code">{{ audit_trace.journal.source_reference or '—' }}</span></td></tr>
+          <tr><th>Created by</th><td>{{ audit_trace.journal.created_by or 'System' }}</td></tr>
+          <tr><th>Posted at</th><td>{{ audit_trace.journal.posted_at or '—' }}</td></tr>
+          <tr><th>Debit / Credit</th><td>{{ audit_trace.journal.total_debit }} / {{ audit_trace.journal.total_credit }}</td></tr>
+        </tbody></table>
+        {% else %}<div class="empty">This record has not been linked to a posted journal.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if audit_trace.journal %}
+<div class="card section">
+  <div class="card-head"><h2>Ledger account postings</h2><span class="badge">{{ audit_trace.journal.lines|length }} lines</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Line</th><th>Account</th><th>Account type</th><th>Description / dimensions</th><th class="number">Debit</th><th class="number">Credit</th><th>Location</th></tr></thead>
+      <tbody>{% for line in audit_trace.journal.lines %}<tr>
+        <td>{{ line.line_number }}</td>
+        <td><strong>{{ line.account_code }} · {{ line.account_name }}</strong><br><span class="help code">{{ line.account_id }}</span></td>
+        <td>{{ line.account_type|title }}</td>
+        <td>{{ line.description or '—' }}{% if line.dimensions %}<br><span class="help code">{% for key, value in line.dimensions.items() %}{{ key }}={{ value }}{% if not loop.last %}; {% endif %}{% endfor %}</span>{% endif %}</td>
+        <td class="number">{{ line.currency or '' }} {{ line.debit }}</td>
+        <td class="number">{{ line.currency or '' }} {{ line.credit }}</td>
+        <td><span class="help code">{{ line.record_location }}</span></td>
+      </tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card section">
+  <div class="card-head"><h2>Evidence locations</h2><span class="badge">{{ audit_trace.evidence|length }}</span></div>
+  <div class="table-wrap">
+    {% if audit_trace.evidence %}<table><thead><tr><th>Added</th><th>Title</th><th>Linked to</th><th>Location</th><th>Integrity</th><th>Added by</th></tr></thead><tbody>
+    {% for row in audit_trace.evidence %}<tr>
+      <td>{{ row.created_at }}</td><td><strong>{{ row.title }}</strong>{% if row.original_filename %}<br>{{ row.original_filename }}{% endif %}</td>
+      <td>{{ row.target_type|replace('_',' ')|title }}<br><span class="help code">{{ row.target_id }}</span></td>
+      <td>{% if row.reference_url %}<a href="{{ row.reference_url }}" target="_blank" rel="noopener">{{ row.reference_url }}</a>{% else %}<span class="code">{{ row.storage_key or '—' }}</span>{% endif %}</td>
+      <td>{% if row.sha256 %}<span class="code">SHA-256 {{ row.sha256 }}</span><br>{{ row.size_bytes or 0 }} bytes{% else %}External reference{% endif %}</td>
+      <td>{{ row.uploaded_by or 'System' }}</td>
+    </tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No file or external evidence has been linked to this record or its journal.</div>{% endif %}
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Audit event listing</h2><span class="badge">{{ audit_trace.events|length }}</span></div>
+  <div class="table-wrap">
+    {% if audit_trace.events %}<table><thead><tr><th>Timestamp</th><th>Actor</th><th>Module / action</th><th>Entity</th><th>Recorded detail</th></tr></thead><tbody>
+    {% for row in audit_trace.events %}<tr>
+      <td>{{ row.created_at }}</td><td>{{ row.actor }}</td><td>{{ row.module_id }}<br><strong>{{ row.action|replace('_',' ')|title }}</strong></td>
+      <td>{{ row.entity_type|replace('_',' ')|title if row.entity_type else '—' }}<br><span class="help code">{{ row.entity_id or '—' }}</span></td>
+      <td>{% if row.detail %}<span class="code">{% for key, value in row.detail.items() %}{{ key }}={{ value }}{% if not loop.last %}; {% endif %}{% endfor %}</span>{% else %}—{% endif %}</td>
+    </tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No audit events are recorded for this trace.</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
 <div class="card section">
   <div class="card-head"><h2>{{ 'Saved documents' if ui_mode == 'home' else 'Evidence register' }}</h2><span class="badge">{{ documents|length }}</span></div>
   <div class="table-wrap">
     {% if documents %}
-    <table><thead><tr><th>Added</th><th>Title</th><th>Target</th><th>Type</th><th>Integrity / size</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>Added</th><th>Title</th><th>Target</th><th>Type</th><th>Integrity / size</th><th>Location</th><th></th></tr></thead><tbody>
       {% for row in documents %}
       <tr>
         <td>{{ row.created_at.strftime('%d %b %Y %H:%M') }}</td>
         <td><strong>{{ row.title }}</strong>{% if row.original_filename %}<br><span class="help">{{ row.original_filename }}</span>{% endif %}</td>
-        <td>{{ row.entity_type|replace('_',' ')|title }}<br><span class="code">{{ row.entity_id[:12] }}…</span></td>
+        <td>{{ row.entity_type|replace('_',' ')|title }}<br><span class="code">{{ row.entity_id }}</span></td>
         <td><span class="badge">{{ row.kind|title }}</span></td>
-        <td>{% if row.kind == 'file' %}{{ '%.1f'|format((row.size_bytes or 0) / 1024) }} KB<br><span class="help code">SHA-256 {{ row.sha256[:12] }}…</span>{% else %}<span class="help">External reference</span>{% endif %}</td>
+        <td>{% if row.kind == 'file' %}{{ '%.1f'|format((row.size_bytes or 0) / 1024) }} KB<br><span class="help code">SHA-256 {{ row.sha256 }}</span>{% else %}<span class="help">External reference</span>{% endif %}</td>
+        <td>{% if row.kind == 'file' %}<span class="help code">{{ row.storage_key or 'Not stored' }}</span>{% else %}<a href="{{ row.reference_url }}" target="_blank" rel="noopener">{{ row.reference_url }}</a>{% endif %}</td>
         <td>{% if row.kind == 'file' %}<a class="button button-small button-secondary" href="{{ url_for('documents.download', document_id=row.id) }}">Download</a>{% else %}<a class="button button-small button-secondary" href="{{ row.reference_url }}" target="_blank" rel="noopener">Open link</a>{% endif %}</td>
       </tr>
       {% endfor %}

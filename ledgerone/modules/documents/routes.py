@@ -3,6 +3,7 @@ from flask_login import login_required
 
 from ledgerone.modules.documents.services import DocumentError, DocumentService
 from ledgerone.security import browser_context, require_module
+from ledgerone.services.audit_trace import AuditTraceError, AuditTraceService
 
 bp = Blueprint("documents", __name__, url_prefix="/documents")
 
@@ -47,12 +48,21 @@ def index():
         entity_id=entity_id or None,
         limit=300,
     )
+    audit_trace = None
+    audit_error = None
+    if entity_type and entity_id:
+        try:
+            audit_trace = AuditTraceService.build(context, entity_type, entity_id)
+        except (AuditTraceError, PermissionError, ValueError) as exc:
+            audit_error = str(exc)
     return render_template(
         "documents/index.html",
         documents=rows,
         entity_type=entity_type,
         entity_id=entity_id,
         target_types=DocumentService.TARGETS,
+        audit_trace=audit_trace,
+        audit_error=audit_error,
     )
 
 

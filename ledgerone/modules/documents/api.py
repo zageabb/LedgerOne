@@ -2,6 +2,7 @@ from flask import Blueprint, g, jsonify, request, send_file
 
 from ledgerone.modules.documents.services import DocumentError, DocumentService
 from ledgerone.security import require_api
+from ledgerone.services.audit_trace import AuditTraceError, AuditTraceService
 
 api_bp = Blueprint("documents_api", __name__, url_prefix="/api/v1/documents")
 
@@ -17,6 +18,20 @@ def list_documents():
         limit=min(int(request.args.get("limit", 200)), 500),
     )
     return jsonify({"documents": [DocumentService.serialise(row) for row in rows]})
+
+
+@api_bp.get("/audit-trace")
+@require_api("documents.read")
+def audit_trace():
+    try:
+        trace = AuditTraceService.build(
+            g.access_context,
+            request.args.get("entity_type", ""),
+            request.args.get("entity_id", ""),
+        )
+        return jsonify(trace)
+    except (AuditTraceError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @api_bp.post("/reference")
