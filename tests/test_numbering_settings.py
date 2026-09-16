@@ -2,6 +2,8 @@ from datetime import date
 
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, NumberAllocation, Organisation
+from ledgerone.modules.settings.services import SettingsService
+from ledgerone.services.context import AccessContext
 
 
 def _login(client):
@@ -38,6 +40,29 @@ def test_numbering_settings_page_shows_controlled_series_and_history(client, app
     assert b"Gap report" in page.data
     assert b"Allocation history" in page.data
     assert b"Controlled" in page.data
+
+
+def test_numbering_history_requires_settings_manage(client, app):
+    with app.app_context():
+        organisation = Organisation.query.one()
+        SettingsService.save_member(
+            AccessContext.system(organisation.id),
+            email="numbering-viewer@example.test",
+            name="Numbering Viewer",
+            role="viewer",
+            permissions=[],
+            password="temporary-123",
+        )
+
+    login = client.post(
+        "/auth/login",
+        data={"email": "numbering-viewer@example.test", "password": "temporary-123"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    page = client.get("/settings/numbering")
+    assert page.status_code == 403
 
 
 def test_numbering_settings_can_update_and_void_with_reason(client, app):
