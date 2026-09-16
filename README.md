@@ -241,3 +241,4 @@ See [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) for the reverse-enginee
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path from the v0.1 foundation to enterprise capabilities.
 - [`docs/TODO.md`](docs/TODO.md) — master delivery and accounting-assurance backlog.
 - [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) — legacy CashLink reverse-engineering notes.
+- [`docs/SCHEDULED_JOBS.md`](docs/SCHEDULED_JOBS.md) — daily recurring-work generation through UDA/systemd.
