@@ -49,7 +49,7 @@ class SalesInvoiceWorkflowService:
         context: AccessContext,
         *,
         customer_id: str,
-        invoice_number: str,
+        invoice_number: str | None,
         invoice_date: date,
         due_date: date | None,
         description: str,
@@ -63,15 +63,14 @@ class SalesInvoiceWorkflowService:
             raise WorkflowError("An organisation is required")
         LedgerService.assert_posting_date_open(context, invoice_date)
         clean_number = (invoice_number or "").strip()
-        if not clean_number:
-            raise WorkflowError("Invoice number is required")
-        if SalesInvoice.query.filter_by(
-            organisation_id=context.organisation_id,
-            invoice_number=clean_number,
-        ).first():
-            raise WorkflowError("Invoice number already exists")
-        if SalesInvoiceWorkflowService._pending_number_exists(context.organisation_id, clean_number):
-            raise WorkflowError("Invoice number already exists in an open workflow")
+        if clean_number:
+            if SalesInvoice.query.filter_by(
+                organisation_id=context.organisation_id,
+                invoice_number=clean_number,
+            ).first():
+                raise WorkflowError("Invoice number already exists")
+            if SalesInvoiceWorkflowService._pending_number_exists(context.organisation_id, clean_number):
+                raise WorkflowError("Invoice number already exists in an open workflow")
         customer = db.session.get(Customer, customer_id)
         if not customer or customer.organisation_id != context.organisation_id or not customer.is_active:
             raise WorkflowError("Invalid or inactive customer")
@@ -115,6 +114,7 @@ class SalesInvoiceWorkflowService:
             "customer_id": customer.id,
             "customer_name": customer.name,
             "invoice_number": clean_number,
+            "number_mode": "manual" if clean_number else "automatic",
             "invoice_date": invoice_date.isoformat(),
             "due_date": effective_due.isoformat(),
             "description": (description or "").strip() or "Sales",
@@ -138,7 +138,7 @@ class SalesInvoiceWorkflowService:
         context: AccessContext,
         *,
         customer_id: str,
-        invoice_number: str,
+        invoice_number: str | None,
         invoice_date: date,
         due_date: date | None,
         description: str,
@@ -176,11 +176,12 @@ class SalesInvoiceWorkflowService:
                 "sales_invoice_request": payload,
             }
         )
+        display_number = payload["invoice_number"] or "automatic number"
         workflow = WorkflowService.start(
             submission_context,
             entity_type=SalesInvoiceWorkflowService.ENTITY_TYPE,
             entity_id=request_id,
-            title=f"Invoice {payload['invoice_number']} - {payload['customer_name']}",
+            title=f"Invoice {display_number} - {payload['customer_name']}",
             amount=total,
             currency=payload["currency"],
             source_module=source_module,
@@ -198,7 +199,8 @@ class SalesInvoiceWorkflowService:
             entity_id=request_id,
             detail={
                 "workflow_instance_id": workflow.id,
-                "invoice_number": payload["invoice_number"],
+                "invoice_number": payload["invoice_number"] or None,
+                "number_mode": payload["number_mode"],
                 "customer_id": payload["customer_id"],
                 "total": payload["total"],
                 "status": workflow.status,
@@ -253,7 +255,7 @@ class SalesInvoiceWorkflowService:
         invoice = SalesService.create_invoice(
             context,
             customer_id=payload["customer_id"],
-            invoice_number=payload["invoice_number"],
+            invoice_number=payload.get("invoice_number") or None,
             invoice_date=date.fromisoformat(payload["invoice_date"]),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
             description=payload.get("description") or "Sales",
@@ -274,6 +276,7 @@ class SalesInvoiceWorkflowService:
         instance.completed_at = utcnow()
         instance.metadata_json = {
             **(instance.metadata_json or {}),
+            "issued_invoice_number": invoice.invoice_number,
             "posted_sales_invoice_id": invoice.id,
             "posted_journal_id": invoice.posted_journal_id,
         }
