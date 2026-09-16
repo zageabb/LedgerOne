@@ -7,6 +7,7 @@ from ledgerone.models.core import new_id
 from ledgerone.models.ledger import Journal
 from ledgerone.modules.sales.credit_models import SalesCreditNote
 from ledgerone.modules.sales.models import SalesInvoice, SalesPayment, SalesPaymentAllocation
+from ledgerone.modules.sales.numbering import assign_sales_credit_number
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.modules.tax.services import TaxService
 from ledgerone.services.audit import record_audit_event
@@ -33,7 +34,7 @@ class SalesCreditService:
         context: AccessContext,
         *,
         invoice_id: str,
-        credit_number: str,
+        credit_number: str | None,
         credit_date,
         amount,
         description: str | None = None,
@@ -45,13 +46,6 @@ class SalesCreditService:
             raise ValueError("Sales invoice not found")
         if not invoice.posted_journal_id or invoice.status == "draft":
             raise ValueError("Only posted invoices can be credited")
-        credit_number = (credit_number or "").strip()
-        if not credit_number:
-            raise ValueError("Credit note number is required")
-        if SalesCreditNote.query.filter_by(
-            organisation_id=context.organisation_id, credit_number=credit_number
-        ).first():
-            raise ValueError("Credit note number already exists")
         if len(invoice.lines) != 1:
             raise ValueError("The current credit-note workflow supports single-line invoices")
 
@@ -133,11 +127,17 @@ class SalesCreditService:
         )
 
         try:
+            issued_number = assign_sales_credit_number(
+                context,
+                credit_id=credit_id,
+                credit_date=credit_date,
+                requested_number=credit_number,
+            )
             journal = LedgerService.post_journal(
                 context,
                 journal_date=credit_date,
-                description=f"Sales credit note {credit_number} - {invoice.customer.name}",
-                reference=credit_number,
+                description=f"Sales credit note {issued_number} - {invoice.customer.name}",
+                reference=issued_number,
                 source_module="sales",
                 source_reference=credit_id,
                 lines=journal_lines,
@@ -148,7 +148,7 @@ class SalesCreditService:
                 organisation_id=context.organisation_id,
                 customer_id=invoice.customer_id,
                 invoice_id=invoice.id,
-                credit_number=credit_number,
+                credit_number=issued_number,
                 credit_date=credit_date,
                 description=note_description,
                 currency=invoice.currency,
@@ -162,7 +162,7 @@ class SalesCreditService:
                 organisation_id=context.organisation_id,
                 customer_id=invoice.customer_id,
                 payment_date=credit_date,
-                reference=credit_number,
+                reference=issued_number,
                 amount=gross_amount,
                 currency=invoice.currency,
                 journal_id=journal.id,
