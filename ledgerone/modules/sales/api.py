@@ -63,13 +63,14 @@ def create_invoice():
     try:
         invoice_date = date.fromisoformat(payload.get("invoice_date") or date.today().isoformat())
         due_date = date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None
+        requested_number = payload.get("invoice_number") or None
         if module_registry.is_enabled(g.access_context.organisation_id, "workflows"):
             from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
 
             workflow = SalesInvoiceWorkflowService.create_request(
                 g.access_context,
                 customer_id=payload["customer_id"],
-                invoice_number=payload["invoice_number"],
+                invoice_number=requested_number,
                 invoice_date=invoice_date,
                 due_date=due_date,
                 description=payload.get("description", "Sales"),
@@ -85,13 +86,14 @@ def create_invoice():
             return jsonify({
                 "workflow_instance_id": workflow.id,
                 "status": workflow.status,
+                "number_mode": "manual" if requested_number else "automatic",
                 "posted": False,
             }), 201
 
         row = SalesService.create_invoice(
             g.access_context,
             customer_id=payload["customer_id"],
-            invoice_number=payload["invoice_number"],
+            invoice_number=requested_number,
             invoice_date=invoice_date,
             due_date=due_date,
             description=payload.get("description", "Sales"),
@@ -103,6 +105,7 @@ def create_invoice():
         )
         return jsonify({
             "id": row.id,
+            "invoice_number": row.invoice_number,
             "status": row.status,
             "due_date": row.due_date.isoformat() if row.due_date else None,
             "subtotal": str(row.subtotal),
