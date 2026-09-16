@@ -16,13 +16,13 @@
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field field-full"><label>Invoice</label><select name="invoice_id" required><option value="">Select invoice</option>{% for row in invoices %}<option value="{{ row.id }}">{{ row.invoice_number }} · {{ row.customer.name }} · {{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }} outstanding</option>{% endfor %}</select></div>
-        <div class="field"><label>Credit note number</label><input name="credit_number" placeholder="CN-001" required></div>
+        <div class="field"><label>Credit note number (optional)</label><input name="credit_number" placeholder="Leave blank for automatic"><div class="help">Leave blank for LedgerOne to issue the next controlled sales credit number.</div></div>
         <div class="field"><label>Date</label><input type="date" name="credit_date" value="{{ today }}" required></div>
         <div class="field"><label>Net amount to credit</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
         <div class="field"><label>Description</label><input name="description" placeholder="Returned goods / price adjustment"></div>
         <div class="field-full"><button class="button" type="submit">Post credit note</button></div>
       </form>
-      <p class="help">VAT is inherited from the original invoice and reversed proportionally. Credits cannot exceed the current outstanding balance.</p>
+      <p class="help">VAT is inherited from the original invoice and reversed proportionally. Credits cannot exceed the current outstanding balance. The controlled credit-note number is issued only if posting succeeds.</p>
     </div>
   </div>
 
