@@ -1,4 +1,4 @@
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import login_required
@@ -7,6 +7,7 @@ from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context
+from ledgerone.services.numbering import NumberingError, NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -170,4 +171,58 @@ def payment_terms():
     return render_template(
         "settings/payment_terms.html",
         payment_terms=PaymentTermsService.get(context.organisation_id),
+    )
+
+
+@bp.route("/numbering", methods=["GET", "POST"])
+@login_required
+def numbering():
+    context = browser_context()
+    selected_key = (request.values.get("sequence_key") or "sales_invoice").strip()
+    if request.method == "POST":
+        action = request.form.get("action")
+        try:
+            if action == "update":
+                NumberSequenceService.update(
+                    context,
+                    selected_key,
+                    prefix=request.form.get("prefix", ""),
+                    suffix=request.form.get("suffix", ""),
+                    starting_value=request.form.get("starting_value", 1),
+                    padding=request.form.get("padding", 4),
+                    reset_policy=request.form.get("reset_policy", "never"),
+                )
+                flash("Document numbering sequence updated.", "success")
+            elif action == "void_next":
+                void_date = date.fromisoformat(request.form.get("issue_date") or date.today().isoformat())
+                allocation = NumberSequenceService.void_next(
+                    context,
+                    selected_key,
+                    issue_date=void_date,
+                    reason=request.form.get("reason", ""),
+                )
+                flash(f"{allocation.formatted_number} voided and retained in number history.", "success")
+            else:
+                raise NumberingError("Unknown numbering action")
+            return redirect(url_for("settings.numbering", sequence_key=selected_key))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+
+    sequences = NumberSequenceService.list_sequences(context)
+    keys = {row.sequence_key for row in sequences}
+    if selected_key not in keys:
+        selected_key = "sales_invoice" if "sales_invoice" in keys else next(iter(keys), "")
+    selected = NumberSequenceService.get(context.organisation_id, selected_key) if selected_key else None
+    return render_template(
+        "settings/numbering.html",
+        sequences=[NumberSequenceService.serialise(row) for row in sequences],
+        selected=NumberSequenceService.serialise(selected) if selected else None,
+        allocations=NumberSequenceService.list_allocations(
+            context,
+            sequence_key=selected_key or None,
+            limit=250,
+        ),
+        gap_report=NumberSequenceService.gap_report(context, selected_key) if selected_key else None,
+        today=date.today().isoformat(),
+        active_document_sequences={"sales_invoice", "sales_credit_note"},
     )
