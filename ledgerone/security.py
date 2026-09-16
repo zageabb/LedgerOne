@@ -95,6 +95,24 @@ def require_api(permission: str | None = None):
     return decorator
 
 
+def require_browser_permission(permission: str):
+    """Require a browser user to hold one explicit application permission."""
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            context = browser_context()
+            if not context:
+                abort(401)
+            if not context.can(permission):
+                abort(403)
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def require_module(module_id: str):
     def decorator(fn):
         @wraps(fn)
