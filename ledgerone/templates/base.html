@@ -67,6 +67,9 @@
             Actions{% if ledgerone_user_action_count %} <span class="badge">{{ ledgerone_user_action_count }}</span>{% endif %}
           </a>
         {% endif %}
+        {% if request.endpoint and request.endpoint.startswith('settings.') %}
+          <a class="button button-secondary button-small" href="{{ url_for('settings.numbering') }}" title="Controlled document number sequences and allocation history">Numbering</a>
+        {% endif %}
         <span class="user-chip" title="LedgerOne application version">v{{ config['APP_VERSION'] }}</span>
         <span class="user-chip">{{ current_user.name }}</span>
         <form method="post" action="{{ url_for('auth.logout') }}">
