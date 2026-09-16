@@ -6,7 +6,7 @@ from flask_login import login_required
 from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
-from ledgerone.security import browser_context
+from ledgerone.security import browser_context, require_browser_permission
 from ledgerone.services.numbering import NumberingError, NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
 
@@ -176,6 +176,7 @@ def payment_terms():
 
 @bp.route("/numbering", methods=["GET", "POST"])
 @login_required
+@require_browser_permission("settings.manage")
 def numbering():
     context = browser_context()
     selected_key = (request.values.get("sequence_key") or "sales_invoice").strip()
