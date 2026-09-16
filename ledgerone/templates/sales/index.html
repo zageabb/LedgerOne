@@ -32,7 +32,7 @@
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="invoice">
         <div class="field"><label>Customer</label><select name="customer_id" required><option value="">Select</option>{% for row in customers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>{{ 'Reference' if ui_mode == 'home' else 'Invoice number' }}</label><input name="invoice_number" placeholder="INV-001" required></div>
+        <div class="field"><label>{{ 'Reference (optional)' if ui_mode == 'home' else 'Invoice number (optional)' }}</label><input name="invoice_number" placeholder="Leave blank for automatic"><div class="help">Leave blank for LedgerOne to issue the next controlled number at final Post. Use a manual reference only for an authorised legacy/exception case.</div></div>
         <div class="field"><label>Date</label><input type="date" name="invoice_date" value="{{ today }}" required></div><div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"><div class="help">Leave blank to use the customer's payment terms.</div></div>
         <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div><div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
         {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select><div class="help">The entered amount is net of VAT. LedgerOne calculates VAT and posts it to the configured VAT control account only after the invoice reaches the Post step.</div></div>{% endif %}
@@ -41,7 +41,7 @@
         <div class="field"><label>{{ 'Income category' if ui_mode == 'home' else 'Revenue account' }}</label><select name="revenue_account_id" required>{% for row in revenue_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
         <div class="field-full"><button class="button" type="submit">{% if workflows_enabled %}{{ 'Submit income for review' if ui_mode == 'home' else 'Submit invoice to User Actions' }}{% else %}{{ 'Record income' if ui_mode == 'home' else 'Create & post invoice' }}{% endif %}</button></div>
       </form>
-      {% if workflows_enabled %}<p class="help">Submitting reserves the invoice number and creates a User Action. It does not create the customer receivable or ledger journal until the final Post action.</p>{% endif %}
+      {% if workflows_enabled %}<p class="help">Submitting creates a User Action but does not consume an automatic invoice number, create the customer receivable or post a ledger journal. The controlled invoice number is issued only when the final Post action succeeds.</p>{% endif %}
     </div>
   </div>
 </div>
