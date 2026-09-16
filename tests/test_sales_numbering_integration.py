@@ -6,6 +6,7 @@ import pytest
 from ledgerone.extensions import db
 from ledgerone.models.core import NumberAllocation, Organisation, User
 from ledgerone.models.ledger import Account
+from ledgerone.modules.sales.credits import SalesCreditService
 from ledgerone.modules.sales.models import SalesInvoice
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.modules.workflows.models import UserAction, WorkflowInstance
@@ -253,3 +254,64 @@ def test_existing_pre_control_invoice_number_is_adopted_before_next_number(app):
             formatted_number="INV-0002",
         ).one()
         assert current.entity_id == invoice.id
+
+
+def test_blank_sales_credit_number_is_allocated_and_linked(app):
+    with app.app_context():
+        context = _context()
+        accounts = _accounts(context)
+        customer = _customer(context, "Credit Number Customer")
+        invoice = _direct_invoice(context, customer, accounts, number="LEGACY-INVOICE")
+
+        note = SalesCreditService.create_credit_note(
+            context,
+            invoice_id=invoice.id,
+            credit_number=None,
+            credit_date=date(2026, 9, 16),
+            amount="25.00",
+            description="Controlled credit",
+        )
+
+        assert note.credit_number == "SCN-0001"
+        allocation = NumberAllocation.query.filter_by(
+            sequence_key="sales_credit_note",
+            formatted_number="SCN-0001",
+        ).one()
+        assert allocation.status == "issued"
+        assert allocation.entity_type == "sales_credit_note"
+        assert allocation.entity_id == note.id
+        assert allocation.manual_override is False
+        assert NumberSequenceService.peek(
+            context.organisation_id,
+            "sales_credit_note",
+            issue_date=date(2026, 9, 16),
+        ) == "SCN-0002"
+
+
+def test_manual_sales_credit_reference_is_audited_as_override(app):
+    with app.app_context():
+        context = _context()
+        accounts = _accounts(context)
+        customer = _customer(context, "Legacy Credit Customer")
+        invoice = _direct_invoice(context, customer, accounts, number="LEGACY-INVOICE-2")
+
+        note = SalesCreditService.create_credit_note(
+            context,
+            invoice_id=invoice.id,
+            credit_number="OLD-CREDIT-7",
+            credit_date=date(2026, 9, 16),
+            amount="10.00",
+        )
+
+        assert note.credit_number == "OLD-CREDIT-7"
+        allocation = NumberAllocation.query.filter_by(
+            sequence_key="sales_credit_note",
+            formatted_number="OLD-CREDIT-7",
+        ).one()
+        assert allocation.manual_override is True
+        assert allocation.entity_id == note.id
+        assert NumberSequenceService.peek(
+            context.organisation_id,
+            "sales_credit_note",
+            issue_date=date(2026, 9, 16),
+        ) == "SCN-0001"
