@@ -42,7 +42,7 @@ def create_credit_note():
         row = SalesCreditService.create_credit_note(
             g.access_context,
             invoice_id=payload["invoice_id"],
-            credit_number=payload["credit_number"],
+            credit_number=payload.get("credit_number") or None,
             credit_date=date.fromisoformat(payload.get("credit_date") or date.today().isoformat()),
             amount=payload["amount"],
             description=payload.get("description"),
