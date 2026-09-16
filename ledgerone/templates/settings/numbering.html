@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Document numbering · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Document numbering</h1>
+    <p>Configure controlled document series and review every issued, voided or manual number.</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('settings.index') }}">Back to settings</a></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Number series</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Document</th><th>Next number</th><th>Reset</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for row in sequences %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td><strong>{{ row.next_number }}</strong></td>
+          <td>{{ row.reset_policy|title }}</td>
+          <td>{% if row.key in active_document_sequences %}<span class="badge badge-success">Controlled</span>{% else %}<span class="badge">Reserved</span>{% endif %}</td>
+          <td><a class="button button-small button-secondary" href="{{ url_for('settings.numbering', sequence_key=row.key) }}">Manage</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body"><p class="help">Sales invoices and sales credit notes currently use controlled numbering. Other series are reserved for future document integrations and are not used to replace supplier-provided references.</p></div>
+</div>
+
+{% if selected %}
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>{{ selected.label }}</h2><span class="badge">Next {{ selected.next_number }}</span></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update">
+        <input type="hidden" name="sequence_key" value="{{ selected.key }}">
+        <div class="field"><label>Prefix</label><input name="prefix" value="{{ selected.prefix }}" maxlength="40"></div>
+        <div class="field"><label>Suffix</label><input name="suffix" value="{{ selected.suffix }}" maxlength="40"></div>
+        <div class="field"><label>Starting value</label><input type="number" name="starting_value" min="1" value="{{ selected.starting_value }}" required></div>
+        <div class="field"><label>Number padding</label><input type="number" name="padding" min="1" max="12" value="{{ selected.padding }}" required></div>
+        <div class="field"><label>Reset policy</label><select name="reset_policy"><option value="never" {% if selected.reset_policy == 'never' %}selected{% endif %}>Never</option><option value="yearly" {% if selected.reset_policy == 'yearly' %}selected{% endif %}>Yearly</option></select></div>
+        <div class="field"><label>Current period</label><input value="{{ selected.reset_key }}" disabled></div>
+        <div class="field-full"><div class="help">Yearly reset requires <code>{YYYY}</code> or <code>{YY}</code> in the prefix or suffix. Starting value and reset policy are locked once numbers have been allocated.</div></div>
+        <div class="field-full"><button class="button" type="submit">Save numbering sequence</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Void next number</h2></div>
+    <div class="card-body">
+      <p>Use this only when a number must deliberately remain unused. The number remains permanently visible in the allocation history.</p>
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="void_next">
+        <input type="hidden" name="sequence_key" value="{{ selected.key }}">
+        <div class="field"><label>Issue date</label><input type="date" name="issue_date" value="{{ today }}" required></div>
+        <div class="field field-full"><label>Reason</label><input name="reason" placeholder="Why must this number be voided?" required></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Void next number</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>Gap report</h2></div>
+    <div class="card-body">
+      {% if gap_report and gap_report.periods %}
+        {% for period in gap_report.periods %}
+          <p><strong>{{ period.reset_key }}</strong> · {{ period.first_value }}–{{ period.last_value }}</p>
+          <p class="help">Missing values: {{ period.missing_values|join(', ') if period.missing_values else 'None' }} · Voids: {{ period.void|join(', ') if period.void else 'None' }}</p>
+        {% endfor %}
+      {% else %}<div class="empty">No controlled numbers have been allocated in this series yet.</div>{% endif %}
+      {% if gap_report and gap_report.manual_overrides %}<p class="help"><strong>Manual / legacy references:</strong> {{ gap_report.manual_overrides|join(', ') }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Allocation history</h2><span class="badge">{{ allocations|length }}</span></div>
+    <div class="table-wrap">
+      {% if allocations %}<table><thead><tr><th>Number</th><th>Date</th><th>Status</th><th>Document</th><th>Reason</th></tr></thead><tbody>
+      {% for row in allocations %}<tr><td>{{ row.formatted_number }}</td><td>{{ row.issue_date.strftime('%d %b %Y') }}</td><td><span class="badge {{ 'badge-success' if row.status == 'issued' else '' }}">{{ 'Manual' if row.manual_override else row.status|title }}</span></td><td>{{ row.entity_type or '—' }}{% if row.entity_id %}<br><span class="help">{{ row.entity_id }}</span>{% endif %}</td><td>{{ row.reason or '—' }}</td></tr>{% endfor %}
+      </tbody></table>{% else %}<div class="empty">No allocation history for this series.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
