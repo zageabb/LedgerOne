@@ -17,7 +17,6 @@ from ledgerone.services.audit_trace import AuditTraceService
 from ledgerone.services.context import AccessContext
 from ledgerone.services.pdf_documents import (
     FinancialDocumentPdfService,
-    _address_lines,
     _audit_appendix,
     _money,
     _party_block,
@@ -53,7 +52,7 @@ def _vat_rate_label(line) -> str:
     if treatment == "out_of_scope":
         return "Outside scope"
     rate = Decimal(str(getattr(tax_code, "rate_percent", 0) or 0))
-    text = format(rate.normalize(), "f").rstrip("0").rstrip(".")
+    text = f"{rate:.4f}".rstrip("0").rstrip(".")
     return f"{text or '0'}%"
 
 
