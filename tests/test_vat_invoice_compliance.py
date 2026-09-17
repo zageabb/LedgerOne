@@ -17,6 +17,9 @@ from ledgerone.services.pdf_documents import FinancialDocumentPdfService
 def _setup():
     organisation = Organisation.query.one()
     context = AccessContext.system(organisation.id)
+    # The test application does not enable the optional Tax module by default, so
+    # explicitly seed its standard UK codes for tests that exercise VAT documents.
+    TaxService.seed_defaults(organisation.id)
     accounts = {
         row.code: row.id
         for row in Account.query.filter_by(organisation_id=organisation.id).all()
