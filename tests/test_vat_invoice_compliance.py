@@ -5,9 +5,11 @@ import pytest
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account
+from ledgerone.module_registry import module_registry
 from ledgerone.modules.organisation_profile.invoice_pdf import _vat_rate_label
 from ledgerone.modules.organisation_profile.services import OrganisationProfileService
 from ledgerone.modules.sales.services import SalesService
+from ledgerone.modules.settings.services import SettingsService
 from ledgerone.modules.tax.models import TaxCode
 from ledgerone.modules.tax.services import TaxService
 from ledgerone.services.context import AccessContext
@@ -17,9 +19,11 @@ from ledgerone.services.pdf_documents import FinancialDocumentPdfService
 def _setup():
     organisation = Organisation.query.one()
     context = AccessContext.system(organisation.id)
-    # The test application does not enable the optional Tax module by default, so
-    # explicitly seed its standard UK codes for tests that exercise VAT documents.
-    TaxService.seed_defaults(organisation.id)
+    # VAT-document tests exercise the real optional Tax module boundary. Enable it
+    # through Settings so its normal accounts, UK tax codes and control metadata are
+    # seeded exactly as they are in the application.
+    if not module_registry.is_enabled(organisation.id, "tax"):
+        SettingsService.set_module_enabled(context, "tax", True)
     accounts = {
         row.code: row.id
         for row in Account.query.filter_by(organisation_id=organisation.id).all()
