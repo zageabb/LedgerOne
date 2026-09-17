@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Business Profile · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Business details' if ui_mode == 'home' else 'Business Profile' }}</h1>
+    <p>Legal identity and contact details used on invoices and other customer-facing documents.</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Legal identity</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field field-full">
+          <label>Registered / legal name</label>
+          <input name="registered_name" value="{{ profile.registered_name or '' }}" required {% if not can_manage %}readonly{% endif %}>
+          <div class="help">For a limited company this should match the name on the certificate of incorporation.</div>
+        </div>
+        <div class="field"><label>Trading name</label><input name="trading_name" value="{{ profile.trading_name or '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>Company number</label><input name="company_number" value="{{ profile.company_number or '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>Email</label><input type="email" name="email" value="{{ profile.email or '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>Phone</label><input name="phone" value="{{ profile.phone or '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field field-full"><label>Website</label><input name="website" value="{{ profile.website or '' }}" {% if not can_manage %}readonly{% endif %}></div>
+
+        <div class="field field-full"><h3>Registered / principal business address</h3></div>
+        <div class="field field-full"><label>Address line 1</label><input name="address_line1" value="{{ profile.address.line1 if profile.address else '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field field-full"><label>Address line 2</label><input name="address_line2" value="{{ profile.address.line2 if profile.address else '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>Town / city</label><input name="city" value="{{ profile.address.city if profile.address else '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>County / region</label><input name="county" value="{{ profile.address.county if profile.address else '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>Postcode</label><input name="postcode" value="{{ profile.address.postcode if profile.address else '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        <div class="field"><label>Country</label><input name="country" value="{{ profile.address.country if profile.address else '' }}" {% if not can_manage %}readonly{% endif %}></div>
+        {% if can_manage %}<div class="field-full"><button class="button" type="submit">Save business profile</button></div>{% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>VAT identity</h2></div>
+      <div class="card-body">
+        <p><strong>Status:</strong> <span class="badge {{ 'badge-success' if profile.is_vat_registered else '' }}">{{ 'VAT registered' if profile.is_vat_registered else 'Not VAT registered' }}</span></p>
+        <p><strong>VAT registration number:</strong> {{ profile.vat_registration_number or '—' }}</p>
+        <p><strong>Jurisdiction:</strong> {{ profile.vat_jurisdiction or '—' }}</p>
+        <p class="help">VAT registration and scheme settings remain controlled by the Tax module so LedgerOne keeps one tax source of truth.</p>
+      </div>
+    </div>
+
+    <div class="card section">
+      <div class="card-head"><h2>Invoice readiness</h2></div>
+      <div class="card-body">
+        {% if profile.is_vat_registered %}
+          {% if profile.vat_registration_number and profile.address and profile.address|length %}
+            <p><span class="badge badge-success">Supplier identity ready</span></p>
+            <p class="muted">VAT invoice generation will also verify that the customer has an address before producing the document.</p>
+          {% else %}
+            <p><span class="badge">Details incomplete</span></p>
+            <p class="muted">A VAT invoice will not be generated until the supplier address and VAT registration number are available.</p>
+          {% endif %}
+        {% else %}
+          <p class="muted">LedgerOne will produce a normal sales invoice. If the organisation becomes VAT registered, complete the Tax profile and this business profile before issuing VAT invoices.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card section">
+      <div class="card-head"><h2>Document rules</h2></div>
+      <div class="card-body">
+        <p class="muted">VAT invoices show the sequential invoice number, tax point/supply date, issue date, supplier and customer identity, VAT rate per line, net/VAT/gross totals, and the VAT total in sterling.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
