@@ -229,11 +229,13 @@ These items are deliberately prioritised before the other user-requested usabili
 - [ ] Persist previous AI conversations and show them in the left sidebar, newest/recent first.
 - [ ] Add **New conversation** and allow reopening previous conversations without losing their message history.
 - [ ] Support sensible conversation titles, with rename and delete/archive controls.
+- [ ] Ensure administrators can permanently delete chats, including chats created by other users within the organisation where their admin permissions allow it; require an explicit confirmation step and record the deletion in the audit trail.
 - [ ] Make the left conversation-history panel independently scrollable when the history is longer than the screen.
 - [ ] Make the main message pane vertically scrollable and automatically keep the latest response visible without preventing the user from scrolling back through older messages.
 - [ ] Keep the prompt input/composer visible at the bottom while the message pane scrolls, similar to a conventional chat application.
 - [ ] Add visible scroll bars wherever content exceeds the available pane height/width rather than allowing page content to become inaccessible.
 - [ ] Allow multiline prompts, Enter/Shift+Enter behaviour appropriate to the UI, and a clearly visible Send action.
+- [ ] When Send is pressed, immediately show the user's submitted message in the conversation and display a clear request state such as sending/thinking/streaming/completed/error so the screen never appears static or leaves the user unsure whether the message was actually sent.
 - [ ] Preserve responsive behaviour: on smaller screens the conversation list may collapse into a drawer, while the conversation and composer remain usable.
 - [ ] Do not make a whole long AI page scroll when independent sidebar/message-pane scrolling gives a better experience.
 - [ ] Ensure loading/tool-execution states do not move or hide the prompt composer unexpectedly.
