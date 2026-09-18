@@ -5,7 +5,7 @@ import json
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from ledgerone.extensions import db
@@ -229,7 +229,7 @@ _guard_installed = False
 
 def _guard_audit_events(session: Session, flush_context, instances) -> None:
     for obj in list(session.dirty):
-        if isinstance(obj, AuditEvent) and db.inspect(obj).persistent:
+        if isinstance(obj, AuditEvent) and sa_inspect(obj).persistent:
             raise AuditImmutableError(
                 "Persisted audit events are append-only and cannot be updated"
             )
