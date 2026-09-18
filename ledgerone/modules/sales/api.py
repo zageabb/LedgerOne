@@ -133,8 +133,11 @@ def payments():
         "date": row.payment_date.isoformat(),
         "reference": row.reference,
         "amount": str(row.amount),
+        "settlement_type": row.settlement_type,
         "allocated": str(SalesService.payment_allocated(row.id)),
-        "unallocated": str(row.amount - SalesService.payment_allocated(row.id)),
+        "refunded": str(SalesService.payment_refunded(row.id)),
+        "available": str(SalesService.payment_available(row.id)),
+        "unallocated": str(SalesService.payment_available(row.id)),
         "currency": row.currency,
         "status": row.status,
         "journal_id": row.journal_id,
@@ -190,7 +193,9 @@ def allocate_payment(payment_id):
             "id": row.id,
             "status": row.status,
             "allocated": str(SalesService.payment_allocated(row.id)),
-            "unallocated": str(row.amount - SalesService.payment_allocated(row.id)),
+            "refunded": str(SalesService.payment_refunded(row.id)),
+            "available": str(SalesService.payment_available(row.id)),
+            "unallocated": str(SalesService.payment_available(row.id)),
         })
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
