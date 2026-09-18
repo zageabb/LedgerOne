@@ -43,6 +43,7 @@ def invoices():
         "invoice_number": row.invoice_number,
         "customer_id": row.customer_id,
         "invoice_date": row.invoice_date.isoformat(),
+        "tax_point": row.tax_point.isoformat(),
         "due_date": row.due_date.isoformat() if row.due_date else None,
         "currency": row.currency,
         "status": row.status,
@@ -63,6 +64,7 @@ def create_invoice():
     try:
         invoice_date = date.fromisoformat(payload.get("invoice_date") or date.today().isoformat())
         due_date = date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None
+        tax_point = date.fromisoformat(payload["tax_point"]) if payload.get("tax_point") else invoice_date
         requested_number = payload.get("invoice_number") or None
         if module_registry.is_enabled(g.access_context.organisation_id, "workflows"):
             from ledgerone.modules.workflows.sales_invoice_requests import SalesInvoiceWorkflowService
@@ -73,6 +75,7 @@ def create_invoice():
                 invoice_number=requested_number,
                 invoice_date=invoice_date,
                 due_date=due_date,
+                tax_point=tax_point,
                 description=payload.get("description", "Sales"),
                 amount=payload["amount"],
                 receivable_account_id=payload["receivable_account_id"],
@@ -96,6 +99,7 @@ def create_invoice():
             invoice_number=requested_number,
             invoice_date=invoice_date,
             due_date=due_date,
+            tax_point=tax_point,
             description=payload.get("description", "Sales"),
             amount=payload["amount"],
             receivable_account_id=payload["receivable_account_id"],
@@ -107,6 +111,7 @@ def create_invoice():
             "id": row.id,
             "invoice_number": row.invoice_number,
             "status": row.status,
+            "tax_point": row.tax_point.isoformat(),
             "due_date": row.due_date.isoformat() if row.due_date else None,
             "subtotal": str(row.subtotal),
             "tax_total": str(row.tax_total),
