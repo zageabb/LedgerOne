@@ -39,7 +39,6 @@ def upgrade():
         sa.ForeignKeyConstraint(["receivable_account_id"], ["accounts.id"]),
         sa.ForeignKeyConstraint(["journal_id"], ["journals.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("journal_id", name="uq_sales_credit_refund_journal"),
     )
     op.create_index("ix_sales_credit_refunds_organisation_id", "sales_credit_refunds", ["organisation_id"], unique=False)
     op.create_index("ix_sales_credit_refunds_customer_id", "sales_credit_refunds", ["customer_id"], unique=False)
@@ -69,7 +68,6 @@ def upgrade():
         sa.ForeignKeyConstraint(["payable_account_id"], ["accounts.id"]),
         sa.ForeignKeyConstraint(["journal_id"], ["journals.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("journal_id", name="uq_purchase_credit_refund_journal"),
     )
     op.create_index("ix_purchase_credit_refunds_organisation_id", "purchase_credit_refunds", ["organisation_id"], unique=False)
     op.create_index("ix_purchase_credit_refunds_supplier_id", "purchase_credit_refunds", ["supplier_id"], unique=False)
