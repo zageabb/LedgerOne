@@ -14,6 +14,7 @@ class SalesCreditNote(db.Model):
     invoice_id = db.Column(db.String(36), db.ForeignKey("sales_invoices.id"), nullable=False, index=True)
     credit_number = db.Column(db.String(120), nullable=False, index=True)
     credit_date = db.Column(db.Date, nullable=False, index=True)
+    tax_point = db.Column(db.Date, nullable=False, index=True)
     description = db.Column(db.String(500), nullable=False)
     currency = db.Column(db.String(3), nullable=False, default="GBP")
     status = db.Column(db.String(30), nullable=False, default="posted", index=True)
