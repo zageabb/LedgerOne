@@ -440,6 +440,9 @@ def install_control_account_service_guards() -> None:
         SalesService, "record_payment", ("accounts_receivable",), sales_payment_before
     )
     _wrap_service_method(
+        SalesService, "record_credit_refund", ("accounts_receivable",), sales_payment_before
+    )
+    _wrap_service_method(
         SalesService, "adopt_payment_journal", ("accounts_receivable",), sales_invoice_before
     )
     _wrap_service_method(
@@ -453,6 +456,9 @@ def install_control_account_service_guards() -> None:
     )
     _wrap_service_method(
         PurchasesService, "record_payment", ("accounts_payable",), purchase_payment_before
+    )
+    _wrap_service_method(
+        PurchasesService, "record_credit_refund", ("accounts_payable",), purchase_payment_before
     )
     _wrap_service_method(
         PurchasesService, "adopt_payment_journal", ("accounts_payable",), purchase_bill_before
