@@ -7,6 +7,7 @@
     <p>{{ 'See important changes and transactions recorded by LedgerOne.' if ui_mode == 'home' else 'Search auditable activity across LedgerOne modules, users, APIs and local AI.' }}</p>
   </div>
   <div class="actions">
+    <a class="button" href="{{ url_for('audit.integrity') }}">Verify integrity</a>
     <a class="button button-secondary" href="{{ export_url }}">Export CSV</a>
   </div>
 </div>

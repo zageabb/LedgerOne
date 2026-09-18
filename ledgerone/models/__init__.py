@@ -1,4 +1,4 @@
-from ledgerone.models.audit import AuditEvent
+from ledgerone.models.audit import AuditChainHead, AuditEvent
 from ledgerone.models.core import ApiKey, Membership, ModuleState, Organisation, Setting, User
 from ledgerone.models.ledger import (
     Account,
@@ -12,6 +12,7 @@ from ledgerone.models.ledger import (
 
 __all__ = [
     "AuditEvent",
+    "AuditChainHead",
     "ApiKey",
     "Membership",
     "ModuleState",

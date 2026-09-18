@@ -3,7 +3,7 @@ from ledgerone.module_registry import ModuleManifest
 MANIFEST = ModuleManifest(
     id="audit",
     name="Audit Trail",
-    description="Search and export auditable activity across LedgerOne modules.",
+    description="Search, export and verify tamper-evident activity across LedgerOne modules.",
     icon="shield-check",
     order=80,
     route_endpoint="audit.index",

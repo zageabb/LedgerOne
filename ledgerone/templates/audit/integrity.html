@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Audit Integrity · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Audit integrity verification</h1>
+    <p>Verify the append-only audit chain for this organisation against its retained chain head.</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('audit.index') }}">Back to audit trail</a></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Integrity result</h2>
+    <span class="badge {{ 'badge-success' if integrity.valid else '' }}">{{ 'Valid' if integrity.valid else 'Attention required' }}</span>
+  </div>
+  <div class="card-body">
+    {% if integrity.valid %}
+      <p><strong>{{ integrity.checked_events }}</strong> audit events verified successfully.</p>
+      <p class="help">Last sequence: {{ integrity.last_sequence }}{% if integrity.last_hash %} · Chain head: <span class="code">{{ integrity.last_hash }}</span>{% endif %}</p>
+    {% else %}
+      <div class="flash flash-danger">
+        Audit integrity verification failed: <strong>{{ integrity.first_error|replace('_',' ')|title }}</strong>.
+        {% if integrity.event_id %}First affected event: <span class="code">{{ integrity.event_id }}</span>.{% endif %}
+      </div>
+      <pre class="code" style="white-space:pre-wrap">{{ integrity|tojson(indent=2) }}</pre>
+    {% endif %}
+  </div>
+</div>
+
+<div class="flash flash-warning section">
+  The hash chain detects application-level edits, broken links, sequence gaps and deletion that no longer matches the retained chain head. It is not a substitute for database access controls: an unrestricted database administrator who can rewrite both events and chain heads remains inside the trust boundary.
+</div>
+{% endblock %}
