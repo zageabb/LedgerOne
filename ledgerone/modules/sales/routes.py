@@ -137,17 +137,27 @@ def payments():
                     if key.startswith("allocate_") and value.strip():
                         allocations.append({"invoice_id": key.removeprefix("allocate_"), "amount": value})
                 SalesService.allocate_payment(context, request.form.get("payment_id", ""), allocations)
-                flash("Payment allocation updated.", "success")
+                flash("Payment / credit allocation updated.", "success")
+            elif action == "refund":
+                SalesService.record_credit_refund(
+                    context,
+                    source_payment_id=request.form.get("payment_id", ""),
+                    refund_date=date.fromisoformat(
+                        request.form.get("refund_date") or date.today().isoformat()
+                    ),
+                    amount=request.form.get("amount", "0"),
+                    bank_account_id=request.form.get("bank_account_id", ""),
+                    receivable_account_id=request.form.get("receivable_account_id", ""),
+                    reference=request.form.get("reference") or None,
+                )
+                flash("Customer credit refund posted.", "success")
             return redirect(url_for("sales.payments"))
         except (ValueError, PermissionError, LedgerError) as exc:
             flash(str(exc), "danger")
 
     accounts = LedgerService.list_accounts(context)
     invoices = SalesService.list_invoices(context, 250)
-    payment_rows = [
-        row for row in SalesService.list_payments(context, 200)
-        if getattr(row, "settlement_type", "payment") == "payment"
-    ][:100]
+    payment_rows = SalesService.list_payments(context, 200)[:100]
     journals = (
         Journal.query.filter_by(organisation_id=context.organisation_id, status="posted")
         .order_by(Journal.journal_date.desc(), Journal.created_at.desc())
@@ -161,6 +171,9 @@ def payments():
         outstanding={row.id: SalesService.invoice_outstanding(row) for row in invoices},
         payments=payment_rows,
         allocated={row.id: SalesService.payment_allocated(row.id) for row in payment_rows},
+        refunded={row.id: SalesService.payment_refunded(row.id) for row in payment_rows},
+        available={row.id: SalesService.payment_available(row.id) for row in payment_rows},
+        credit_refunds=SalesService.list_credit_refunds(context, 100),
         bank_accounts=[row for row in accounts if row.account_type == "asset"],
         receivable_accounts=[row for row in accounts if row.account_type == "asset"],
         journals=journals,
