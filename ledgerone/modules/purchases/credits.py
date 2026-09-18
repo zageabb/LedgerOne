@@ -29,6 +29,21 @@ class PurchaseCreditService:
         )
 
     @staticmethod
+    def credited_net(bill_id: str) -> Decimal:
+        return _money(
+            db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditNote.subtotal), 0))
+            .filter(PurchaseCreditNote.bill_id == bill_id)
+            .scalar()
+        )
+
+    @staticmethod
+    def remaining_creditable_net(bill: PurchaseBill) -> Decimal:
+        return max(
+            Decimal("0.00"),
+            _money(bill.subtotal) - PurchaseCreditService.credited_net(bill.id),
+        )
+
+    @staticmethod
     def create_credit_note(
         context: AccessContext,
         *,
@@ -64,11 +79,7 @@ class PurchaseCreditService:
         effective_tax_point = tax_point or credit_date
         if tax_code:
             TaxService.assert_tax_point_open(context, effective_tax_point)
-        credited_net = _money(
-            db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditNote.subtotal), 0))
-            .filter(PurchaseCreditNote.bill_id == bill.id)
-            .scalar()
-        )
+        credited_net = PurchaseCreditService.credited_net(bill.id)
         credited_tax = _money(
             db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditNote.tax_total), 0))
             .filter(PurchaseCreditNote.bill_id == bill.id)
