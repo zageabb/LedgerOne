@@ -97,6 +97,7 @@ def test_vat_invoice_requires_supplier_and_customer_identity(app):
             customer_id=customer.id,
             invoice_number="VAT-MISSING-001",
             invoice_date=date(2026, 9, 17),
+            tax_point=date(2026, 9, 16),
             due_date=None,
             description="Taxable service",
             amount="100.00",
@@ -137,9 +138,10 @@ def test_complete_vat_invoice_generates_pdf_with_tax_point_override(app):
             receivable_account_id=accounts["1200"],
             revenue_account_id=accounts["4000"],
             tax_code_id=tax_code.id,
-            metadata={"tax_point": "2026-09-16", "issue_date": "2026-09-17"},
+            metadata={"issue_date": "2026-09-17"},
         )
 
+        assert invoice.tax_point == date(2026, 9, 16)
         pdf, filename = FinancialDocumentPdfService.sales_invoice(context, invoice.id)
         assert pdf.startswith(b"%PDF")
         assert len(pdf) > 3000
