@@ -150,9 +150,9 @@ def _parent_for_line(session: Session, line, relationship_name: str, parent_mode
 def _guard_posted_documents(session: Session, flush_context, instances) -> None:
     from ledgerone.modules.expense_claims.models import ExpenseClaim, ExpenseClaimLine
     from ledgerone.modules.purchases.credit_models import PurchaseCreditNote
-    from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine
+    from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine, PurchaseCreditRefund
     from ledgerone.modules.sales.credit_models import SalesCreditNote
-    from ledgerone.modules.sales.models import SalesInvoice, SalesInvoiceLine
+    from ledgerone.modules.sales.models import SalesCreditRefund, SalesInvoice, SalesInvoiceLine
 
     invoice_posted = frozenset({"posted", "part_paid", "paid", "part_credited", "credited"})
     bill_posted = frozenset({"posted", "part_paid", "paid", "part_credited", "credited"})
@@ -182,6 +182,14 @@ def _guard_posted_documents(session: Session, flush_context, instances) -> None:
                 raise PostedDocumentImmutableError(
                     "Posted purchase credit note is immutable; create a supported corrective transaction instead"
                 )
+        elif isinstance(obj, SalesCreditRefund) and sa_inspect(obj).persistent and _changed_fields(obj):
+            raise PostedDocumentImmutableError(
+                "Posted customer credit refund is immutable; use a reversal or supported correction workflow instead"
+            )
+        elif isinstance(obj, PurchaseCreditRefund) and sa_inspect(obj).persistent and _changed_fields(obj):
+            raise PostedDocumentImmutableError(
+                "Posted supplier credit refund is immutable; use a reversal or supported correction workflow instead"
+            )
         elif isinstance(obj, SalesInvoiceLine):
             parent = _parent_for_line(session, obj, "invoice", SalesInvoice, "invoice_id")
             if _parent_is_immutably_posted(parent, invoice_posted):
@@ -226,6 +234,10 @@ def _guard_posted_documents(session: Session, flush_context, instances) -> None:
             _reject_document_delete(obj, "sales credit note", credit_posted)
         elif isinstance(obj, PurchaseCreditNote):
             _reject_document_delete(obj, "purchase credit note", credit_posted)
+        elif isinstance(obj, SalesCreditRefund):
+            raise PostedDocumentImmutableError("Posted customer credit refund cannot be deleted")
+        elif isinstance(obj, PurchaseCreditRefund):
+            raise PostedDocumentImmutableError("Posted supplier credit refund cannot be deleted")
         elif isinstance(obj, SalesInvoiceLine):
             parent = _parent_for_line(session, obj, "invoice", SalesInvoice, "invoice_id")
             if _parent_is_immutably_posted(parent, invoice_posted):
