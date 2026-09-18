@@ -2,6 +2,10 @@ from ledgerone.extensions import db
 from ledgerone.models.core import new_id, utcnow
 
 
+def _invoice_tax_point_default(context):
+    return context.get_current_parameters().get("invoice_date")
+
+
 class Customer(db.Model):
     __tablename__ = "customers"
 
@@ -29,7 +33,7 @@ class SalesInvoice(db.Model):
     customer_id = db.Column(db.String(36), db.ForeignKey("customers.id"), nullable=False, index=True)
     invoice_number = db.Column(db.String(120), nullable=False, index=True)
     invoice_date = db.Column(db.Date, nullable=False, index=True)
-    tax_point = db.Column(db.Date, nullable=False, index=True)
+    tax_point = db.Column(db.Date, nullable=False, index=True, default=_invoice_tax_point_default)
     due_date = db.Column(db.Date, nullable=True)
     currency = db.Column(db.String(3), nullable=False, default="GBP")
     status = db.Column(db.String(30), nullable=False, default="draft", index=True)
