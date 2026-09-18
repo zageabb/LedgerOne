@@ -351,7 +351,7 @@ class TaxService:
 
     @staticmethod
     def get_return_period(context: AccessContext, period_id: str):
-        if not context.can("tax.read"):
+        if not (context.can("tax.read") or context.can("tax.manage")):
             raise PermissionError("tax.read")
         row = db.session.get(VATReturnPeriod, period_id)
         if not row or row.organisation_id != context.organisation_id:
