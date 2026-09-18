@@ -7,7 +7,9 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import or_
 
+from ledgerone.extensions import db
 from ledgerone.models.audit import AuditEvent
+from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 
 
@@ -110,6 +112,11 @@ class AuditService:
             "entity_type": row.entity_type,
             "entity_id": row.entity_id,
             "detail": row.detail or {},
+            "chain_scope": row.chain_scope,
+            "chain_sequence": row.chain_sequence,
+            "previous_hash": row.previous_hash,
+            "event_hash": row.event_hash,
+            "chain_version": row.chain_version,
         }
 
     @staticmethod
@@ -149,6 +156,10 @@ class AuditService:
                 "actor_id",
                 "entity_type",
                 "entity_id",
+                "chain_sequence",
+                "previous_hash",
+                "event_hash",
+                "chain_version",
                 "detail",
             ]
         )
@@ -162,7 +173,29 @@ class AuditService:
                     row.actor_id or "",
                     row.entity_type or "",
                     row.entity_id or "",
+                    row.chain_sequence,
+                    row.previous_hash or "",
+                    row.event_hash,
+                    row.chain_version,
                     json.dumps(row.detail or {}, sort_keys=True, default=str),
                 ]
             )
+
+        filter_detail = {}
+        for key, value in filters.items():
+            if value is None or value == "":
+                continue
+            filter_detail[key] = value.isoformat() if isinstance(value, date) else value
+        record_audit_event(
+            context,
+            module_id="audit",
+            action="audit_exported",
+            entity_type="audit_export",
+            detail={
+                "row_count": len(rows),
+                "filters": filter_detail,
+                "maximum_rows": 10000,
+            },
+        )
+        db.session.commit()
         return output.getvalue()
