@@ -53,7 +53,7 @@ class PurchaseBillWorkflowService:
         bill_date: date,
         due_date: date | None,
         tax_point: date | None = None,
-        description: str = "Purchase",
+        description: str,
         amount,
         payable_account_id: str,
         expense_account_id: str,
