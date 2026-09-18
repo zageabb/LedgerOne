@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}VAT Returns · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>VAT return control centre</h1>
+    <p>Create VAT periods, record auditable adjustments, freeze the exact source population and retain submission evidence.</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('tax.vat_return') }}">Ad-hoc VAT summary</a>
+    <a class="button button-secondary" href="{{ url_for('tax.index') }}">Tax setup</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Create return period</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create_period">
+        <div class="field"><label>From</label><input type="date" name="start_date" required></div>
+        <div class="field"><label>To</label><input type="date" name="end_date" required></div>
+        <div class="field-full"><button class="button" type="submit">Create draft return</button></div>
+      </form>
+      <p class="help">Return periods cannot overlap. Draft periods remain recalculable until finalised.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>VAT adjustment</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="adjustment">
+        <div class="field"><label>Tax point</label><input type="date" name="tax_point" value="{{ today }}" required></div>
+        <div class="field"><label>VAT box</label><select name="box_number"><option value="1">Box 1 · Output VAT</option><option value="4">Box 4 · Input VAT</option><option value="6">Box 6 · Sales net</option><option value="7">Box 7 · Purchases net</option></select></div>
+        <div class="field"><label>Adjustment amount</label><input name="amount" inputmode="decimal" placeholder="0.00" required><div class="help">Use a negative value to reduce a box.</div></div>
+        <div class="field"><label>Evidence reference</label><input name="evidence_reference" placeholder="Document / working paper / ticket"></div>
+        <div class="field field-full"><label>Reason</label><input name="reason" required placeholder="Why this adjustment is required"></div>
+        <div class="field-full"><button class="button" type="submit">Record adjustment</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>VAT return periods</h2><span class="badge">{{ periods|length }}</span></div>
+  <div class="table-wrap">
+    {% if periods %}
+    <table>
+      <thead><tr><th>Period</th><th>Status</th><th class="number">Box 1</th><th class="number">Box 4</th><th class="number">Box 5</th><th>Sources</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for row in periods %}
+        {% set summary = summaries.get(row.id) %}
+        <tr>
+          <td><strong>{{ row.start_date.strftime('%d %b %Y') }}</strong><br>to {{ row.end_date.strftime('%d %b %Y') }}</td>
+          <td><span class="badge {{ 'badge-success' if row.status == 'submitted' else '' }}">{{ row.status|title }}</span>{% if row.submission_reference %}<br><span class="help">{{ row.submission_reference }}</span>{% endif %}</td>
+          <td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_1_output_vat) if summary else '—' }}</td>
+          <td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_4_input_vat) if summary else '—' }}</td>
+          <td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_5_net_vat) if summary else '—' }}</td>
+          <td>{% if summary %}{{ summary.sales_documents }} sales · {{ summary.purchase_documents }} purchases · {{ summary.adjustments_count }} adjustments{% else %}—{% endif %}</td>
+          <td>
+            {% if row.status == 'draft' %}
+            <form method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="finalise"><input type="hidden" name="period_id" value="{{ row.id }}">
+              <button class="button button-small" type="submit">Finalise & lock</button>
+            </form>
+            {% elif row.status == 'final' %}
+            <form method="post" class="form-grid" style="min-width:260px">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="submit"><input type="hidden" name="period_id" value="{{ row.id }}">
+              <div class="field field-full"><input name="submission_reference" required placeholder="HMRC receipt/reference or external filing ID"></div>
+              <div class="field field-full"><input name="submission_note" placeholder="Optional filing note"></div>
+              <div class="field-full"><button class="button button-small" type="submit">Mark submitted</button></div>
+            </form>
+            {% else %}
+              <span class="help">Locked</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">No VAT return periods yet.</div>{% endif %}
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Adjustment register</h2><span class="badge">{{ adjustments|length }}</span></div>
+  <div class="table-wrap">
+    {% if adjustments %}
+    <table><thead><tr><th>Tax point</th><th>Box</th><th class="number">Amount</th><th>Reason</th><th>Evidence</th><th>Return</th></tr></thead><tbody>
+    {% for row in adjustments %}
+      <tr><td>{{ row.tax_point.strftime('%d %b %Y') }}</td><td>Box {{ row.box_number }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(row.amount) }}</td><td>{{ row.reason }}</td><td>{{ row.evidence_reference or '—' }}</td><td>{{ row.return_period_id or 'Draft / unassigned' }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}<div class="empty">No VAT adjustments recorded.</div>{% endif %}
+  </div>
+</div>
+
+<div class="flash flash-warning section">
+  LedgerOne stores finalised VAT return populations and submission evidence, but it does not yet transmit VAT returns to HMRC. Reverse-charge, import VAT and Boxes 2/8/9 remain outside the currently supported VAT calculation scope.
+</div>
+{% endblock %}
