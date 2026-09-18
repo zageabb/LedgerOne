@@ -199,3 +199,27 @@ def allocate_payment(payment_id):
         })
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+@api_bp.post("/payments/<payment_id>/refund")
+@require_api("sales.write")
+def refund_credit(payment_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = SalesService.record_credit_refund(
+            g.access_context,
+            source_payment_id=payment_id,
+            refund_date=date.fromisoformat(payload.get("date") or date.today().isoformat()),
+            amount=payload["amount"],
+            bank_account_id=payload["bank_account_id"],
+            receivable_account_id=payload["receivable_account_id"],
+            reference=payload.get("reference"),
+        )
+        return jsonify({
+            "id": row.id,
+            "source_payment_id": row.source_payment_id,
+            "amount": str(row.amount),
+            "journal_id": row.journal_id,
+            "remaining_credit": str(SalesService.payment_available(row.source_payment_id)),
+        }), 201
+    except (KeyError, ValueError, PermissionError, LedgerError) as exc:
+        return jsonify({"error": str(exc)}), 400
