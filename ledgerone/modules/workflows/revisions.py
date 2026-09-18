@@ -162,6 +162,11 @@ class WorkflowRevisionService:
                 invoice_number=str(WorkflowRevisionService._value(changes, "invoice_number", old_payload["invoice_number"])),
                 invoice_date=WorkflowRevisionService._date(changes, "invoice_date", old_payload["invoice_date"]),
                 due_date=WorkflowRevisionService._date(changes, "due_date", old_payload.get("due_date")),
+                tax_point=WorkflowRevisionService._date(
+                    changes,
+                    "tax_point",
+                    old_payload.get("tax_point") or old_payload["invoice_date"],
+                ),
                 description=str(WorkflowRevisionService._value(changes, "description", old_payload.get("description") or "Sales")),
                 amount=WorkflowRevisionService._value(changes, "amount", old_payload["amount"]),
                 receivable_account_id=str(WorkflowRevisionService._value(changes, "receivable_account_id", old_payload["receivable_account_id"])),
@@ -238,6 +243,11 @@ class WorkflowRevisionService:
                 bill_number=str(WorkflowRevisionService._value(changes, "bill_number", old_payload["bill_number"])),
                 bill_date=WorkflowRevisionService._date(changes, "bill_date", old_payload["bill_date"]),
                 due_date=WorkflowRevisionService._date(changes, "due_date", old_payload.get("due_date")),
+                tax_point=WorkflowRevisionService._date(
+                    changes,
+                    "tax_point",
+                    old_payload.get("tax_point") or old_payload["bill_date"],
+                ),
                 description=str(WorkflowRevisionService._value(changes, "description", old_payload.get("description") or "Purchase")),
                 amount=WorkflowRevisionService._value(changes, "amount", old_payload["amount"]),
                 payable_account_id=str(WorkflowRevisionService._value(changes, "payable_account_id", old_payload["payable_account_id"])),
