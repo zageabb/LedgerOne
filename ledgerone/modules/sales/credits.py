@@ -58,11 +58,30 @@ class SalesCreditService:
         effective_tax_point = tax_point or credit_date
         if tax_code:
             TaxService.assert_tax_point_open(context, effective_tax_point)
+        credited_net = _money(
+            db.session.query(db.func.coalesce(db.func.sum(SalesCreditNote.subtotal), 0))
+            .filter(SalesCreditNote.invoice_id == invoice.id)
+            .scalar()
+        )
+        credited_tax = _money(
+            db.session.query(db.func.coalesce(db.func.sum(SalesCreditNote.tax_total), 0))
+            .filter(SalesCreditNote.invoice_id == invoice.id)
+            .scalar()
+        )
+        remaining_net = max(Decimal("0.00"), _money(invoice.subtotal) - credited_net)
+        remaining_tax = max(Decimal("0.00"), _money(invoice.tax_total) - credited_tax)
+        if net_amount > remaining_net:
+            raise ValueError("Credit note exceeds the remaining uncredited invoice value")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
+        if net_amount == remaining_net:
+            # Use the exact remaining VAT on the final credit to avoid cumulative
+            # penny rounding differences across several partial credit notes.
+            tax_amount = remaining_tax
+        elif tax_amount > remaining_tax:
+            tax_amount = remaining_tax
         gross_amount = net_amount + tax_amount
         outstanding = SalesService.invoice_outstanding(invoice)
-        if gross_amount > outstanding:
-            raise ValueError("Credit note exceeds the invoice outstanding balance")
+        auto_apply = min(gross_amount, outstanding)
 
         original_journal = db.session.get(Journal, invoice.posted_journal_id)
         if not original_journal or original_journal.organisation_id != context.organisation_id:
@@ -172,19 +191,21 @@ class SalesCreditService:
                 currency=invoice.currency,
                 journal_id=journal.id,
                 settlement_type="credit_note",
-                status="allocated",
+                status="unallocated",
             )
             db.session.add_all([note, settlement])
             db.session.flush()
-            db.session.add(
-                SalesPaymentAllocation(
-                    payment_id=settlement.id,
-                    invoice_id=invoice.id,
-                    amount=gross_amount,
+            if auto_apply > 0:
+                db.session.add(
+                    SalesPaymentAllocation(
+                        payment_id=settlement.id,
+                        invoice_id=invoice.id,
+                        amount=auto_apply,
+                    )
                 )
-            )
-            remaining = outstanding - gross_amount
-            invoice.status = "credited" if remaining == 0 else "part_credited"
+                db.session.flush()
+            SalesService.refresh_invoice_status(invoice)
+            SalesService.refresh_payment_status(settlement)
             record_audit_event(
                 context,
                 module_id="sales",
@@ -199,6 +220,8 @@ class SalesCreditService:
                     "tax_total": str(tax_amount),
                     "tax_point": note.tax_point.isoformat(),
                     "total": str(gross_amount),
+                    "auto_allocated": str(auto_apply),
+                    "customer_credit_created": str(gross_amount - auto_apply),
                 },
             )
             db.session.commit()
