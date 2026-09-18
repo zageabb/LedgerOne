@@ -5,6 +5,7 @@ from flask_login import login_required
 
 from ledgerone.modules.audit.services import AuditService
 from ledgerone.security import browser_context, require_module
+from ledgerone.services.audit_integrity import AuditIntegrityService
 
 bp = Blueprint("audit", __name__, url_prefix="/audit")
 
@@ -99,3 +100,15 @@ def export():
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@bp.get("/integrity")
+@login_required
+@require_module("audit")
+def integrity():
+    context = browser_context()
+    try:
+        result = AuditIntegrityService.verify(context)
+    except (PermissionError, ValueError):
+        abort(403)
+    return render_template("audit/integrity.html", integrity=result)
