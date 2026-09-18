@@ -208,15 +208,19 @@ class SalesService:
             or bank.organisation_id != context.organisation_id
             or not bank.is_active
             or bank.account_type != "asset"
+            or bank.is_control_account
         ):
-            raise ValueError("Bank ledger account must be an active asset account")
+            raise ValueError("Bank ledger account must be an active non-control asset account")
         if (
             not receivable
             or receivable.organisation_id != context.organisation_id
             or not receivable.is_active
             or receivable.account_type != "asset"
+            or (receivable.metadata_json or {}).get("control_role") != "accounts_receivable"
         ):
-            raise ValueError("Receivables account must be an active asset account")
+            raise ValueError("Receivables account must be the configured accounts-receivable control account")
+        if bank.id == receivable.id:
+            raise ValueError("Bank and receivables accounts must be different")
 
         refund_id = new_id()
         try:
