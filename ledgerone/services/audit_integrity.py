@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ledgerone.extensions import db
 from ledgerone.models.audit import AuditChainHead, AuditEvent
-from ledgerone.models.core import Organisation, utcnow
+from ledgerone.models.core import Organisation, new_id, utcnow
 from ledgerone.services.context import AccessContext
 
 
@@ -115,10 +115,20 @@ def calculate_row_hash(row: AuditEvent) -> str:
     )
 
 
-def lock_chain_head(organisation_id: str | None) -> AuditChainHead:
+def lock_chain_head(
+    organisation_id: str | None,
+    *,
+    session: Session | None = None,
+) -> AuditChainHead:
     scope = audit_scope(organisation_id)
+    session = session or db.session
+
+    for candidate in session.new:
+        if isinstance(candidate, AuditChainHead) and candidate.scope_key == scope:
+            return candidate
+
     head = (
-        db.session.query(AuditChainHead)
+        session.query(AuditChainHead)
         .filter(AuditChainHead.scope_key == scope)
         .with_for_update()
         .one_or_none()
@@ -131,8 +141,7 @@ def lock_chain_head(organisation_id: str | None) -> AuditChainHead:
             last_hash=None,
             updated_at=utcnow(),
         )
-        db.session.add(head)
-        db.session.flush()
+        session.add(head)
     return head
 
 
@@ -227,14 +236,60 @@ class AuditIntegrityService:
 _guard_installed = False
 
 
+def _chain_new_event(session: Session, obj: AuditEvent) -> None:
+    # Most code uses record_audit_event(), which assigns chain metadata immediately.
+    # This fallback protects legacy/internal direct AuditEvent constructors so every
+    # inserted row still enters the same chain at the persistence boundary.
+    if obj.chain_scope and obj.chain_sequence and obj.event_hash:
+        return
+
+    if not obj.id:
+        obj.id = new_id()
+    if not obj.created_at:
+        obj.created_at = utcnow()
+
+    scope = audit_scope(obj.organisation_id)
+    head = lock_chain_head(obj.organisation_id, session=session)
+    sequence = int(head.last_sequence or 0) + 1
+    previous_hash = head.last_hash
+    digest = calculate_event_hash(
+        event_id=obj.id,
+        organisation_id=obj.organisation_id,
+        actor_type=obj.actor_type,
+        actor_id=obj.actor_id,
+        module_id=obj.module_id,
+        action=obj.action,
+        entity_type=obj.entity_type,
+        entity_id=obj.entity_id,
+        detail=obj.detail or {},
+        created_at=obj.created_at,
+        chain_scope=scope,
+        chain_sequence=sequence,
+        previous_hash=previous_hash,
+        chain_version=CHAIN_VERSION,
+    )
+    obj.chain_scope = scope
+    obj.chain_sequence = sequence
+    obj.previous_hash = previous_hash
+    obj.event_hash = digest
+    obj.chain_version = CHAIN_VERSION
+    head.last_sequence = sequence
+    head.last_hash = digest
+    head.updated_at = obj.created_at
+
+
 def _guard_audit_events(session: Session, flush_context, instances) -> None:
+    for obj in list(session.new):
+        if isinstance(obj, AuditEvent):
+            _chain_new_event(session, obj)
+
     for obj in list(session.dirty):
         if isinstance(obj, AuditEvent) and sa_inspect(obj).persistent:
             raise AuditImmutableError(
                 "Persisted audit events are append-only and cannot be updated"
             )
     for obj in list(session.deleted):
-        if isinstance(obj, AuditEvent) and db.inspect(obj).persistent:
+        if isinstance(obj, AuditEvent) and sa_inspect(obj).persistent:
             raise AuditImmutableError(
                 "Persisted audit events are append-only and cannot be deleted"
             )
