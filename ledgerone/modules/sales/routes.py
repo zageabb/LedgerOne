@@ -36,6 +36,8 @@ def index():
                 ).date()
                 due_date_raw = request.form.get("due_date")
                 due_date = datetime.strptime(due_date_raw, "%Y-%m-%d").date() if due_date_raw else None
+                tax_point_raw = request.form.get("tax_point")
+                tax_point = datetime.strptime(tax_point_raw, "%Y-%m-%d").date() if tax_point_raw else invoice_date
                 if module_registry.is_enabled(context.organisation_id, "workflows"):
                     # Import lazily so Sales remains independent of the workflow package
                     # during module discovery.
@@ -47,6 +49,7 @@ def index():
                         invoice_number=request.form.get("invoice_number", ""),
                         invoice_date=invoice_date,
                         due_date=due_date,
+                        tax_point=tax_point,
                         description=request.form.get("description", "Sales"),
                         amount=request.form.get("amount", "0"),
                         receivable_account_id=request.form.get("receivable_account_id", ""),
@@ -65,6 +68,7 @@ def index():
                         invoice_number=request.form.get("invoice_number", ""),
                         invoice_date=invoice_date,
                         due_date=due_date,
+                        tax_point=tax_point,
                         description=request.form.get("description", "Sales"),
                         amount=request.form.get("amount", "0"),
                         receivable_account_id=request.form.get("receivable_account_id", ""),
