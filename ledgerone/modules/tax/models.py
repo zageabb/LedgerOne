@@ -48,3 +48,56 @@ class TaxCode(db.Model):
 
     sales_tax_account = db.relationship("Account", foreign_keys=[sales_tax_account_id])
     purchase_tax_account = db.relationship("Account", foreign_keys=[purchase_tax_account_id])
+
+
+class VATReturnPeriod(db.Model):
+    __tablename__ = "vat_return_periods"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "organisation_id", "start_date", "end_date", name="uq_vat_return_period_org_dates"
+        ),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(
+        db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True
+    )
+    start_date = db.Column(db.Date, nullable=False, index=True)
+    end_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    snapshot_json = db.Column(db.JSON, nullable=False, default=dict)
+    finalised_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    finalised_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    submitted_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    submission_reference = db.Column(db.String(160), nullable=True)
+    submission_note = db.Column(db.String(1000), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
+    )
+
+    adjustments = db.relationship(
+        "VATAdjustment", back_populates="return_period", lazy="selectin"
+    )
+
+
+class VATAdjustment(db.Model):
+    __tablename__ = "vat_adjustments"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(
+        db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True
+    )
+    tax_point = db.Column(db.Date, nullable=False, index=True)
+    box_number = db.Column(db.String(2), nullable=False, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    evidence_reference = db.Column(db.String(500), nullable=True)
+    return_period_id = db.Column(
+        db.String(36), db.ForeignKey("vat_return_periods.id"), nullable=True, index=True
+    )
+    created_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    return_period = db.relationship("VATReturnPeriod", back_populates="adjustments")

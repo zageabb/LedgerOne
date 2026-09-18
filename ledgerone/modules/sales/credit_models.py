@@ -2,6 +2,10 @@ from ledgerone.extensions import db
 from ledgerone.models.core import new_id, utcnow
 
 
+def _credit_tax_point_default(context):
+    return context.get_current_parameters().get("credit_date")
+
+
 class SalesCreditNote(db.Model):
     __tablename__ = "sales_credit_notes"
     __table_args__ = (
@@ -14,6 +18,7 @@ class SalesCreditNote(db.Model):
     invoice_id = db.Column(db.String(36), db.ForeignKey("sales_invoices.id"), nullable=False, index=True)
     credit_number = db.Column(db.String(120), nullable=False, index=True)
     credit_date = db.Column(db.Date, nullable=False, index=True)
+    tax_point = db.Column(db.Date, nullable=False, index=True, default=_credit_tax_point_default)
     description = db.Column(db.String(500), nullable=False)
     currency = db.Column(db.String(3), nullable=False, default="GBP")
     status = db.Column(db.String(30), nullable=False, default="posted", index=True)

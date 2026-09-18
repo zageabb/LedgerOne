@@ -105,6 +105,7 @@ class PurchasesService:
     @staticmethod
     def create_bill(context: AccessContext, *, supplier_id: str, bill_number: str,
                     bill_date, due_date, description: str, amount,
+                    tax_point=None,
                     payable_account_id: str, expense_account_id: str,
                     currency: str = "GBP", tax_code_id: str | None = None,
                     metadata: dict | None = None, commit: bool = True):
@@ -130,7 +131,10 @@ class PurchasesService:
             raise ValueError("Bill due date cannot be before the bill date")
 
         from ledgerone.modules.tax.services import TaxService
+        effective_tax_point = tax_point or bill_date
         tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
+        if tax_code:
+            TaxService.assert_tax_point_open(context, effective_tax_point)
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
 
@@ -139,6 +143,7 @@ class PurchasesService:
             supplier_id=supplier.id,
             bill_number=bill_number.strip(),
             bill_date=bill_date,
+            tax_point=effective_tax_point,
             due_date=due_date,
             currency=currency.upper(),
             status="posting",
@@ -231,6 +236,7 @@ class PurchasesService:
                     "tax_total": str(tax_amount),
                     "total": str(total),
                     "tax_code": tax_code.code if tax_code else None,
+                    "tax_point": bill.tax_point.isoformat(),
                     "currency": bill.currency,
                     "due_date": bill.due_date.isoformat(),
                 },

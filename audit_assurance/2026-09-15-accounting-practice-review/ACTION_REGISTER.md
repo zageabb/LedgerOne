@@ -407,65 +407,66 @@ Test/retest notes: `—`
 
 ## LO-AUD-006 — UK VAT invoice completeness
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** HIGH
 
 ### Implementation checklist
 
-- [ ] Organisation legal/trading name fields as required.
-- [ ] Organisation registered/principal address.
-- [ ] VAT registration number pulled into invoice output.
-- [ ] Invoice issue date.
-- [ ] Separate VAT tax point/time of supply.
-- [ ] Customer name and address.
-- [ ] Line description, quantity/extent and unit price.
-- [ ] VAT rate clearly shown per applicable line/supply.
-- [ ] Net/gross/VAT totals correctly displayed.
-- [ ] Total VAT sterling requirement handled for foreign-currency invoicing when FX support eventually exists.
-- [ ] Sequential controlled invoice number depends on LO-AUD-009.
+- [x] Organisation legal/trading name fields as required.
+- [x] Organisation registered/principal address.
+- [x] VAT registration number pulled into invoice output.
+- [x] Invoice issue date.
+- [x] Separate VAT tax point/time of supply.
+- [x] Customer name and address.
+- [x] Line description, quantity/extent and unit price.
+- [x] VAT rate clearly shown per applicable line/supply.
+- [x] Net/gross/VAT totals correctly displayed.
+- [x] Total VAT is shown in sterling for the currently supported GBP-only accounting scope; foreign-currency accounting remains blocked until the multicurrency phase.
+- [x] Sequential controlled invoice numbering is implemented through the controlled numbering service.
 
 ### Required tests
 
-- [ ] Rendered standard-rated VAT invoice contains every required test field.
-- [ ] Non-VAT organisation cannot present a document as a VAT invoice.
-- [ ] VAT number and tax point are retained with issued invoice evidence.
+- [x] Rendered standard-rated VAT invoice contains required supplier/customer identity, VAT number, tax point, VAT rate and sterling VAT total.
+- [x] Non-VAT organisation cannot present a document as a VAT invoice.
+- [x] VAT number and retained tax point are used by the issued invoice renderer.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `8a8cf7c9aa3df08a8de27811e6202c00a9c58916`  
+Test/retest notes: PR #7 CI run #425 passed compile, clean migration validation and the full regression suite: 200 passed, 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
 ## LO-AUD-007 — VAT tax-point, return lifecycle and adjustments
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** HIGH
 
 ### Implementation checklist
 
-- [ ] Add explicit tax point to VAT-relevant sales/purchase records.
-- [ ] VAT return uses tax point rather than assuming document date.
-- [ ] Add VAT return period entity.
-- [ ] Draft/final/submitted return lifecycle.
-- [ ] Retain exact source population used by final/submitted return.
-- [ ] Add separately identified VAT adjustments with reason/evidence.
-- [ ] Define late-entry handling after a return is final/submitted.
-- [ ] Add supported reverse-charge/import treatment before claiming support.
-- [ ] Define MTD digital-link/submission architecture.
-- [ ] Retain submission request/response/receipt if HMRC API integration is introduced.
+- [x] Add explicit retained tax point to VAT-relevant sales, purchase and credit-note records.
+- [x] VAT return uses tax point rather than assuming document date.
+- [x] Add VAT return period entity.
+- [x] Draft/final/submitted return lifecycle.
+- [x] Retain exact source population and box totals used by final/submitted return.
+- [x] Add separately identified VAT adjustments with reason/evidence.
+- [x] Define and enforce late-entry handling after a return is final/submitted.
+- [ ] Reverse-charge/import treatment remains deliberately unsupported; LedgerOne does not claim this scope and Boxes 2/8/9 remain explicitly excluded.
+- [x] Define MTD digital-link/submission architecture in `docs/VAT_MTD_ARCHITECTURE.md`.
+- [ ] HMRC API request/response/receipt retention is deferred until HMRC submission integration is introduced; the current lifecycle retains an external submission reference/note only.
 
 ### Required tests
 
-- [ ] Invoice date and tax point in different periods are handled correctly.
-- [ ] Credit note affects correct VAT period.
-- [ ] Adjustment is separately reported and audited.
-- [ ] Finalised return can be reproduced exactly.
+- [x] Invoice date and tax point in different periods are handled correctly.
+- [x] Credit note affects correct VAT period.
+- [x] Adjustment is separately reported and audited.
+- [x] Finalised return can be reproduced exactly and frozen evidence is immutable.
+- [x] Late postings/adjustments into a finalised VAT period are rejected.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `8a8cf7c9aa3df08a8de27811e6202c00a9c58916`  
+Test/retest notes: PR #7 CI run #425 passed compile, clean migration validation and the full regression suite: 200 passed, 3 skipped. Standard GB VAT lifecycle scope is ready for independent retest; reverse-charge/import and direct HMRC MTD submission remain explicitly deferred and unsupported.
 
 ---
 
@@ -536,6 +537,7 @@ Add a row whenever one or more findings are submitted for retest.
 |---|---|---|---|---|---|
 | 2026-09-15 | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` | LO-AUD-001, LO-AUD-002, LO-AUD-003 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #264: compile and clean migration checks passed; 114 tests passed, 3 skipped. |
 | 2026-09-15 | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` | LO-AUD-004, LO-AUD-005, LO-AUD-008 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #378: compile and clean migration checks passed; 168 tests passed, 3 skipped. |
+| 2026-09-18 | `8a8cf7c9aa3df08a8de27811e6202c00a9c58916` | LO-AUD-006, LO-AUD-007 | Submitted / pending independent retest | Pending independent reviewer | PR #7 CI run #425: compile and clean migration checks passed; 200 tests passed, 3 skipped. Reverse-charge/import VAT and direct HMRC MTD submission remain outside the supported scope. |
 
 ---
 

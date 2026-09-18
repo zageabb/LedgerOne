@@ -101,7 +101,7 @@ def render_sales_invoice(context: AccessContext, invoice_id: str) -> tuple[bytes
             raise ValueError("UK VAT invoice VAT totals must be shown in sterling")
 
     metadata = invoice.metadata_json if isinstance(invoice.metadata_json, dict) else {}
-    tax_point = _date_value(metadata.get("tax_point"), invoice.invoice_date)
+    tax_point = invoice.tax_point or invoice.invoice_date
     issue_date = _date_value(metadata.get("issue_date"), invoice.invoice_date)
     trace = AuditTraceService.build(context, "sales_invoice", invoice.id)
 

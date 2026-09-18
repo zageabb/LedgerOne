@@ -2,8 +2,8 @@
 {% block title %}VAT Return · LedgerOne{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>UK VAT return summary</h1><p>Transaction-date summary derived from posted LedgerOne sales and purchase documents. This is a review/reporting screen, not an HMRC submission.</p></div>
-  <div class="actions"><a class="button button-secondary" href="{{ url_for('tax.index') }}">Tax setup</a></div>
+  <div><h1>UK VAT return summary</h1><p>Tax-point summary derived from posted LedgerOne sales, purchase and credit documents plus separately recorded VAT adjustments.</p></div>
+  <div class="actions"><a class="button" href="{{ url_for('tax.vat_returns') }}">VAT return control centre</a><a class="button button-secondary" href="{{ url_for('tax.index') }}">Tax setup</a></div>
 </div>
 
 <div class="card">
@@ -30,9 +30,10 @@
     <tr><th>Box 7 · Purchases / inputs excl. VAT</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_7_purchases_net) }}</td></tr>
     <tr><th>Box 8 · EU supplies</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_8_eu_supplies) }}</td></tr>
     <tr><th>Box 9 · EU acquisitions</th><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(summary.box_9_eu_acquisitions) }}</td></tr>
-    <tr><th>Source documents</th><td>{{ summary.sales_documents }} sales · {{ summary.purchase_documents }} purchases</td></tr>
+    <tr><th>Source documents</th><td>{{ summary.sales_documents }} sales · {{ summary.purchase_documents }} purchases · {{ summary.sales_credit_notes }} sales credits · {{ summary.purchase_credit_notes }} purchase credits</td></tr>
+    <tr><th>Adjustments</th><td>{{ summary.adjustments_count }}</td></tr>
   </tbody></table></div></div>
 </div>
 
-<div class="flash flash-warning section">Boxes 2, 8 and 9 are currently reported as zero. Cash Accounting and Flat Rate profiles can be recorded, but scheme-specific return calculation is not yet applied in this first VAT slice.</div>
+<div class="flash flash-warning section">Boxes 2, 8 and 9 are currently reported as zero. Reverse-charge/import treatments, Cash Accounting and Flat Rate return calculations are not yet supported. Use the VAT return control centre to finalise and retain a period snapshot.</div>
 {% endblock %}

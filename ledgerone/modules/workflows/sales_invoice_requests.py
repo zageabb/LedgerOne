@@ -52,6 +52,7 @@ class SalesInvoiceWorkflowService:
         invoice_number: str | None,
         invoice_date: date,
         due_date: date | None,
+        tax_point: date | None = None,
         description: str,
         amount,
         receivable_account_id: str,
@@ -108,6 +109,9 @@ class SalesInvoiceWorkflowService:
                 f"Sales invoice uses {clean_currency}, but the organisation base currency is {base_currency}."
             )
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
+        effective_tax_point = tax_point or invoice_date
+        if tax_code:
+            TaxService.assert_tax_point_open(context, effective_tax_point)
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
         payload = {
@@ -116,6 +120,7 @@ class SalesInvoiceWorkflowService:
             "invoice_number": clean_number,
             "number_mode": "manual" if clean_number else "automatic",
             "invoice_date": invoice_date.isoformat(),
+            "tax_point": effective_tax_point.isoformat(),
             "due_date": effective_due.isoformat(),
             "description": (description or "").strip() or "Sales",
             "amount": str(net_amount),
@@ -147,6 +152,7 @@ class SalesInvoiceWorkflowService:
         revenue_account_id: str,
         currency: str = "GBP",
         tax_code_id: str | None = None,
+        tax_point: date | None = None,
         workflow_definition_id: str | None = None,
         source_module: str = "sales",
         source_reference: str | None = None,
@@ -159,6 +165,7 @@ class SalesInvoiceWorkflowService:
             invoice_number=invoice_number,
             invoice_date=invoice_date,
             due_date=due_date,
+            tax_point=tax_point,
             description=description,
             amount=amount,
             receivable_account_id=receivable_account_id,
@@ -258,6 +265,7 @@ class SalesInvoiceWorkflowService:
             invoice_number=payload.get("invoice_number") or None,
             invoice_date=date.fromisoformat(payload["invoice_date"]),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
+            tax_point=date.fromisoformat(payload["tax_point"]) if payload.get("tax_point") else None,
             description=payload.get("description") or "Sales",
             amount=payload["amount"],
             receivable_account_id=payload["receivable_account_id"],

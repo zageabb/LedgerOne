@@ -23,6 +23,7 @@ def index():
                 bill_id=request.form.get("bill_id", ""),
                 credit_number=request.form.get("credit_number", ""),
                 credit_date=date.fromisoformat(request.form.get("credit_date") or date.today().isoformat()),
+                tax_point=date.fromisoformat(request.form["tax_point"]) if request.form.get("tax_point") else None,
                 amount=request.form.get("amount", "0"),
                 description=request.form.get("description") or None,
             )

@@ -6,9 +6,10 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from sqlalchemy import inspect
 
 from ledgerone.extensions import db
+from ledgerone.models.core import utcnow
 from ledgerone.models.ledger import Account
 from ledgerone.module_registry import module_registry
-from ledgerone.modules.tax.models import TaxCode, TaxProfile
+from ledgerone.modules.tax.models import TaxCode, TaxProfile, VATAdjustment, VATReturnPeriod
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 
@@ -246,16 +247,169 @@ class TaxService:
         )
 
     @staticmethod
-    def vat_return(context: AccessContext, *, start_date: date, end_date: date):
-        if not context.can("tax.read"):
-            raise PermissionError("tax.read")
-        if end_date < start_date:
-            raise TaxError("VAT return end date cannot be before start date")
+    def _validate_return_profile(context: AccessContext):
         profile = TaxProfile.query.filter_by(organisation_id=context.organisation_id).first()
         if profile and profile.jurisdiction != "GB":
-            raise TaxError("The first VAT return implementation supports GB jurisdiction only")
+            raise TaxError("The VAT return lifecycle currently supports GB jurisdiction only")
         if profile and profile.scheme != "standard":
-            raise TaxError("The first VAT return implementation supports standard VAT accounting only")
+            raise TaxError("The VAT return lifecycle currently supports standard VAT accounting only")
+        return profile
+
+    @staticmethod
+    def assert_tax_point_open(context: AccessContext, tax_point: date) -> None:
+        locked = VATReturnPeriod.query.filter(
+            VATReturnPeriod.organisation_id == context.organisation_id,
+            VATReturnPeriod.start_date <= tax_point,
+            VATReturnPeriod.end_date >= tax_point,
+            VATReturnPeriod.status.in_(["final", "submitted"]),
+        ).first()
+        if locked:
+            raise TaxError(
+                f"VAT tax point {tax_point.isoformat()} is inside "
+                f"{locked.status} return period {locked.start_date.isoformat()} to "
+                f"{locked.end_date.isoformat()}. Record a VAT adjustment in an open period "
+                "instead of changing a locked return population."
+            )
+
+    @staticmethod
+    def list_adjustments(
+        context: AccessContext,
+        *,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ):
+        if not context.can("tax.read"):
+            raise PermissionError("tax.read")
+        query = VATAdjustment.query.filter_by(organisation_id=context.organisation_id)
+        if start_date is not None:
+            query = query.filter(VATAdjustment.tax_point >= start_date)
+        if end_date is not None:
+            query = query.filter(VATAdjustment.tax_point <= end_date)
+        return query.order_by(VATAdjustment.tax_point.desc(), VATAdjustment.created_at.desc()).all()
+
+    @staticmethod
+    def create_adjustment(
+        context: AccessContext,
+        *,
+        tax_point: date,
+        box_number: str,
+        amount,
+        reason: str,
+        evidence_reference: str | None = None,
+    ):
+        if not context.can("tax.manage"):
+            raise PermissionError("tax.manage")
+        TaxService._validate_return_profile(context)
+        box_number = str(box_number or "").strip()
+        if box_number not in {"1", "4", "6", "7"}:
+            raise TaxError("VAT adjustments currently support boxes 1, 4, 6 and 7")
+        clean_reason = (reason or "").strip()
+        if not clean_reason:
+            raise TaxError("VAT adjustment reason is required")
+        value = _money(amount)
+        if value == Decimal("0.00"):
+            raise TaxError("VAT adjustment amount cannot be zero")
+        TaxService.assert_tax_point_open(context, tax_point)
+        row = VATAdjustment(
+            organisation_id=context.organisation_id,
+            tax_point=tax_point,
+            box_number=box_number,
+            amount=value,
+            reason=clean_reason,
+            evidence_reference=(evidence_reference or "").strip() or None,
+            created_by_user_id=context.user_id,
+        )
+        db.session.add(row)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="tax",
+            action="vat_adjustment_created",
+            entity_type="vat_adjustment",
+            entity_id=row.id,
+            detail={
+                "tax_point": tax_point.isoformat(),
+                "box_number": box_number,
+                "amount": str(value),
+                "reason": clean_reason,
+                "evidence_reference": row.evidence_reference,
+            },
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
+    def list_return_periods(context: AccessContext, limit: int = 100):
+        if not context.can("tax.read"):
+            raise PermissionError("tax.read")
+        return (
+            VATReturnPeriod.query.filter_by(organisation_id=context.organisation_id)
+            .order_by(VATReturnPeriod.end_date.desc(), VATReturnPeriod.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def get_return_period(context: AccessContext, period_id: str):
+        if not (context.can("tax.read") or context.can("tax.manage")):
+            raise PermissionError("tax.read")
+        row = db.session.get(VATReturnPeriod, period_id)
+        if not row or row.organisation_id != context.organisation_id:
+            raise TaxError("VAT return period not found")
+        return row
+
+    @staticmethod
+    def create_return_period(
+        context: AccessContext,
+        *,
+        start_date: date,
+        end_date: date,
+    ):
+        if not context.can("tax.manage"):
+            raise PermissionError("tax.manage")
+        TaxService._validate_return_profile(context)
+        if end_date < start_date:
+            raise TaxError("VAT return end date cannot be before start date")
+        overlap = VATReturnPeriod.query.filter(
+            VATReturnPeriod.organisation_id == context.organisation_id,
+            VATReturnPeriod.start_date <= end_date,
+            VATReturnPeriod.end_date >= start_date,
+        ).first()
+        if overlap:
+            raise TaxError(
+                "VAT return period overlaps an existing return period "
+                f"{overlap.start_date.isoformat()} to {overlap.end_date.isoformat()}"
+            )
+        row = VATReturnPeriod(
+            organisation_id=context.organisation_id,
+            start_date=start_date,
+            end_date=end_date,
+            status="draft",
+            snapshot_json={},
+        )
+        db.session.add(row)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="tax",
+            action="vat_return_period_created",
+            entity_type="vat_return_period",
+            entity_id=row.id,
+            detail={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
+    def _calculate_vat_return(
+        context: AccessContext,
+        *,
+        start_date: date,
+        end_date: date,
+    ):
+        if end_date < start_date:
+            raise TaxError("VAT return end date cannot be before start date")
+        profile = TaxService._validate_return_profile(context)
 
         from ledgerone.modules.purchases.credit_models import PurchaseCreditNote
         from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine
@@ -268,8 +422,8 @@ class TaxService:
             .join(TaxCode, TaxCode.id == SalesInvoiceLine.tax_code_id)
             .filter(
                 SalesInvoice.organisation_id == context.organisation_id,
-                SalesInvoice.invoice_date >= start_date,
-                SalesInvoice.invoice_date <= end_date,
+                SalesInvoice.tax_point >= start_date,
+                SalesInvoice.tax_point <= end_date,
                 SalesInvoice.posted_journal_id.is_not(None),
             )
             .all()
@@ -280,8 +434,8 @@ class TaxService:
             .join(TaxCode, TaxCode.id == PurchaseBillLine.tax_code_id)
             .filter(
                 PurchaseBill.organisation_id == context.organisation_id,
-                PurchaseBill.bill_date >= start_date,
-                PurchaseBill.bill_date <= end_date,
+                PurchaseBill.tax_point >= start_date,
+                PurchaseBill.tax_point <= end_date,
                 PurchaseBill.posted_journal_id.is_not(None),
             )
             .all()
@@ -293,8 +447,8 @@ class TaxService:
             .join(TaxCode, TaxCode.id == SalesInvoiceLine.tax_code_id)
             .filter(
                 SalesCreditNote.organisation_id == context.organisation_id,
-                SalesCreditNote.credit_date >= start_date,
-                SalesCreditNote.credit_date <= end_date,
+                SalesCreditNote.tax_point >= start_date,
+                SalesCreditNote.tax_point <= end_date,
                 SalesCreditNote.status == "posted",
             )
             .all()
@@ -306,69 +460,215 @@ class TaxService:
             .join(TaxCode, TaxCode.id == PurchaseBillLine.tax_code_id)
             .filter(
                 PurchaseCreditNote.organisation_id == context.organisation_id,
-                PurchaseCreditNote.credit_date >= start_date,
-                PurchaseCreditNote.credit_date <= end_date,
+                PurchaseCreditNote.tax_point >= start_date,
+                PurchaseCreditNote.tax_point <= end_date,
                 PurchaseCreditNote.status == "posted",
             )
             .all()
         )
-
-        sales_vat = sum(
-            (_money(line.tax_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        sales_credit_vat = sum(
-            (_money(note.tax_total) for note, code in sales_credit_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        purchase_vat = sum(
-            (_money(line.tax_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        purchase_credit_vat = sum(
-            (_money(note.tax_total) for note, code in purchase_credit_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        sales_net = sum(
-            (_money(line.net_amount) for _, line, code in sales_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        sales_credit_net = sum(
-            (_money(note.subtotal) for note, code in sales_credit_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        purchase_net = sum(
-            (_money(line.net_amount) for _, line, code in purchase_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
-        )
-        purchase_credit_net = sum(
-            (_money(note.subtotal) for note, code in purchase_credit_rows if code.treatment != "out_of_scope"),
-            Decimal("0.00"),
+        adjustments = (
+            VATAdjustment.query.filter(
+                VATAdjustment.organisation_id == context.organisation_id,
+                VATAdjustment.tax_point >= start_date,
+                VATAdjustment.tax_point <= end_date,
+            )
+            .order_by(VATAdjustment.tax_point.asc(), VATAdjustment.created_at.asc())
+            .all()
         )
 
-        box_1 = sales_vat - sales_credit_vat
-        box_4 = purchase_vat - purchase_credit_vat
-        box_6 = sales_net - sales_credit_net
-        box_7 = purchase_net - purchase_credit_net
-        net = box_1 - box_4
-        return {
+        relevant_sales = [
+            (invoice, line, code)
+            for invoice, line, code in sales_rows
+            if code.treatment != "out_of_scope"
+        ]
+        relevant_purchases = [
+            (bill, line, code)
+            for bill, line, code in purchase_rows
+            if code.treatment != "out_of_scope"
+        ]
+        relevant_sales_credits = [
+            (note, code) for note, code in sales_credit_rows if code.treatment != "out_of_scope"
+        ]
+        relevant_purchase_credits = [
+            (note, code)
+            for note, code in purchase_credit_rows
+            if code.treatment != "out_of_scope"
+        ]
+
+        box_1 = sum((_money(line.tax_amount) for _, line, _ in relevant_sales), Decimal("0.00"))
+        box_1 -= sum((_money(note.tax_total) for note, _ in relevant_sales_credits), Decimal("0.00"))
+        box_4 = sum((_money(line.tax_amount) for _, line, _ in relevant_purchases), Decimal("0.00"))
+        box_4 -= sum((_money(note.tax_total) for note, _ in relevant_purchase_credits), Decimal("0.00"))
+        box_6 = sum((_money(line.net_amount) for _, line, _ in relevant_sales), Decimal("0.00"))
+        box_6 -= sum((_money(note.subtotal) for note, _ in relevant_sales_credits), Decimal("0.00"))
+        box_7 = sum((_money(line.net_amount) for _, line, _ in relevant_purchases), Decimal("0.00"))
+        box_7 -= sum((_money(note.subtotal) for note, _ in relevant_purchase_credits), Decimal("0.00"))
+
+        adjustment_totals = {key: Decimal("0.00") for key in ("1", "4", "6", "7")}
+        for adjustment in adjustments:
+            adjustment_totals[adjustment.box_number] += _money(adjustment.amount)
+        box_1 += adjustment_totals["1"]
+        box_4 += adjustment_totals["4"]
+        box_6 += adjustment_totals["6"]
+        box_7 += adjustment_totals["7"]
+
+        box_2 = Decimal("0.00")
+        box_3 = box_1 + box_2
+        net = box_3 - box_4
+        summary = {
             "from_date": start_date,
             "to_date": end_date,
             "vat_registered": bool(profile and profile.is_vat_registered),
             "registration_number": profile.registration_number if profile else None,
-            "box_1_output_vat": box_1,
-            "box_2_acquisitions_vat": Decimal("0.00"),
-            "box_3_total_vat_due": box_1,
-            "box_4_input_vat": box_4,
-            "box_5_net_vat": abs(net),
-            "net_vat_due": net,
+            "box_1_output_vat": _money(box_1),
+            "box_2_acquisitions_vat": box_2,
+            "box_3_total_vat_due": _money(box_3),
+            "box_4_input_vat": _money(box_4),
+            "box_5_net_vat": _money(abs(net)),
+            "net_vat_due": _money(net),
             "position": "payable" if net > 0 else ("repayment" if net < 0 else "nil"),
-            "box_6_sales_net": box_6,
-            "box_7_purchases_net": box_7,
+            "box_6_sales_net": _money(box_6),
+            "box_7_purchases_net": _money(box_7),
             "box_8_eu_supplies": Decimal("0.00"),
             "box_9_eu_acquisitions": Decimal("0.00"),
-            "sales_documents": len({invoice.id for invoice, _, code in sales_rows if code.treatment != "out_of_scope"}),
-            "purchase_documents": len({bill.id for bill, _, code in purchase_rows if code.treatment != "out_of_scope"}),
-            "sales_credit_notes": len([1 for note, code in sales_credit_rows if code.treatment != "out_of_scope"]),
-            "purchase_credit_notes": len([1 for note, code in purchase_credit_rows if code.treatment != "out_of_scope"]),
+            "sales_documents": len({invoice.id for invoice, _, _ in relevant_sales}),
+            "purchase_documents": len({bill.id for bill, _, _ in relevant_purchases}),
+            "sales_credit_notes": len({note.id for note, _ in relevant_sales_credits}),
+            "purchase_credit_notes": len({note.id for note, _ in relevant_purchase_credits}),
+            "adjustments_count": len(adjustments),
         }
+        population = {
+            "sales_invoice_ids": sorted({invoice.id for invoice, _, _ in relevant_sales}),
+            "sales_invoice_line_ids": sorted({line.id for _, line, _ in relevant_sales}),
+            "purchase_bill_ids": sorted({bill.id for bill, _, _ in relevant_purchases}),
+            "purchase_bill_line_ids": sorted({line.id for _, line, _ in relevant_purchases}),
+            "sales_credit_note_ids": sorted({note.id for note, _ in relevant_sales_credits}),
+            "purchase_credit_note_ids": sorted({note.id for note, _ in relevant_purchase_credits}),
+            "adjustment_ids": [row.id for row in adjustments],
+        }
+        return summary, population
+
+    @staticmethod
+    def vat_return(context: AccessContext, *, start_date: date, end_date: date):
+        if not context.can("tax.read"):
+            raise PermissionError("tax.read")
+        summary, _ = TaxService._calculate_vat_return(
+            context, start_date=start_date, end_date=end_date
+        )
+        return summary
+
+    @staticmethod
+    def _summary_to_snapshot(summary: dict) -> dict:
+        stored = {}
+        for key, value in summary.items():
+            if isinstance(value, Decimal):
+                stored[key] = str(value)
+            elif isinstance(value, date):
+                stored[key] = value.isoformat()
+            else:
+                stored[key] = value
+        return stored
+
+    @staticmethod
+    def _summary_from_snapshot(stored: dict) -> dict:
+        decimal_keys = {
+            "box_1_output_vat", "box_2_acquisitions_vat", "box_3_total_vat_due",
+            "box_4_input_vat", "box_5_net_vat", "net_vat_due",
+            "box_6_sales_net", "box_7_purchases_net",
+            "box_8_eu_supplies", "box_9_eu_acquisitions",
+        }
+        result = dict(stored or {})
+        for key in decimal_keys:
+            if key in result:
+                result[key] = _money(result[key])
+        for key in ("from_date", "to_date"):
+            if result.get(key):
+                result[key] = date.fromisoformat(result[key])
+        return result
+
+    @staticmethod
+    def return_period_summary(context: AccessContext, period_id: str):
+        row = TaxService.get_return_period(context, period_id)
+        if row.status in {"final", "submitted"} and (row.snapshot_json or {}).get("summary"):
+            return TaxService._summary_from_snapshot(row.snapshot_json["summary"])
+        summary, _ = TaxService._calculate_vat_return(
+            context, start_date=row.start_date, end_date=row.end_date
+        )
+        return summary
+
+    @staticmethod
+    def finalise_return_period(context: AccessContext, period_id: str):
+        if not context.can("tax.manage"):
+            raise PermissionError("tax.manage")
+        row = TaxService.get_return_period(context, period_id)
+        if row.status != "draft":
+            raise TaxError("Only a draft VAT return can be finalised")
+        summary, population = TaxService._calculate_vat_return(
+            context, start_date=row.start_date, end_date=row.end_date
+        )
+        row.snapshot_json = {
+            "version": 1,
+            "summary": TaxService._summary_to_snapshot(summary),
+            "population": population,
+        }
+        row.status = "final"
+        row.finalised_by_user_id = context.user_id
+        row.finalised_at = utcnow()
+        if population["adjustment_ids"]:
+            VATAdjustment.query.filter(
+                VATAdjustment.organisation_id == context.organisation_id,
+                VATAdjustment.id.in_(population["adjustment_ids"]),
+            ).update(
+                {VATAdjustment.return_period_id: row.id},
+                synchronize_session=False,
+            )
+        record_audit_event(
+            context,
+            module_id="tax",
+            action="vat_return_finalised",
+            entity_type="vat_return_period",
+            entity_id=row.id,
+            detail={
+                "start_date": row.start_date.isoformat(),
+                "end_date": row.end_date.isoformat(),
+                "source_population": population,
+                "summary": row.snapshot_json["summary"],
+            },
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
+    def mark_return_submitted(
+        context: AccessContext,
+        period_id: str,
+        *,
+        submission_reference: str,
+        submission_note: str | None = None,
+    ):
+        if not context.can("tax.manage"):
+            raise PermissionError("tax.manage")
+        row = TaxService.get_return_period(context, period_id)
+        if row.status != "final":
+            raise TaxError("Only a final VAT return can be marked submitted")
+        reference = (submission_reference or "").strip()
+        if not reference:
+            raise TaxError("Submission reference is required")
+        row.status = "submitted"
+        row.submission_reference = reference
+        row.submission_note = (submission_note or "").strip() or None
+        row.submitted_by_user_id = context.user_id
+        row.submitted_at = utcnow()
+        record_audit_event(
+            context,
+            module_id="tax",
+            action="vat_return_marked_submitted",
+            entity_type="vat_return_period",
+            entity_id=row.id,
+            detail={
+                "submission_reference": reference,
+                "submission_note": row.submission_note,
+            },
+        )
+        db.session.commit()
+        return row

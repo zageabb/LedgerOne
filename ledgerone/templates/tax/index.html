@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><h1>{{ 'VAT' if ui_mode == 'home' else 'Tax & VAT' }}</h1><p>{{ 'Set up the VAT rates you use on money in and money out.' if ui_mode == 'home' else 'Configure organisation tax registration, tax codes and input/output VAT accounts.' }}</p></div>
-  <div class="actions"><a class="button" href="{{ url_for('tax.vat_return') }}">VAT return summary</a></div>
+  <div class="actions"><a class="button" href="{{ url_for('tax.vat_returns') }}">VAT returns</a><a class="button button-secondary" href="{{ url_for('tax.vat_return') }}">Ad-hoc summary</a></div>
 </div>
 
 <div class="grid grid-2">
@@ -19,7 +19,7 @@
         <div class="field"><label>Return frequency</label><select name="return_frequency"><option value="monthly" {% if profile.return_frequency == 'monthly' %}selected{% endif %}>Monthly</option><option value="quarterly" {% if profile.return_frequency == 'quarterly' %}selected{% endif %}>Quarterly</option><option value="annual" {% if profile.return_frequency == 'annual' %}selected{% endif %}>Annual</option></select></div>
         <div class="field-full"><button class="button" type="submit">Save tax profile</button></div>
       </form>
-      <p class="help">LedgerOne records the scheme now; the first return calculation in this phase is transaction-date based and is not an HMRC filing/submission service.</p>
+      <p class="help">Standard GB VAT uses explicit tax points. Finalised return periods freeze their exact source population. HMRC transmission is not yet implemented.</p>
     </div>
   </div>
 

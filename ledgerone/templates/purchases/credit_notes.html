@@ -18,6 +18,7 @@
         <div class="field field-full"><label>Bill</label><select name="bill_id" required><option value="">Select bill</option>{% for row in bills %}<option value="{{ row.id }}">{{ row.bill_number }} · {{ row.supplier.name }} · {{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }} outstanding</option>{% endfor %}</select></div>
         <div class="field"><label>Credit note number</label><input name="credit_number" placeholder="SCN-001" required></div>
         <div class="field"><label>Date</label><input type="date" name="credit_date" value="{{ today }}" required></div>
+        <div class="field"><label>VAT tax point</label><input type="date" name="tax_point"><div class="help">Leave blank to use the credit-note date.</div></div>
         <div class="field"><label>Net amount to credit</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
         <div class="field"><label>Description</label><input name="description" placeholder="Returned goods / supplier adjustment"></div>
         <div class="field-full"><button class="button" type="submit">Post supplier credit</button></div>
@@ -29,8 +30,8 @@
   <div class="card">
     <div class="card-head"><h2>Credit note register</h2><span class="badge">{{ credit_notes|length }}</span></div>
     <div class="table-wrap">
-      {% if credit_notes %}<table><thead><tr><th>Number</th><th>Date</th><th>Bill</th><th class="number">Net</th><th class="number">VAT</th><th class="number">Total</th></tr></thead><tbody>
-      {% for row in credit_notes %}<tr><td>{{ row.credit_number }}</td><td>{{ row.credit_date.strftime('%d %b %Y') }}</td><td>{{ row.bill.bill_number }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.subtotal) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td></tr>{% endfor %}
+      {% if credit_notes %}<table><thead><tr><th>Number</th><th>Date</th><th>Tax point</th><th>Bill</th><th class="number">Net</th><th class="number">VAT</th><th class="number">Total</th></tr></thead><tbody>
+      {% for row in credit_notes %}<tr><td>{{ row.credit_number }}</td><td>{{ row.credit_date.strftime('%d %b %Y') }}</td><td>{{ row.tax_point.strftime('%d %b %Y') }}</td><td>{{ row.bill.bill_number }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.subtotal) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.tax_total) }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td></tr>{% endfor %}
       </tbody></table>{% else %}<div class="empty">No purchase credit notes yet.</div>{% endif %}
     </div>
   </div>

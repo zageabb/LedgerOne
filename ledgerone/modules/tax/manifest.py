@@ -3,7 +3,7 @@ from ledgerone.module_registry import ModuleManifest
 MANIFEST = ModuleManifest(
     id="tax",
     name="Tax & VAT",
-    description="Tax codes, VAT accounts and UK VAT return summaries.",
+    description="Tax codes, VAT accounts, tax points, adjustments and controlled UK VAT return periods.",
     icon="receipt-text",
     order=65,
     route_endpoint="tax.index",

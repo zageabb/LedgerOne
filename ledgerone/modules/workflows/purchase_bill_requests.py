@@ -52,6 +52,7 @@ class PurchaseBillWorkflowService:
         bill_number: str,
         bill_date: date,
         due_date: date | None,
+        tax_point: date | None = None,
         description: str,
         amount,
         payable_account_id: str,
@@ -109,6 +110,9 @@ class PurchaseBillWorkflowService:
                 f"Purchase bill uses {clean_currency}, but the organisation base currency is {base_currency}."
             )
         tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
+        effective_tax_point = tax_point or bill_date
+        if tax_code:
+            TaxService.assert_tax_point_open(context, effective_tax_point)
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
         payload = {
@@ -116,6 +120,7 @@ class PurchaseBillWorkflowService:
             "supplier_name": supplier.name,
             "bill_number": clean_number,
             "bill_date": bill_date.isoformat(),
+            "tax_point": effective_tax_point.isoformat(),
             "due_date": effective_due.isoformat(),
             "description": (description or "").strip() or "Purchase",
             "amount": str(net_amount),
@@ -147,6 +152,7 @@ class PurchaseBillWorkflowService:
         expense_account_id: str,
         currency: str = "GBP",
         tax_code_id: str | None = None,
+        tax_point: date | None = None,
         workflow_definition_id: str | None = None,
         source_module: str = "purchases",
         source_reference: str | None = None,
@@ -159,6 +165,7 @@ class PurchaseBillWorkflowService:
             bill_number=bill_number,
             bill_date=bill_date,
             due_date=due_date,
+            tax_point=tax_point,
             description=description,
             amount=amount,
             payable_account_id=payable_account_id,
@@ -252,6 +259,7 @@ class PurchaseBillWorkflowService:
             bill_number=payload["bill_number"],
             bill_date=date.fromisoformat(payload["bill_date"]),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
+            tax_point=date.fromisoformat(payload["tax_point"]) if payload.get("tax_point") else None,
             description=payload.get("description") or "Purchase",
             amount=payload["amount"],
             payable_account_id=payload["payable_account_id"],
