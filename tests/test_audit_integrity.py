@@ -49,6 +49,49 @@ def test_audit_events_are_append_only_through_orm(app):
         db.session.rollback()
 
 
+def test_multiple_audit_events_share_one_transaction_chain_cleanly(app):
+    with app.app_context():
+        context = _context()
+        first = record_audit_event(
+            context,
+            module_id="audit_test",
+            action="same_transaction_one",
+            detail={"step": 1},
+        )
+        second = record_audit_event(
+            context,
+            module_id="audit_test",
+            action="same_transaction_two",
+            detail={"step": 2},
+        )
+        db.session.commit()
+
+        assert second.chain_sequence == first.chain_sequence + 1
+        assert second.previous_hash == first.event_hash
+        assert AuditIntegrityService.verify(context)["valid"] is True
+
+
+def test_audit_chain_head_rolls_back_with_business_transaction(app):
+    with app.app_context():
+        context = _context()
+        before = AuditIntegrityService.verify(context)
+        event = record_audit_event(
+            context,
+            module_id="audit_test",
+            action="rolled_back_event",
+            detail={"should_persist": False},
+        )
+        event_id = event.id
+        db.session.flush()
+        db.session.rollback()
+
+        assert db.session.get(AuditEvent, event_id) is None
+        after = AuditIntegrityService.verify(context)
+        assert after["valid"] is True
+        assert after["last_sequence"] == before["last_sequence"]
+        assert after["last_hash"] == before["last_hash"]
+
+
 def test_audit_chain_verifies_for_normal_events(app):
     with app.app_context():
         context = _context()
