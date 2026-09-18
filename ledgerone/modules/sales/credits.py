@@ -37,6 +37,7 @@ class SalesCreditService:
         credit_number: str | None,
         credit_date,
         amount,
+        tax_point=None,
         description: str | None = None,
     ):
         if not context.can("sales.write"):
@@ -54,6 +55,9 @@ class SalesCreditService:
             raise ValueError("Credit note amount must be greater than zero")
         original_line = invoice.lines[0]
         tax_code = original_line.tax_code
+        effective_tax_point = tax_point or credit_date
+        if tax_code:
+            TaxService.assert_tax_point_open(context, effective_tax_point)
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         gross_amount = net_amount + tax_amount
         outstanding = SalesService.invoice_outstanding(invoice)
@@ -150,6 +154,7 @@ class SalesCreditService:
                 invoice_id=invoice.id,
                 credit_number=issued_number,
                 credit_date=credit_date,
+                tax_point=effective_tax_point,
                 description=note_description,
                 currency=invoice.currency,
                 subtotal=net_amount,
@@ -192,6 +197,7 @@ class SalesCreditService:
                     "journal_id": journal.id,
                     "subtotal": str(net_amount),
                     "tax_total": str(tax_amount),
+                    "tax_point": note.tax_point.isoformat(),
                     "total": str(gross_amount),
                 },
             )
