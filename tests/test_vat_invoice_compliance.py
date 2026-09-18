@@ -132,6 +132,7 @@ def test_complete_vat_invoice_generates_pdf_with_tax_point_override(app):
             customer_id=customer.id,
             invoice_number="VAT-INV-001",
             invoice_date=date(2026, 9, 17),
+            tax_point=date(2026, 9, 16),
             due_date=None,
             description="Taxable service",
             amount="100.00",
