@@ -30,6 +30,21 @@ class SalesCreditService:
         )
 
     @staticmethod
+    def credited_net(invoice_id: str) -> Decimal:
+        return _money(
+            db.session.query(db.func.coalesce(db.func.sum(SalesCreditNote.subtotal), 0))
+            .filter(SalesCreditNote.invoice_id == invoice_id)
+            .scalar()
+        )
+
+    @staticmethod
+    def remaining_creditable_net(invoice: SalesInvoice) -> Decimal:
+        return max(
+            Decimal("0.00"),
+            _money(invoice.subtotal) - SalesCreditService.credited_net(invoice.id),
+        )
+
+    @staticmethod
     def create_credit_note(
         context: AccessContext,
         *,
@@ -58,11 +73,7 @@ class SalesCreditService:
         effective_tax_point = tax_point or credit_date
         if tax_code:
             TaxService.assert_tax_point_open(context, effective_tax_point)
-        credited_net = _money(
-            db.session.query(db.func.coalesce(db.func.sum(SalesCreditNote.subtotal), 0))
-            .filter(SalesCreditNote.invoice_id == invoice.id)
-            .scalar()
-        )
+        credited_net = SalesCreditService.credited_net(invoice.id)
         credited_tax = _money(
             db.session.query(db.func.coalesce(db.func.sum(SalesCreditNote.tax_total), 0))
             .filter(SalesCreditNote.invoice_id == invoice.id)
