@@ -1,6 +1,8 @@
 from datetime import date
+from io import BytesIO
 
 import pytest
+from pypdf import PdfReader
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
@@ -147,6 +149,46 @@ def test_complete_vat_invoice_generates_pdf_with_tax_point_override(app):
         assert pdf.startswith(b"%PDF")
         assert len(pdf) > 3000
         assert filename == "invoice-VAT-INV-001.pdf"
+
+        text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages)
+        assert "VAT Invoice" in text
+        assert "VAT registration no: GB123456789" in text
+        assert "Tax point / supply date" in text
+        assert "16 Sep 2026" in text
+        assert "VAT Customer" in text
+        assert "10 Customer Road" in text
+        assert "20%" in text
+        assert "GBP 20.00" in text
+
+
+def test_non_vat_organisation_does_not_render_vat_invoice(app):
+    with app.app_context():
+        _, context, accounts = _setup()
+        _complete_profile(context)
+        TaxService.update_profile(
+            context,
+            jurisdiction="GB",
+            is_vat_registered=False,
+            registration_number=None,
+            scheme="standard",
+            return_frequency="quarterly",
+        )
+        customer = SalesService.create_customer(context, name="Non VAT Customer")
+        invoice = SalesService.create_invoice(
+            context,
+            customer_id=customer.id,
+            invoice_number="NONVAT-001",
+            invoice_date=date(2026, 9, 18),
+            due_date=None,
+            description="Non VAT service",
+            amount="75.00",
+            receivable_account_id=accounts["1200"],
+            revenue_account_id=accounts["4000"],
+        )
+        pdf, _ = FinancialDocumentPdfService.sales_invoice(context, invoice.id)
+        text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages)
+        assert "Sales Invoice" in text
+        assert "VAT Invoice" not in text
 
 
 def test_business_profile_page_is_registered(client, app):
