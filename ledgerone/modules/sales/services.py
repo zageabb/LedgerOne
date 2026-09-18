@@ -106,6 +106,7 @@ class SalesService:
     @staticmethod
     def create_invoice(context: AccessContext, *, customer_id: str, invoice_number: str | None,
                        invoice_date, due_date, description: str, amount,
+                       tax_point=None,
                        receivable_account_id: str, revenue_account_id: str,
                        currency: str = "GBP", tax_code_id: str | None = None,
                        metadata: dict | None = None, commit: bool = True):
@@ -127,7 +128,10 @@ class SalesService:
             raise ValueError("Invoice due date cannot be before the invoice date")
 
         from ledgerone.modules.tax.services import TaxService
+        effective_tax_point = tax_point or invoice_date
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
+        if tax_code:
+            TaxService.assert_tax_point_open(context, effective_tax_point)
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
         if tax_amount and (not tax_code or not tax_code.sales_tax_account_id):
@@ -147,6 +151,7 @@ class SalesService:
                 customer_id=customer.id,
                 invoice_number=issued_number,
                 invoice_date=invoice_date,
+                tax_point=effective_tax_point,
                 due_date=due_date,
                 currency=currency.upper(),
                 status="posting",
@@ -235,6 +240,7 @@ class SalesService:
                     "tax_total": str(tax_amount),
                     "total": str(total),
                     "tax_code": tax_code.code if tax_code else None,
+                    "tax_point": invoice.tax_point.isoformat(),
                     "currency": invoice.currency,
                     "due_date": invoice.due_date.isoformat(),
                 },
