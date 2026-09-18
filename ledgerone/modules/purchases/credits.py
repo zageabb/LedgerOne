@@ -64,11 +64,28 @@ class PurchaseCreditService:
         effective_tax_point = tax_point or credit_date
         if tax_code:
             TaxService.assert_tax_point_open(context, effective_tax_point)
+        credited_net = _money(
+            db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditNote.subtotal), 0))
+            .filter(PurchaseCreditNote.bill_id == bill.id)
+            .scalar()
+        )
+        credited_tax = _money(
+            db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditNote.tax_total), 0))
+            .filter(PurchaseCreditNote.bill_id == bill.id)
+            .scalar()
+        )
+        remaining_net = max(Decimal("0.00"), _money(bill.subtotal) - credited_net)
+        remaining_tax = max(Decimal("0.00"), _money(bill.tax_total) - credited_tax)
+        if net_amount > remaining_net:
+            raise ValueError("Credit note exceeds the remaining uncredited bill value")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
+        if net_amount == remaining_net:
+            tax_amount = remaining_tax
+        elif tax_amount > remaining_tax:
+            tax_amount = remaining_tax
         gross_amount = net_amount + tax_amount
         outstanding = PurchasesService.bill_outstanding(bill)
-        if gross_amount > outstanding:
-            raise ValueError("Credit note exceeds the bill outstanding balance")
+        auto_apply = min(gross_amount, outstanding)
 
         original_journal = db.session.get(Journal, bill.posted_journal_id)
         if not original_journal or original_journal.organisation_id != context.organisation_id:
@@ -170,19 +187,21 @@ class PurchaseCreditService:
                 currency=bill.currency,
                 journal_id=journal.id,
                 settlement_type="credit_note",
-                status="allocated",
+                status="unallocated",
             )
             db.session.add_all([note, settlement])
             db.session.flush()
-            db.session.add(
-                PurchasePaymentAllocation(
-                    payment_id=settlement.id,
-                    bill_id=bill.id,
-                    amount=gross_amount,
+            if auto_apply > 0:
+                db.session.add(
+                    PurchasePaymentAllocation(
+                        payment_id=settlement.id,
+                        bill_id=bill.id,
+                        amount=auto_apply,
+                    )
                 )
-            )
-            remaining = outstanding - gross_amount
-            bill.status = "credited" if remaining == 0 else "part_credited"
+                db.session.flush()
+            PurchasesService.refresh_bill_status(bill)
+            PurchasesService.refresh_payment_status(settlement)
             record_audit_event(
                 context,
                 module_id="purchases",
@@ -197,6 +216,8 @@ class PurchaseCreditService:
                     "tax_total": str(tax_amount),
                     "tax_point": note.tax_point.isoformat(),
                     "total": str(gross_amount),
+                    "auto_allocated": str(auto_apply),
+                    "supplier_credit_created": str(gross_amount - auto_apply),
                 },
             )
             db.session.commit()
