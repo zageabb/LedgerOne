@@ -130,8 +130,11 @@ def payments():
         "date": row.payment_date.isoformat(),
         "reference": row.reference,
         "amount": str(row.amount),
+        "settlement_type": row.settlement_type,
         "allocated": str(PurchasesService.payment_allocated(row.id)),
-        "unallocated": str(row.amount - PurchasesService.payment_allocated(row.id)),
+        "refunded": str(PurchasesService.payment_refunded(row.id)),
+        "available": str(PurchasesService.payment_available(row.id)),
+        "unallocated": str(PurchasesService.payment_available(row.id)),
         "currency": row.currency,
         "status": row.status,
         "journal_id": row.journal_id,
@@ -182,6 +185,13 @@ def allocate_payment(payment_id):
     try:
         row = PurchasesService.allocate_payment(g.access_context, payment_id, payload.get("allocations") or [])
         allocated = PurchasesService.payment_allocated(row.id)
-        return jsonify({"id": row.id, "status": row.status, "allocated": str(allocated), "unallocated": str(row.amount - allocated)})
+        return jsonify({
+            "id": row.id,
+            "status": row.status,
+            "allocated": str(allocated),
+            "refunded": str(PurchasesService.payment_refunded(row.id)),
+            "available": str(PurchasesService.payment_available(row.id)),
+            "unallocated": str(PurchasesService.payment_available(row.id)),
+        })
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
