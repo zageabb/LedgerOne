@@ -11,6 +11,7 @@ from ledgerone.module_registry import module_registry
 from ledgerone.modules.sales.credits import SalesCreditService
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.modules.settings.services import SettingsService
+from ledgerone.modules.tax.immutability import VATReturnImmutableError
 from ledgerone.modules.tax.models import TaxCode, VATAdjustment
 from ledgerone.modules.tax.services import TaxError, TaxService
 from ledgerone.services.context import AccessContext
@@ -168,6 +169,11 @@ def test_adjustment_is_audited_and_frozen_into_final_return(app):
         assert adjustment.id in period.snapshot_json["population"]["adjustment_ids"]
         assert adjustment.return_period_id == period.id
 
+        adjustment.amount = Decimal("999.00")
+        with pytest.raises(VATReturnImmutableError, match="VAT adjustment"):
+            db.session.commit()
+        db.session.rollback()
+
         actions = {
             row.action
             for row in AuditEvent.query.filter_by(organisation_id=context.organisation_id).all()
@@ -195,6 +201,12 @@ def test_finalised_return_blocks_late_entry_and_remains_reproducible(app):
         )
         TaxService.finalise_return_period(context, period.id)
         frozen = TaxService.return_period_summary(context, period.id)
+
+        period.snapshot_json = {"tampered": True}
+        with pytest.raises(VATReturnImmutableError, match="snapshot is immutable"):
+            db.session.commit()
+        db.session.rollback()
+        period = TaxService.get_return_period(context, period.id)
 
         with pytest.raises(TaxError, match="inside final return period"):
             _invoice(
@@ -227,6 +239,11 @@ def test_finalised_return_blocks_late_entry_and_remains_reproducible(app):
         assert submitted.status == "submitted"
         assert submitted.submission_reference == "HMRC-TEST-RECEIPT-001"
         assert reproduced == frozen
+
+        submitted.submission_reference = "TAMPERED"
+        with pytest.raises(VATReturnImmutableError, match="Submitted VAT return"):
+            db.session.commit()
+        db.session.rollback()
 
 
 def test_posted_invoice_tax_point_is_immutable(app):
