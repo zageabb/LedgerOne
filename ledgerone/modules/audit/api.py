@@ -4,6 +4,7 @@ from flask import Blueprint, Response, g, jsonify, request
 
 from ledgerone.modules.audit.services import AuditService
 from ledgerone.security import require_api
+from ledgerone.services.audit_integrity import AuditIntegrityService
 
 api_bp = Blueprint("audit_api", __name__, url_prefix="/api/v1/audit")
 
@@ -56,5 +57,14 @@ def export():
             mimetype="text/csv",
             headers={"Content-Disposition": 'attachment; filename="ledgerone-audit.csv"'},
         )
+    except (PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/integrity")
+@require_api("audit.read")
+def integrity():
+    try:
+        return jsonify(AuditIntegrityService.verify(g.access_context))
     except (PermissionError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
