@@ -474,27 +474,31 @@ Test/retest notes: PR #7 CI run #425 passed compile, clean migration validation 
 
 ## LO-AUD-010 — Tamper-evident audit trail
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** MEDIUM-HIGH
 
 ### Implementation checklist
 
-- [ ] Prevent application-level update/delete of audit events.
-- [ ] Document production DB privilege model for append-only audit writes.
-- [ ] Evaluate per-organisation hash chain or signed audit checkpoints.
-- [ ] Add integrity verification command/service if hash chaining is selected.
-- [ ] Define audit retention and backup policy.
-- [ ] Audit privileged audit-export/administration actions.
+- [x] Prevent application-level update/delete of persisted audit events through the ORM.
+- [x] Document production DB privilege model for append-only audit writes in `docs/AUDIT_INTEGRITY.md`.
+- [x] Implement a per-organisation SHA-256 hash chain with retained chain head; externally signed checkpoints remain an optional future hardening layer.
+- [x] Add full-chain integrity verification service plus browser and API endpoints.
+- [x] Define audit retention, backup, restore and post-restore verification policy.
+- [x] Audit privileged CSV exports; existing settings/member/API-key administration actions remain individually audited.
 
 ### Required tests
 
-- [ ] ORM update/delete attempt is rejected.
-- [ ] Tamper-verification test detects altered/deleted link if hash chaining is implemented.
+- [x] ORM update/delete attempts are rejected.
+- [x] Raw-SQL event alteration is detected by hash verification.
+- [x] Raw-SQL deletion of the chain tail is detected by retained-head verification.
+- [x] Multiple audit events in one transaction chain consecutively.
+- [x] Rolled-back business transactions do not advance the audit chain.
+- [x] Legacy/direct AuditEvent constructors are chained at the ORM persistence boundary.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `2289ccaad0bd10c4032b703f52e8fe5c96a4b539`  
+Test/retest notes: PR #8 CI run #432 passed compile, clean migration validation and the full regression suite: 210 passed, 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
@@ -538,6 +542,7 @@ Add a row whenever one or more findings are submitted for retest.
 | 2026-09-15 | `45f99295ac85d92ed0e8bfcba8c6f36d96d236d6` | LO-AUD-001, LO-AUD-002, LO-AUD-003 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #264: compile and clean migration checks passed; 114 tests passed, 3 skipped. |
 | 2026-09-15 | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` | LO-AUD-004, LO-AUD-005, LO-AUD-008 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #378: compile and clean migration checks passed; 168 tests passed, 3 skipped. |
 | 2026-09-18 | `8a8cf7c9aa3df08a8de27811e6202c00a9c58916` | LO-AUD-006, LO-AUD-007 | Submitted / pending independent retest | Pending independent reviewer | PR #7 CI run #425: compile and clean migration checks passed; 200 tests passed, 3 skipped. Reverse-charge/import VAT and direct HMRC MTD submission remain outside the supported scope. |
+| 2026-09-18 | `2289ccaad0bd10c4032b703f52e8fe5c96a4b539` | LO-AUD-010 | Submitted / pending independent retest | Pending independent reviewer | PR #8 CI run #432: compile and clean migration checks passed; 210 tests passed, 3 skipped. Append-only ORM guard, per-organisation hash chain, retained head, integrity verifier and audited exports implemented. |
 
 ---
 
