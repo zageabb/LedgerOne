@@ -43,6 +43,7 @@ def bills():
         "bill_number": row.bill_number,
         "supplier_id": row.supplier_id,
         "bill_date": row.bill_date.isoformat(),
+        "tax_point": row.tax_point.isoformat(),
         "due_date": row.due_date.isoformat() if row.due_date else None,
         "currency": row.currency,
         "status": row.status,
@@ -63,6 +64,7 @@ def create_bill():
     try:
         bill_date = date.fromisoformat(payload.get("bill_date") or date.today().isoformat())
         due_date = date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None
+        tax_point = date.fromisoformat(payload["tax_point"]) if payload.get("tax_point") else bill_date
         if module_registry.is_enabled(g.access_context.organisation_id, "workflows"):
             from ledgerone.modules.workflows.purchase_bill_requests import PurchaseBillWorkflowService
 
@@ -72,6 +74,7 @@ def create_bill():
                 bill_number=payload["bill_number"],
                 bill_date=bill_date,
                 due_date=due_date,
+                tax_point=tax_point,
                 description=payload.get("description", "Purchase"),
                 amount=payload["amount"],
                 payable_account_id=payload["payable_account_id"],
@@ -94,6 +97,7 @@ def create_bill():
             bill_number=payload["bill_number"],
             bill_date=bill_date,
             due_date=due_date,
+            tax_point=tax_point,
             description=payload.get("description", "Purchase"),
             amount=payload["amount"],
             payable_account_id=payload["payable_account_id"],
@@ -104,6 +108,7 @@ def create_bill():
         return jsonify({
             "id": row.id,
             "status": row.status,
+            "tax_point": row.tax_point.isoformat(),
             "due_date": row.due_date.isoformat() if row.due_date else None,
             "subtotal": str(row.subtotal),
             "tax_total": str(row.tax_total),
