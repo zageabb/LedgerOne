@@ -31,6 +31,28 @@ def _record(context, action: str):
     return row
 
 
+def test_legacy_direct_audit_constructor_is_chained_at_flush(app):
+    with app.app_context():
+        context = _context()
+        row = AuditEvent(
+            organisation_id=context.organisation_id,
+            actor_type="system",
+            actor_id=None,
+            module_id="legacy_test",
+            action="direct_constructor",
+            entity_type="test_record",
+            entity_id="legacy-1",
+            detail={"legacy": True},
+        )
+        db.session.add(row)
+        db.session.commit()
+
+        assert row.chain_scope == context.organisation_id
+        assert row.chain_sequence >= 1
+        assert row.event_hash and len(row.event_hash) == 64
+        assert AuditIntegrityService.verify(context)["valid"] is True
+
+
 def test_audit_events_are_append_only_through_orm(app):
     with app.app_context():
         context = _context()
