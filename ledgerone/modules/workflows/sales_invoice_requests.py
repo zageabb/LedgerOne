@@ -53,7 +53,7 @@ class SalesInvoiceWorkflowService:
         invoice_date: date,
         due_date: date | None,
         tax_point: date | None = None,
-        description: str = "Sales",
+        description: str,
         amount,
         receivable_account_id: str,
         revenue_account_id: str,
