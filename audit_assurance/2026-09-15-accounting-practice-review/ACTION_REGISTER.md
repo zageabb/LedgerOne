@@ -288,28 +288,32 @@ Test/retest notes: `Open PR #3 contains an older numbering implementation but is
 
 ## LO-AUD-011 — Paid-invoice credits and refunds
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** MEDIUM
 
 ### Implementation checklist
 
-- [ ] Separate original invoice value, payments and credits in settlement logic.
-- [ ] Allow valid credit note after invoice is fully paid.
-- [ ] Create customer unallocated credit balance.
-- [ ] Allow credit allocation to another invoice.
-- [ ] Allow customer refund posting.
-- [ ] Mirror appropriate supplier-credit/refund scenarios.
+- [x] Separate original invoice/bill value, cash settlements, credit notes, allocations and refunds in settlement logic.
+- [x] Allow valid credit notes after an invoice or bill is fully paid, without rewriting the original payment history.
+- [x] Create explicit reusable customer and supplier unallocated credit balances.
+- [x] Allow customer/supplier credit allocation to another invoice/bill through the existing settlement allocation model.
+- [x] Allow customer credit refund posting as Dr AR / Cr bank with immutable refund evidence.
+- [x] Mirror supplier-credit/refund scenarios as Dr bank / Cr AP when cash is refunded by the supplier.
+- [x] Include credit refunds in AR/AP control-account reconciliation.
 
 ### Required tests
 
-- [ ] Fully paid invoice -> credit -> customer credit.
-- [ ] Customer credit -> refund.
-- [ ] Customer credit -> allocation to another invoice.
+- [x] Fully paid invoice -> credit -> customer credit.
+- [x] Customer credit -> allocation to another invoice.
+- [x] Residual customer credit -> cash refund.
+- [x] Fully paid supplier bill -> supplier credit -> allocation/refund.
+- [x] AR/AP subledgers reconcile to their control accounts after credit allocation and refund.
+- [x] Refund amounts cannot exceed available credit and posted refund evidence is immutable.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation commit: `a0934f819c907234a98522379c47ed03c8c6743c`  
+Test/retest notes: PR #9 CI run #437 passed compile, clean migration validation and the full regression suite: 215 passed, 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
@@ -543,6 +547,7 @@ Add a row whenever one or more findings are submitted for retest.
 | 2026-09-15 | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` | LO-AUD-004, LO-AUD-005, LO-AUD-008 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #378: compile and clean migration checks passed; 168 tests passed, 3 skipped. |
 | 2026-09-18 | `8a8cf7c9aa3df08a8de27811e6202c00a9c58916` | LO-AUD-006, LO-AUD-007 | Submitted / pending independent retest | Pending independent reviewer | PR #7 CI run #425: compile and clean migration checks passed; 200 tests passed, 3 skipped. Reverse-charge/import VAT and direct HMRC MTD submission remain outside the supported scope. |
 | 2026-09-18 | `2289ccaad0bd10c4032b703f52e8fe5c96a4b539` | LO-AUD-010 | Submitted / pending independent retest | Pending independent reviewer | PR #8 CI run #432: compile and clean migration checks passed; 210 tests passed, 3 skipped. Append-only ORM guard, per-organisation hash chain, retained head, integrity verifier and audited exports implemented. |
+| 2026-09-18 | `a0934f819c907234a98522379c47ed03c8c6743c` | LO-AUD-011 | Submitted / pending independent retest | Pending independent reviewer | PR #9 CI run #437: compile and clean migration checks passed; 215 tests passed, 3 skipped. Paid-document credits, reusable customer/supplier credit, cross-document allocation, cash refunds, refund immutability and AR/AP reconciliation implemented. |
 
 ---
 
