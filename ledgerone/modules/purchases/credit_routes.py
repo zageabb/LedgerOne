@@ -34,11 +34,16 @@ def index():
 
     bills = PurchasesService.list_bills(context, 250)
     outstanding = {row.id: PurchasesService.bill_outstanding(row) for row in bills}
-    open_bills = [row for row in bills if outstanding[row.id] > 0]
+    creditable = {
+        row.id: PurchaseCreditService.remaining_creditable_net(row)
+        for row in bills
+    }
+    creditable_bills = [row for row in bills if creditable[row.id] > 0]
     return render_template(
         "purchases/credit_notes.html",
         credit_notes=PurchaseCreditService.list_credit_notes(context, 100),
-        bills=open_bills,
+        bills=creditable_bills,
         outstanding=outstanding,
+        creditable=creditable,
         today=date.today().isoformat(),
     )

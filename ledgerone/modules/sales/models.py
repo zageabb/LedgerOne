@@ -96,6 +96,9 @@ class SalesPayment(db.Model):
     allocations = db.relationship(
         "SalesPaymentAllocation", back_populates="payment", cascade="all, delete-orphan", lazy="selectin"
     )
+    credit_refunds = db.relationship(
+        "SalesCreditRefund", back_populates="source_payment", cascade="all, delete-orphan", lazy="selectin"
+    )
 
 
 class SalesPaymentAllocation(db.Model):
@@ -112,3 +115,26 @@ class SalesPaymentAllocation(db.Model):
 
     payment = db.relationship("SalesPayment", back_populates="allocations")
     invoice = db.relationship("SalesInvoice", back_populates="payment_allocations")
+
+
+class SalesCreditRefund(db.Model):
+    __tablename__ = "sales_credit_refunds"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    customer_id = db.Column(db.String(36), db.ForeignKey("customers.id"), nullable=False, index=True)
+    source_payment_id = db.Column(db.String(36), db.ForeignKey("sales_payments.id"), nullable=False, index=True)
+    refund_date = db.Column(db.Date, nullable=False, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    bank_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=False)
+    receivable_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=False)
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, unique=True, index=True)
+    reference = db.Column(db.String(120), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    customer = db.relationship("Customer")
+    source_payment = db.relationship("SalesPayment", back_populates="credit_refunds")
+    bank_account = db.relationship("Account", foreign_keys=[bank_account_id])
+    receivable_account = db.relationship("Account", foreign_keys=[receivable_account_id])
+    journal = db.relationship("Journal")

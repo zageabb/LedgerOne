@@ -440,6 +440,9 @@ def install_control_account_service_guards() -> None:
         SalesService, "record_payment", ("accounts_receivable",), sales_payment_before
     )
     _wrap_service_method(
+        SalesService, "record_credit_refund", ("accounts_receivable",), sales_payment_before
+    )
+    _wrap_service_method(
         SalesService, "adopt_payment_journal", ("accounts_receivable",), sales_invoice_before
     )
     _wrap_service_method(
@@ -453,6 +456,9 @@ def install_control_account_service_guards() -> None:
     )
     _wrap_service_method(
         PurchasesService, "record_payment", ("accounts_payable",), purchase_payment_before
+    )
+    _wrap_service_method(
+        PurchasesService, "record_credit_refund", ("accounts_payable",), purchase_payment_before
     )
     _wrap_service_method(
         PurchasesService, "adopt_payment_journal", ("accounts_payable",), purchase_bill_before
@@ -635,7 +641,7 @@ class ControlAccountService:
     @staticmethod
     def _subledger_balance(context: AccessContext, role: str, as_of: date) -> Decimal:
         if role == "accounts_receivable":
-            from ledgerone.modules.sales.models import SalesInvoice, SalesPayment
+            from ledgerone.modules.sales.models import SalesCreditRefund, SalesInvoice, SalesPayment
 
             invoices = _money(
                 db.session.query(db.func.coalesce(db.func.sum(SalesInvoice.total), 0))
@@ -654,10 +660,18 @@ class ControlAccountService:
                 )
                 .scalar()
             )
-            return invoices - payments
+            refunds = _money(
+                db.session.query(db.func.coalesce(db.func.sum(SalesCreditRefund.amount), 0))
+                .filter(
+                    SalesCreditRefund.organisation_id == context.organisation_id,
+                    SalesCreditRefund.refund_date <= as_of,
+                )
+                .scalar()
+            )
+            return invoices - payments + refunds
 
         if role == "accounts_payable":
-            from ledgerone.modules.purchases.models import PurchaseBill, PurchasePayment
+            from ledgerone.modules.purchases.models import PurchaseBill, PurchaseCreditRefund, PurchasePayment
 
             bills = _money(
                 db.session.query(db.func.coalesce(db.func.sum(PurchaseBill.total), 0))
@@ -676,7 +690,15 @@ class ControlAccountService:
                 )
                 .scalar()
             )
-            return bills - payments
+            refunds = _money(
+                db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditRefund.amount), 0))
+                .filter(
+                    PurchaseCreditRefund.organisation_id == context.organisation_id,
+                    PurchaseCreditRefund.refund_date <= as_of,
+                )
+                .scalar()
+            )
+            return bills - payments + refunds
 
         if role == "output_vat":
             from ledgerone.modules.sales.credit_models import SalesCreditNote

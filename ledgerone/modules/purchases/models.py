@@ -96,6 +96,9 @@ class PurchasePayment(db.Model):
     allocations = db.relationship(
         "PurchasePaymentAllocation", back_populates="payment", cascade="all, delete-orphan", lazy="selectin"
     )
+    credit_refunds = db.relationship(
+        "PurchaseCreditRefund", back_populates="source_payment", cascade="all, delete-orphan", lazy="selectin"
+    )
 
 
 class PurchasePaymentAllocation(db.Model):
@@ -112,3 +115,26 @@ class PurchasePaymentAllocation(db.Model):
 
     payment = db.relationship("PurchasePayment", back_populates="allocations")
     bill = db.relationship("PurchaseBill", back_populates="payment_allocations")
+
+
+class PurchaseCreditRefund(db.Model):
+    __tablename__ = "purchase_credit_refunds"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    supplier_id = db.Column(db.String(36), db.ForeignKey("suppliers.id"), nullable=False, index=True)
+    source_payment_id = db.Column(db.String(36), db.ForeignKey("purchase_payments.id"), nullable=False, index=True)
+    refund_date = db.Column(db.Date, nullable=False, index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    bank_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=False)
+    payable_account_id = db.Column(db.String(36), db.ForeignKey("accounts.id"), nullable=False)
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"), nullable=False, unique=True, index=True)
+    reference = db.Column(db.String(120), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    supplier = db.relationship("Supplier")
+    source_payment = db.relationship("PurchasePayment", back_populates="credit_refunds")
+    bank_account = db.relationship("Account", foreign_keys=[bank_account_id])
+    payable_account = db.relationship("Account", foreign_keys=[payable_account_id])
+    journal = db.relationship("Journal")
