@@ -313,7 +313,8 @@ Test/retest notes: `Open PR #3 contains an older numbering implementation but is
 ### Closure evidence
 
 Implementation commit: `a0934f819c907234a98522379c47ed03c8c6743c`  
-Test/retest notes: PR #9 CI run #437 passed compile, clean migration validation and the full regression suite: 215 passed, 3 skipped. Awaiting independent audit retest before closure.
+Merged to main: `0388f1b592a64a704172078aee67b2421d2e0043`  
+Test/retest notes: PR #9 candidate CI passed compile, clean migration validation and the full regression suite. After merge, LedgerOne CI run #442 independently validated the merged `main` commit: clean migration upgrade through `0018_credit_refunds`, 215 tests passed and 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
@@ -547,7 +548,7 @@ Add a row whenever one or more findings are submitted for retest.
 | 2026-09-15 | `703b2e2bf1df751ba7290de4f38b3be3c5f7e878` | LO-AUD-004, LO-AUD-005, LO-AUD-008 | Submitted / pending independent retest | Pending independent reviewer | Integrated CI run #378: compile and clean migration checks passed; 168 tests passed, 3 skipped. |
 | 2026-09-18 | `8a8cf7c9aa3df08a8de27811e6202c00a9c58916` | LO-AUD-006, LO-AUD-007 | Submitted / pending independent retest | Pending independent reviewer | PR #7 CI run #425: compile and clean migration checks passed; 200 tests passed, 3 skipped. Reverse-charge/import VAT and direct HMRC MTD submission remain outside the supported scope. |
 | 2026-09-18 | `2289ccaad0bd10c4032b703f52e8fe5c96a4b539` | LO-AUD-010 | Submitted / pending independent retest | Pending independent reviewer | PR #8 CI run #432: compile and clean migration checks passed; 210 tests passed, 3 skipped. Append-only ORM guard, per-organisation hash chain, retained head, integrity verifier and audited exports implemented. |
-| 2026-09-18 | `a0934f819c907234a98522379c47ed03c8c6743c` | LO-AUD-011 | Submitted / pending independent retest | Pending independent reviewer | PR #9 CI run #437: compile and clean migration checks passed; 215 tests passed, 3 skipped. Paid-document credits, reusable customer/supplier credit, cross-document allocation, cash refunds, refund immutability and AR/AP reconciliation implemented. |
+| 2026-10-03 | `0388f1b592a64a704172078aee67b2421d2e0043` | LO-AUD-011 | Submitted / pending independent retest | Pending independent reviewer | PR #9 merged to main. CI run #442 passed compile, clean migration through 0018 and the full suite: 215 passed, 3 skipped. Paid-document credits, reusable customer/supplier credit, cross-document allocation, cash refunds, refund immutability and AR/AP reconciliation implemented. |
 
 ---
 
