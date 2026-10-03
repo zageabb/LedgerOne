@@ -392,32 +392,36 @@ Test/retest notes: PR #11 CI run #453 passed compile, clean migration through `0
 
 ## LO-AUD-014 — Formal bank statement reconciliation
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** MEDIUM
 
 ### Implementation checklist
 
-- [ ] Add reconciliation header/entity.
-- [ ] Statement start/end dates.
-- [ ] Statement opening/closing balance.
-- [ ] Ledger balance at cut-off.
-- [ ] Matched/unmatched item snapshot.
-- [ ] Outstanding receipts/payments.
-- [ ] Explained difference and final residual difference.
-- [ ] Prepared-by / approved-by.
-- [ ] Finalised/locked reconciliation.
-- [ ] Printable/exportable retained reconciliation report.
+- [x] Add retained reconciliation header/entity.
+- [x] Capture statement start/end dates.
+- [x] Capture statement opening/closing balance.
+- [x] Calculate cumulative linked-bank ledger balance at cut-off.
+- [x] Retain statement transaction and matched/unmatched snapshot.
+- [x] Retain statement-period outstanding book receipts/payments.
+- [x] Calculate reconciling totals, explained difference and final residual difference.
+- [x] Prevent finalisation while residual difference remains non-zero.
+- [x] Record preparer/approver identity and timestamps.
+- [x] Finalised reconciliation is locked against service and ORM mutation/deletion.
+- [x] Provide retained browser evidence and CSV/API export.
 
 ### Required tests
 
-- [ ] Known statement fixture reconciles to zero.
-- [ ] Unexplained difference prevents finalisation.
-- [ ] Finalised reconciliation cannot be silently changed.
+- [x] Known statement fixture reconciles to zero and finalises.
+- [x] Unexplained residual difference prevents finalisation.
+- [x] Documented explained difference can resolve a residual before finalisation.
+- [x] Finalised reconciliation cannot be silently changed or deleted through the ORM.
+- [x] Retained CSV evidence includes reconciliation summary and statement snapshot.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation branch head: `683f1a1cdd4c57c984e90c6a1aa70aafb4d6e2da`  
+Merged to main: `7a80676613cff76ade4b41737b56e3093e4e7c4d`  
+Test/retest notes: PR #12 CI run #459 passed compile, clean migration through `0021_bank_reconciliations`, Alembic autogenerate validation and the full suite: 231 passed, 3 skipped. After merge, LedgerOne CI run #460 independently validated the exact merged `main` commit with the same migration/autogenerate checks and 231 passed, 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
@@ -564,6 +568,7 @@ Add a row whenever one or more findings are submitted for retest.
 | 2026-10-03 | `0388f1b592a64a704172078aee67b2421d2e0043` | LO-AUD-011 | Submitted / pending independent retest | Pending independent reviewer | PR #9 merged to main. CI run #442 passed compile, clean migration through 0018 and the full suite: 215 passed, 3 skipped. Paid-document credits, reusable customer/supplier credit, cross-document allocation, cash refunds, refund immutability and AR/AP reconciliation implemented. |
 | 2026-10-03 | `bc0906d86dd969861f52f6897e726f3dfc95a7e7` | LO-AUD-012 | Submitted / pending independent retest | Pending independent reviewer | PR #10 merged to main. CI run #450 passed compile, clean migration through 0019, Alembic autogenerate validation and the full suite: 223 passed, 3 skipped. Account classifications, parent/child validation, central posting defaults, sales/purchase role validation, bank-link rules and audited exceptional overrides implemented. |
 | 2026-10-03 | `bc3a704ae51705598f7a42f89590d18e6c9ed7a6` | LO-AUD-013 | Submitted / pending independent retest | Pending independent reviewer | PR #11 merged to main. CI run #454 passed compile, clean migration through 0020, Alembic autogenerate validation and the full suite: 228 passed, 3 skipped. Authenticated API write idempotency, response replay, conflict detection, integration source-reference uniqueness, retention and organisation isolation implemented. |
+| 2026-10-03 | `7a80676613cff76ade4b41737b56e3093e4e7c4d` | LO-AUD-014 | Submitted / pending independent retest | Pending independent reviewer | PR #12 merged to main. CI run #460 passed compile, clean migration through 0021, Alembic autogenerate validation and the full suite: 231 passed, 3 skipped. Retained formal statement reconciliation, cut-off GL balance, snapshots, reconciling totals, residual blocking, preparer/approver evidence, finalisation lock and CSV export implemented. |
 
 ---
 
