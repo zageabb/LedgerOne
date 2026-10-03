@@ -53,21 +53,26 @@ class PostingAccountService:
     def validate(context: AccessContext, account_id: str, role: str) -> Account:
         rule = PostingAccountService._rule(role)
         account = PostingAccountService._account(context, account_id)
-        errors = []
-        if account.account_type not in rule["types"]:
-            errors.append(
-                f"account type must be one of {', '.join(sorted(rule['types']))}"
-            )
         if rule.get("non_control") and account.is_control_account:
-            errors.append("control accounts cannot be used for this posting role")
+            raise PostingAccountError(
+                f"Account {account.code} is not valid for {role}: "
+                "control accounts cannot be used for this posting role"
+            )
         required_control_role = rule.get("control_role")
         if required_control_role:
             actual = (account.metadata_json or {}).get("control_role")
             if actual != required_control_role:
-                errors.append(f"account must have control role {required_control_role}")
-        if errors and not PostingAccountService._has_override(context, account, role):
+                raise PostingAccountError(
+                    f"Account {account.code} is not valid for {role}: "
+                    f"account must have control role {required_control_role}"
+                )
+        if (
+            account.account_type not in rule["types"]
+            and not PostingAccountService._has_override(context, account, role)
+        ):
             raise PostingAccountError(
-                f"Account {account.code} is not valid for {role}: " + "; ".join(errors)
+                f"Account {account.code} is not valid for {role}: "
+                f"account type must be one of {', '.join(sorted(rule['types']))}"
             )
         return account
 
