@@ -223,6 +223,7 @@ class BankingService:
         bank_account = transaction.bank_account
         if not bank_account.ledger_account_id:
             raise ValueError("Link the bank account to a ledger account before reconciling")
+        PostingAccountService.validate(context, bank_account.ledger_account_id, "bank")
         offset_account = db.session.get(Account, offset_account_id)
         if not offset_account or offset_account.organisation_id != context.organisation_id:
             raise ValueError("Invalid offset account")
