@@ -8,10 +8,12 @@ This file is the persistent working agreement for ChatGPT, Codex, and other codi
 ## Start here
 Before changing code:
 1. Read this file.
-2. Read the repository README and relevant documentation.
-3. Read `TODO.md`, `DESIGN.md`, roadmap, phase, audit, and development notes when present.
-4. Inspect the existing implementation before proposing replacement architecture.
-5. Continue the next incomplete task or phase unless the user explicitly asks for something else.
+2. Read the root `DEVELOPMENT.md`. It is the primary development queue and should be treated as the current source of truth for development order and incomplete work.
+3. Read the repository README and relevant documentation.
+4. Read `docs/TODO.md`, `docs/ROADMAP.md`, audit/action-register material, design notes, phase notes, and other development documentation where relevant.
+5. Inspect the existing implementation, tests, migrations, open pull requests, and current branch state before proposing replacement architecture or trusting displayed status text.
+6. Verify behaviour from source and tests rather than assuming a checkbox, PR description, or older documentation entry is still accurate.
+7. Continue the highest-priority incomplete item in `DEVELOPMENT.md` unless the user explicitly asks for something else.
 
 ## Development rules
 - Preserve the existing architecture, UI conventions, and working behaviour unless a change is required.
@@ -67,3 +69,31 @@ Many of these projects use GitHub as the source for automatic deployment to an U
 - If documentation and code disagree, identify the mismatch and update the appropriate source.
 - Do not invent completed work, test results, files, endpoints, or integrations.
 - When work spans phases, complete and verify the current phase before starting the next.
+- Keep `DEVELOPMENT.md` current as implementation evidence changes. Add newly discovered outstanding work, mark completed work only when verified, and remove or supersede stale development instructions rather than allowing parallel contradictory backlogs.
+- Do not stop after a single implementation step if the current objective still has clear, safe, unambiguous work remaining.
+- Continue autonomously until one of these conditions is reached:
+  1. the current objective is complete and verified;
+  2. a genuinely ambiguous product decision is required;
+  3. progress is blocked by something outside the repository or unavailable credentials/services;
+  4. continuing would risk destructive or irreversible changes.
+- A completed sub-step, commit, test run, or green CI check is not by itself a reason to stop when the objective still contains unfinished work.
+- When CI fails, inspect the actual failing job/log, fix the underlying cause, run the relevant local validation, push the fix, and recheck CI. Do not merely report that CI failed when the cause can be addressed in the repository.
+- Before starting unrelated work, finish or explicitly document the current highest-priority objective and its remaining blockers.
+- Where independent tasks can safely be developed in parallel without touching conflicting files or shared migration history, parallel work is allowed, but each workstream must still satisfy the same testing, documentation, and evidence requirements before being marked complete.
+
+
+## Development tracking and evidence
+
+`DEVELOPMENT.md` is the persistent development control document for LedgerOne.
+
+For every material development item:
+- give it a stable identifier where practical;
+- state its current status;
+- record the expected outcome and completion evidence;
+- update the entry when source inspection shows that older TODO/roadmap information is stale;
+- reference relevant audit finding IDs, pull requests, migrations, tests, and commits where useful;
+- do not mark an item complete solely because code exists on a branch or pull request;
+- require merge to `main`, applicable migrations, relevant regression coverage, and green final CI before normal development completion;
+- for audit-linked items, retain the stricter audit rule: implementation evidence plus independent retest before the finding is marked CLOSED.
+
+When the user asks to "continue development", "continue", or gives an equivalent instruction without naming a different objective, resume from the highest-priority incomplete item in `DEVELOPMENT.md`.
