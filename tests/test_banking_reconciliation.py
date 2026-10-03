@@ -3,7 +3,10 @@ from decimal import Decimal
 from ledgerone.extensions import db
 from ledgerone.models.core import ApiKey, Organisation
 from ledgerone.models.ledger import Account, Journal
-from ledgerone.modules.banking.models import BankTransaction
+from ledgerone.modules.banking.models import BankReconciliation, BankTransaction
+from ledgerone.services.bank_reconciliation_immutability import (
+    FinalisedBankReconciliationImmutableError,
+)
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.services.context import AccessContext
 
@@ -253,3 +256,163 @@ def test_post_and_match_respects_locked_period_atomically(client, app):
         assert transaction.status == "unreconciled"
         assert transaction.matched_journal_id is None
         assert Journal.query.count() == 0
+
+
+
+def _matched_receipt_fixture(client, app, amount="100.00"):
+    token, accounts = _setup(app)
+    headers = _headers(token)
+    transaction_id = _create_bank_and_transaction(
+        client,
+        token,
+        accounts,
+        amount=amount,
+        tx_date="2026-09-14",
+        description="Statement receipt",
+    )
+    bank_account_id = client.get(
+        "/api/v1/banking/transactions", headers=headers
+    ).get_json()["transactions"][0]["bank_account_id"]
+    journal = client.post(
+        "/api/v1/ledger/journals",
+        headers=headers,
+        json={
+            "date": "2026-09-14",
+            "reference": "STMT-100",
+            "description": "Statement receipt",
+            "lines": [
+                {"account_id": accounts["1000"], "debit": amount, "credit": "0"},
+                {"account_id": accounts["4000"], "debit": "0", "credit": amount},
+            ],
+        },
+    )
+    assert journal.status_code == 201
+    matched = client.post(
+        f"/api/v1/banking/transactions/{transaction_id}/match",
+        headers=headers,
+        json={"journal_id": journal.get_json()["id"]},
+    )
+    assert matched.status_code == 200
+    return token, accounts, bank_account_id
+
+
+def test_formal_reconciliation_known_fixture_finalises_to_zero(client, app):
+    token, _, bank_account_id = _matched_receipt_fixture(client, app)
+    headers = _headers(token)
+
+    created = client.post(
+        "/api/v1/banking/reconciliations",
+        headers=headers,
+        json={
+            "bank_account_id": bank_account_id,
+            "statement_start_date": "2026-09-01",
+            "statement_end_date": "2026-09-30",
+            "statement_opening_balance": "0.00",
+            "statement_closing_balance": "100.00",
+        },
+    )
+    assert created.status_code == 201
+    payload = created.get_json()
+    assert payload["ledger_balance"] == "100.00"
+    assert payload["residual_difference"] == "0.00"
+    assert len(payload["snapshot"]["statement_transactions"]) == 1
+    assert payload["snapshot"]["outstanding_book_items"] == []
+
+    finalised = client.post(
+        f"/api/v1/banking/reconciliations/{payload['id']}/finalise",
+        headers=headers,
+    )
+    assert finalised.status_code == 200
+    result = finalised.get_json()
+    assert result["status"] == "finalised"
+    assert result["residual_difference"] == "0.00"
+    assert result["prepared_by"]
+    assert result["approved_by"]
+    assert result["finalised_at"]
+
+    exported = client.get(
+        f"/api/v1/banking/reconciliations/{payload['id']}/export.csv",
+        headers=headers,
+    )
+    assert exported.status_code == 200
+    assert "LedgerOne formal bank reconciliation" in exported.get_data(as_text=True)
+    assert "Statement transactions" in exported.get_data(as_text=True)
+
+
+def test_formal_reconciliation_residual_blocks_finalisation(client, app):
+    token, _, bank_account_id = _matched_receipt_fixture(client, app)
+    headers = _headers(token)
+
+    created = client.post(
+        "/api/v1/banking/reconciliations",
+        headers=headers,
+        json={
+            "bank_account_id": bank_account_id,
+            "statement_start_date": "2026-09-01",
+            "statement_end_date": "2026-09-30",
+            "statement_opening_balance": "0.00",
+            "statement_closing_balance": "105.00",
+        },
+    )
+    assert created.status_code == 201
+    row = created.get_json()
+    assert row["residual_difference"] == "5.00"
+
+    blocked = client.post(
+        f"/api/v1/banking/reconciliations/{row['id']}/finalise",
+        headers=headers,
+    )
+    assert blocked.status_code == 400
+    assert "residual difference" in blocked.get_json()["error"]
+
+    explained = client.patch(
+        f"/api/v1/banking/reconciliations/{row['id']}",
+        headers=headers,
+        json={"explained_difference": "-5.00", "explanation": "Known bank timing correction"},
+    )
+    assert explained.status_code == 200
+    assert explained.get_json()["residual_difference"] == "0.00"
+
+    finalised = client.post(
+        f"/api/v1/banking/reconciliations/{row['id']}/finalise",
+        headers=headers,
+    )
+    assert finalised.status_code == 200
+    assert finalised.get_json()["status"] == "finalised"
+
+
+def test_finalised_formal_reconciliation_is_orm_immutable(client, app):
+    token, _, bank_account_id = _matched_receipt_fixture(client, app)
+    headers = _headers(token)
+    created = client.post(
+        "/api/v1/banking/reconciliations",
+        headers=headers,
+        json={
+            "bank_account_id": bank_account_id,
+            "statement_start_date": "2026-09-01",
+            "statement_end_date": "2026-09-30",
+            "statement_opening_balance": "0.00",
+            "statement_closing_balance": "100.00",
+        },
+    ).get_json()
+    assert client.post(
+        f"/api/v1/banking/reconciliations/{created['id']}/finalise",
+        headers=headers,
+    ).status_code == 200
+
+    with app.app_context():
+        row = db.session.get(BankReconciliation, created["id"])
+        row.explanation = "silent mutation"
+        try:
+            db.session.commit()
+            assert False, "finalised reconciliation mutation should fail"
+        except FinalisedBankReconciliationImmutableError:
+            db.session.rollback()
+
+        row = db.session.get(BankReconciliation, created["id"])
+        db.session.delete(row)
+        try:
+            db.session.commit()
+            assert False, "finalised reconciliation delete should fail"
+        except FinalisedBankReconciliationImmutableError:
+            db.session.rollback()
