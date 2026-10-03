@@ -108,21 +108,24 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 
 ### DEV-004 — Formal statement-to-GL bank reconciliation / LO-AUD-014
 
-**Status:** OPEN
+**Status:** ENGINEERING COMPLETE — merged to `main`, awaiting independent audit retest
 
-The current reconciliation flow is transaction matching, not a retained formal statement reconciliation.
+- [x] Add retained reconciliation header/entity.
+- [x] Capture statement start/end dates.
+- [x] Capture statement opening/closing balance.
+- [x] Calculate cumulative linked-bank ledger balance at statement cut-off.
+- [x] Retain statement transaction snapshot, unmatched statement items and statement-period outstanding book items.
+- [x] Calculate unmatched/outstanding totals, explained difference, adjusted statement balance and residual difference.
+- [x] Prevent finalisation while an unexplained residual remains.
+- [x] Record prepared-by and approved-by identities/timestamps.
+- [x] Lock finalised reconciliations against service and direct ORM mutation/deletion.
+- [x] Provide browser retained evidence plus CSV export and matching API evidence.
+- [x] Add zero-balance fixture, residual-blocking, explanation-resolution and immutability tests.
+- [x] Add migration `0021_bank_reconciliations` and verify no missing Alembic operations.
+- [x] Record implementation/retest evidence in the audit register.
+- [ ] Independent audit retest and formal finding closure.
 
-- [ ] Add reconciliation header/entity.
-- [ ] Capture statement start/end dates.
-- [ ] Capture statement opening/closing balance.
-- [ ] Calculate ledger balance at cut-off.
-- [ ] Retain matched/unmatched snapshot and outstanding receipts/payments.
-- [ ] Calculate explained and residual differences.
-- [ ] Prevent finalisation while an unexplained residual remains.
-- [ ] Record prepared-by and approved-by.
-- [ ] Lock finalised reconciliations against silent mutation.
-- [ ] Produce printable/exportable retained reconciliation evidence.
-- [ ] Add zero-balance fixture, residual-blocking and immutability tests.
+**Completion evidence:** PR #12; merge commit `7a80676613cff76ade4b41737b56e3093e4e7c4d`; LedgerOne CI run #460; clean migration through `0021_bank_reconciliations`; 231 tests passed, 3 skipped.
 
 ### DEV-005 — Maker/checker and segregation of duties / LO-AUD-015
 
@@ -344,14 +347,13 @@ The base local-AI chat and organisation Knowledge capabilities already exist. Re
 
 ## 12. Recommended development order
 
-1. DEV-004 — LO-AUD-014 formal bank reconciliation.
-2. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
-3. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011, DEV-002/LO-AUD-012, DEV-003/LO-AUD-013, and reconciling LO-AUD-009 numbering evidence.
-4. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
-5. DEV-007 — operational-list balances.
-6. DEV-008 — accounting workflow guide and in-app links.
-7. DEV-009 — numbering UX/integration consistency pass.
-8. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
+1. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
+2. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011, DEV-002/LO-AUD-012, DEV-003/LO-AUD-013, DEV-004/LO-AUD-014, and reconciling LO-AUD-009 numbering evidence.
+3. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
+4. DEV-007 — operational-list balances.
+5. DEV-008 — accounting workflow guide and in-app links.
+6. DEV-009 — numbering UX/integration consistency pass.
+7. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
 
 ---
 
