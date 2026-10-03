@@ -7,6 +7,11 @@ from sqlalchemy import or_
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.module_registry import module_registry
 from ledgerone.security import require_api
+from ledgerone.services.account_roles import (
+    POSTING_ROLE_RULES,
+    PostingAccountError,
+    PostingAccountService,
+)
 from ledgerone.services.ledger import LedgerError, LedgerService
 
 api_bp = Blueprint("ledger_api", __name__, url_prefix="/api/v1/ledger")
@@ -99,6 +104,70 @@ def create_account():
         )
         return jsonify({"id": row.id, "code": row.code, "name": row.name}), 201
     except (LedgerError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/posting-accounts")
+@require_api("ledger.read")
+def posting_accounts():
+    context = g.access_context
+    rows = {}
+    for role in POSTING_ROLE_RULES:
+        account_id = PostingAccountService.default_account_id(context.organisation_id, role)
+        account = db.session.get(Account, account_id) if account_id else None
+        rows[role] = (
+            {
+                "account_id": account.id,
+                "code": account.code,
+                "name": account.name,
+                "account_type": account.account_type,
+            }
+            if account and account.organisation_id == context.organisation_id
+            else None
+        )
+    return jsonify({"posting_accounts": rows})
+
+
+@api_bp.put("/posting-accounts/<role>")
+@require_api("settings.manage")
+def configure_posting_account(role):
+    payload = request.get_json(silent=True) or {}
+    try:
+        account = PostingAccountService.configure_default(
+            g.access_context, role, payload.get("account_id", "")
+        )
+        return jsonify(
+            {
+                "role": role,
+                "account_id": account.id,
+                "code": account.code,
+                "name": account.name,
+            }
+        )
+    except (PostingAccountError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/accounts/<account_id>/posting-role-overrides/<role>")
+@require_api("ledger.control_accounts.adjust")
+def set_posting_role_override(account_id, role):
+    payload = request.get_json(silent=True) or {}
+    try:
+        account = PostingAccountService.set_override(
+            g.access_context,
+            account_id,
+            role,
+            enabled=bool(payload.get("enabled", True)),
+            reason=payload.get("reason", ""),
+        )
+        return jsonify(
+            {
+                "account_id": account.id,
+                "role": role,
+                "enabled": role in ((account.metadata_json or {}).get("posting_role_overrides") or []),
+            }
+        )
+    except (PostingAccountError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
 
 
