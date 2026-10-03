@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Statement reconciliation · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Statement reconciliation</h1>
+    <p>{{ reconciliation.bank_account.name }} · {{ reconciliation.statement_start_date.strftime('%d %b %Y') }} to {{ reconciliation.statement_end_date.strftime('%d %b %Y') }}</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('banking.statement_reconciliations') }}">All reconciliations</a>
+    <a class="button button-secondary" href="/api/v1/banking/reconciliations/{{ reconciliation.id }}/export.csv">Export CSV</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Summary</h2><span class="badge {{ 'badge-success' if reconciliation.status == 'finalised' else 'badge-warning' }}">{{ reconciliation.status }}</span></div>
+    <div class="card-body">
+      <table>
+        <tbody>
+          <tr><th>Statement opening</th><td class="number">{{ evidence.statement_opening_balance }}</td></tr>
+          <tr><th>Statement closing</th><td class="number">{{ evidence.statement_closing_balance }}</td></tr>
+          <tr><th>Ledger balance at cut-off</th><td class="number">{{ evidence.ledger_balance }}</td></tr>
+          <tr><th>Unmatched statement total</th><td class="number">{{ evidence.unmatched_statement_total }}</td></tr>
+          <tr><th>Outstanding book total</th><td class="number">{{ evidence.outstanding_book_total }}</td></tr>
+          <tr><th>Explained difference</th><td class="number">{{ evidence.explained_difference }}</td></tr>
+          <tr><th>Residual difference</th><td class="number"><strong>{{ evidence.residual_difference }}</strong></td></tr>
+        </tbody>
+      </table>
+      <p class="help">Prepared by {{ evidence.prepared_by }}{% if evidence.approved_by %} · Approved by {{ evidence.approved_by }}{% endif %}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Review & finalise</h2></div>
+    <div class="card-body">
+      {% if reconciliation.status == 'draft' %}
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field"><label>Explained difference</label><input type="number" step="0.01" name="explained_difference" value="{{ evidence.explained_difference }}"></div>
+        <div class="field field-full"><label>Explanation</label><textarea name="explanation" rows="3">{{ evidence.explanation or '' }}</textarea></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Refresh snapshot</button></div>
+      </form>
+      <form method="post" action="{{ url_for('banking.finalise_statement_reconciliation', reconciliation_id=reconciliation.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit" {% if reconciliation.residual_difference != 0 %}disabled{% endif %}>Finalise and lock</button>
+      </form>
+      {% else %}
+      <p>Finalised evidence is locked against modification.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Statement snapshot</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Description</th><th class="number">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for item in evidence.snapshot.statement_transactions %}
+        <tr><td>{{ item.date }}</td><td>{{ item.description }}</td><td class="number">{{ item.amount }}</td><td>{{ item.status }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card section">
+  <div class="card-head"><h2>Outstanding book items</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="number">Amount</th></tr></thead>
+      <tbody>
+      {% for item in evidence.snapshot.outstanding_book_items %}
+        <tr><td>{{ item.date }}</td><td>{{ item.reference or '—' }}</td><td>{{ item.description }}</td><td class="number">{{ item.amount }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
