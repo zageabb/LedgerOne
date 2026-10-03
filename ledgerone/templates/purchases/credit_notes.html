@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>{{ 'Supplier refunds & credits' if ui_mode == 'home' else 'Purchase credit notes' }}</h1>
-    <p>{{ 'Reduce an unpaid supplier bill without changing the original transaction.' if ui_mode == 'home' else 'Post immutable supplier credit notes against existing purchase bills, including proportional VAT reversal.' }}</p>
+    <p>{{ 'Record a supplier refund or credit without changing the original bill.' if ui_mode == 'home' else 'Post immutable supplier credit notes against purchase bills, including paid bills and proportional VAT reversal.' }}</p>
   </div>
   <div class="actions"><a class="button button-secondary" href="{{ url_for('purchases.index') }}">Back to purchases</a></div>
 </div>
@@ -15,7 +15,7 @@
     <div class="card-body">
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="field field-full"><label>Bill</label><select name="bill_id" required><option value="">Select bill</option>{% for row in bills %}<option value="{{ row.id }}">{{ row.bill_number }} · {{ row.supplier.name }} · {{ row.currency }} {{ '%.2f'|format(outstanding[row.id]) }} outstanding</option>{% endfor %}</select></div>
+        <div class="field field-full"><label>Bill</label><select name="bill_id" required><option value="">Select bill</option>{% for row in bills %}<option value="{{ row.id }}">{{ row.bill_number }} · {{ row.supplier.name }} · {{ row.currency }} {{ '%.2f'|format(creditable[row.id]) }} available to credit{% if outstanding[row.id] == 0 %} · paid{% endif %}</option>{% endfor %}</select></div>
         <div class="field"><label>Credit note number</label><input name="credit_number" placeholder="SCN-001" required></div>
         <div class="field"><label>Date</label><input type="date" name="credit_date" value="{{ today }}" required></div>
         <div class="field"><label>VAT tax point</label><input type="date" name="tax_point"><div class="help">Leave blank to use the credit-note date.</div></div>
@@ -23,7 +23,7 @@
         <div class="field"><label>Description</label><input name="description" placeholder="Returned goods / supplier adjustment"></div>
         <div class="field-full"><button class="button" type="submit">Post supplier credit</button></div>
       </form>
-      <p class="help">VAT is inherited from the original bill and reversed proportionally. Credits cannot exceed the current outstanding balance.</p>
+      <p class="help">VAT is inherited from the original bill and reversed proportionally. A supplier credit can be recorded after the bill is paid; unapplied credit can settle another bill or be recorded when the supplier refunds cash. Credits cannot exceed the original value not already credited.</p>
     </div>
   </div>
 

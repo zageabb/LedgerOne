@@ -34,11 +34,16 @@ def index():
 
     invoices = SalesService.list_invoices(context, 250)
     outstanding = {row.id: SalesService.invoice_outstanding(row) for row in invoices}
-    open_invoices = [row for row in invoices if outstanding[row.id] > 0]
+    creditable = {
+        row.id: SalesCreditService.remaining_creditable_net(row)
+        for row in invoices
+    }
+    creditable_invoices = [row for row in invoices if creditable[row.id] > 0]
     return render_template(
         "sales/credit_notes.html",
         credit_notes=SalesCreditService.list_credit_notes(context, 100),
-        invoices=open_invoices,
+        invoices=creditable_invoices,
         outstanding=outstanding,
+        creditable=creditable,
         today=date.today().isoformat(),
     )

@@ -46,49 +46,78 @@
 </div>
 
 <div class="card section">
-  <div class="card-head"><h2>{{ 'Payments to match' if ui_mode == 'home' else 'Supplier payment register' }}</h2><span class="badge">{{ payments|length }}</span></div>
+  <div class="card-head"><h2>{{ 'Payments & supplier credits' if ui_mode == 'home' else 'Supplier payments & credit register' }}</h2><span class="badge">{{ payments|length }}</span></div>
   <div class="table-wrap">
     {% if payments %}
     <table>
-      <thead><tr><th>Date</th><th>Supplier</th><th>Reference</th><th>Status</th><th class="number">Amount</th><th class="number">Unallocated</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Supplier</th><th>Type</th><th>Reference</th><th>Status</th><th class="number">Amount</th><th class="number">Allocated</th><th class="number">Refunded</th><th class="number">Available</th><th></th></tr></thead>
       <tbody>
       {% for payment in payments %}
-        {% set remaining = payment.amount - allocated[payment.id] %}
+        {% set remaining = available[payment.id] %}
         <tr>
           <td>{{ payment.payment_date.strftime('%d %b %Y') }}</td>
           <td>{{ payment.supplier.name }}</td>
+          <td>{{ 'Credit note' if payment.settlement_type == 'credit_note' else 'Payment' }}</td>
           <td>{{ payment.reference or '—' }}</td>
-          <td><span class="badge {{ 'badge-success' if payment.status == 'allocated' else 'badge-warning' }}">{{ payment.status|replace('_',' ')|title }}</span></td>
+          <td><span class="badge {{ 'badge-success' if remaining == 0 else 'badge-warning' }}">{{ payment.status|replace('_',' ')|title }}</span></td>
           <td class="number">{{ payment.currency }} {{ '%.2f'|format(payment.amount) }}</td>
-          <td class="number">{{ payment.currency }} {{ '%.2f'|format(remaining) }}</td>
+          <td class="number">{{ payment.currency }} {{ '%.2f'|format(allocated[payment.id]) }}</td>
+          <td class="number">{{ payment.currency }} {{ '%.2f'|format(refunded[payment.id]) }}</td>
+          <td class="number"><strong>{{ payment.currency }} {{ '%.2f'|format(remaining) }}</strong></td>
           <td>
             {% if remaining > 0 %}
-            <details>
-              <summary class="button button-small">Allocate</summary>
-              <form method="post" class="form-grid" style="min-width:340px;margin-top:.5rem">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="action" value="allocate">
-                <input type="hidden" name="payment_id" value="{{ payment.id }}">
-                {% for bill in bills %}
-                  {% if bill.supplier_id == payment.supplier_id and outstanding[bill.id] > 0 %}
-                  <div class="field field-full">
-                    <label>{{ bill.bill_number }} · outstanding {{ bill.currency }} {{ '%.2f'|format(outstanding[bill.id]) }}</label>
-                    <input name="allocate_{{ bill.id }}" inputmode="decimal" placeholder="0.00">
-                  </div>
-                  {% endif %}
-                {% endfor %}
-                <div class="field-full"><button class="button button-small" type="submit">Save allocation</button></div>
-              </form>
-            </details>
-            {% else %}<span class="muted">Fully allocated</span>{% endif %}
+            <div class="actions">
+              <details>
+                <summary class="button button-small">Allocate</summary>
+                <form method="post" class="form-grid" style="min-width:360px;margin-top:.5rem">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="allocate">
+                  <input type="hidden" name="payment_id" value="{{ payment.id }}">
+                  {% for bill in bills %}
+                    {% if bill.supplier_id == payment.supplier_id and outstanding[bill.id] > 0 %}
+                    <div class="field field-full">
+                      <label>{{ bill.bill_number }} · outstanding {{ bill.currency }} {{ '%.2f'|format(outstanding[bill.id]) }}</label>
+                      <input name="allocate_{{ bill.id }}" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    {% endif %}
+                  {% endfor %}
+                  <div class="field-full"><button class="button button-small" type="submit">Save allocation</button></div>
+                </form>
+              </details>
+              <details>
+                <summary class="button button-small button-secondary">Refund received</summary>
+                <form method="post" class="form-grid" style="min-width:360px;margin-top:.5rem">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="refund">
+                  <input type="hidden" name="payment_id" value="{{ payment.id }}">
+                  <div class="field"><label>Date</label><input type="date" name="refund_date" value="{{ today }}" required></div>
+                  <div class="field"><label>Amount</label><input name="amount" inputmode="decimal" value="{{ '%.2f'|format(remaining) }}" required></div>
+                  <div class="field"><label>Bank account</label><select name="bank_account_id" required>{% for row in bank_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+                  <div class="field"><label>Payables account</label><select name="payable_account_id" required>{% for row in payable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
+                  <div class="field field-full"><label>Reference</label><input name="reference" placeholder="Supplier refund / bank reference"></div>
+                  <div class="field-full"><button class="button button-small" type="submit">Record refund received</button></div>
+                </form>
+              </details>
+            </div>
+            {% else %}<span class="muted">Fully used</span>{% endif %}
           </td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty">No supplier payments have been recorded yet.</div>{% endif %}
+    {% else %}<div class="empty">No supplier payments or credits have been recorded yet.</div>{% endif %}
   </div>
 </div>
+
+{% if credit_refunds %}
+<div class="card section">
+  <div class="card-head"><h2>Supplier credit refunds received</h2><span class="badge">{{ credit_refunds|length }}</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Supplier</th><th>Reference</th><th class="number">Amount</th><th>Journal</th></tr></thead>
+    <tbody>{% for row in credit_refunds %}<tr><td>{{ row.refund_date.strftime('%d %b %Y') }}</td><td>{{ row.supplier.name }}</td><td>{{ row.reference or '—' }}</td><td class="number">{{ row.currency }} {{ '%.2f'|format(row.amount) }}</td><td><span class="code">{{ row.journal_id[:12] }}…</span></td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
 
 <div class="card section">
   <div class="card-head"><h2>{{ 'What you still owe' if ui_mode == 'home' else 'Outstanding payables' }}</h2></div>

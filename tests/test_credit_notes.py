@@ -108,7 +108,7 @@ def test_purchase_credit_note_reverses_expense_vat_and_reduces_outstanding(app):
         assert settlement.status == "allocated"
 
 
-def test_credit_note_cannot_exceed_current_outstanding(app):
+def test_credit_note_cannot_exceed_original_uncredited_value(app):
     with app.app_context():
         context, accounts, tax_code = _setup(app)
         customer = SalesService.create_customer(context, name="Limit Customer")
@@ -124,7 +124,7 @@ def test_credit_note_cannot_exceed_current_outstanding(app):
             revenue_account_id=accounts["4000"],
             tax_code_id=tax_code.id,
         )
-        with pytest.raises(ValueError, match="outstanding"):
+        with pytest.raises(ValueError, match="remaining uncredited invoice value"):
             SalesCreditService.create_credit_note(
                 context,
                 invoice_id=invoice.id,

@@ -6,6 +6,7 @@ from ledgerone.models.ledger import Account, Journal, JournalLine
 from ledgerone.modules.purchases.models import (
     PurchaseBill,
     PurchaseBillLine,
+    PurchaseCreditRefund,
     PurchasePayment,
     PurchasePaymentAllocation,
     Supplier,
@@ -101,6 +102,197 @@ class PurchasesService:
             .scalar()
         )
         return _money(value)
+
+    @staticmethod
+    def payment_refunded(payment_id: str) -> Decimal:
+        value = (
+            db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditRefund.amount), 0))
+            .filter(PurchaseCreditRefund.source_payment_id == payment_id)
+            .scalar()
+        )
+        return _money(value)
+
+    @staticmethod
+    def payment_available(payment_id: str) -> Decimal:
+        payment = db.session.get(PurchasePayment, payment_id)
+        if not payment:
+            return Decimal("0.00")
+        consumed = PurchasesService.payment_allocated(payment_id) + PurchasesService.payment_refunded(payment_id)
+        return max(Decimal("0.00"), _money(payment.amount) - consumed)
+
+    @staticmethod
+    def supplier_credit_balance(context: AccessContext, supplier_id: str) -> Decimal:
+        rows = PurchasePayment.query.filter_by(
+            organisation_id=context.organisation_id,
+            supplier_id=supplier_id,
+        ).all()
+        return sum((PurchasesService.payment_available(row.id) for row in rows), Decimal("0.00"))
+
+    @staticmethod
+    def list_credit_refunds(context: AccessContext, limit: int = 100):
+        return (
+            PurchaseCreditRefund.query.filter_by(organisation_id=context.organisation_id)
+            .order_by(PurchaseCreditRefund.refund_date.desc(), PurchaseCreditRefund.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def refresh_payment_status(payment: PurchasePayment) -> None:
+        allocated = PurchasesService.payment_allocated(payment.id)
+        refunded = PurchasesService.payment_refunded(payment.id)
+        consumed = allocated + refunded
+        total = _money(payment.amount)
+        if consumed <= 0:
+            payment.status = "unallocated"
+        elif consumed >= total:
+            if refunded > 0 and allocated > 0:
+                payment.status = "settled"
+            elif refunded > 0:
+                payment.status = "refunded"
+            else:
+                payment.status = "allocated"
+        else:
+            payment.status = "partially_used" if refunded > 0 else "partially_allocated"
+
+    @staticmethod
+    def refresh_bill_status(bill: PurchaseBill) -> None:
+        from ledgerone.modules.purchases.credit_models import PurchaseCreditNote
+
+        credited = _money(
+            db.session.query(db.func.coalesce(db.func.sum(PurchaseCreditNote.total), 0))
+            .filter(PurchaseCreditNote.bill_id == bill.id)
+            .scalar()
+        )
+        allocated = PurchasesService.bill_allocated(bill.id)
+        outstanding = max(Decimal("0.00"), _money(bill.total) - allocated)
+        if credited >= _money(bill.total):
+            bill.status = "credited"
+        elif outstanding == 0:
+            bill.status = "paid"
+        elif credited > 0:
+            bill.status = "part_credited"
+        elif allocated > 0:
+            bill.status = "part_paid"
+        else:
+            bill.status = "posted"
+
+    @staticmethod
+    def record_credit_refund(
+        context: AccessContext,
+        *,
+        source_payment_id: str,
+        refund_date,
+        amount,
+        bank_account_id: str,
+        payable_account_id: str,
+        reference: str | None = None,
+    ):
+        if not context.can("purchases.write"):
+            raise PermissionError("purchases.write")
+        source = db.session.get(PurchasePayment, source_payment_id)
+        if not source or source.organisation_id != context.organisation_id:
+            raise ValueError("Supplier credit source not found")
+        amount = _money(amount)
+        if amount <= 0:
+            raise ValueError("Refund amount must be greater than zero")
+        available = PurchasesService.payment_available(source.id)
+        if amount > available:
+            raise ValueError("Refund exceeds the available supplier credit")
+
+        bank = db.session.get(Account, bank_account_id)
+        payable = db.session.get(Account, payable_account_id)
+        if (
+            not bank
+            or bank.organisation_id != context.organisation_id
+            or not bank.is_active
+            or bank.account_type != "asset"
+            or bank.is_control_account
+        ):
+            raise ValueError("Bank ledger account must be an active non-control asset account")
+        if (
+            not payable
+            or payable.organisation_id != context.organisation_id
+            or not payable.is_active
+            or payable.account_type != "liability"
+            or (payable.metadata_json or {}).get("control_role") != "accounts_payable"
+        ):
+            raise ValueError("Payables account must be the configured accounts-payable control account")
+        if bank.id == payable.id:
+            raise ValueError("Bank and payables accounts must be different")
+
+        refund_id = new_id()
+        try:
+            journal = LedgerService.post_journal(
+                context,
+                journal_date=refund_date,
+                description=f"Supplier credit refund - {source.supplier.name}",
+                reference=(reference or "").strip() or source.reference,
+                source_module="purchases",
+                source_reference=refund_id,
+                lines=[
+                    {
+                        "account_id": bank.id,
+                        "debit": amount,
+                        "credit": 0,
+                        "description": source.supplier.name,
+                        "currency": source.currency,
+                        "dimensions": {
+                            "supplier_id": source.supplier_id,
+                            "purchase_credit_refund_id": refund_id,
+                            "source_payment_id": source.id,
+                        },
+                    },
+                    {
+                        "account_id": payable.id,
+                        "debit": 0,
+                        "credit": amount,
+                        "description": source.supplier.name,
+                        "currency": source.currency,
+                        "dimensions": {
+                            "supplier_id": source.supplier_id,
+                            "purchase_credit_refund_id": refund_id,
+                            "source_payment_id": source.id,
+                        },
+                    },
+                ],
+                commit=False,
+            )
+            refund = PurchaseCreditRefund(
+                id=refund_id,
+                organisation_id=context.organisation_id,
+                supplier_id=source.supplier_id,
+                source_payment_id=source.id,
+                refund_date=refund_date,
+                amount=amount,
+                currency=source.currency,
+                bank_account_id=bank.id,
+                payable_account_id=payable.id,
+                journal_id=journal.id,
+                reference=(reference or "").strip() or journal.reference,
+            )
+            db.session.add(refund)
+            db.session.flush()
+            PurchasesService.refresh_payment_status(source)
+            record_audit_event(
+                context,
+                module_id="purchases",
+                action="supplier_credit_refunded",
+                entity_type="purchase_credit_refund",
+                entity_id=refund.id,
+                detail={
+                    "supplier_id": source.supplier_id,
+                    "source_payment_id": source.id,
+                    "journal_id": journal.id,
+                    "amount": str(amount),
+                    "remaining_credit": str(PurchasesService.payment_available(source.id)),
+                },
+            )
+            db.session.commit()
+            return refund
+        except Exception:
+            db.session.rollback()
+            raise
 
     @staticmethod
     def create_bill(context: AccessContext, *, supplier_id: str, bill_number: str,
@@ -381,8 +573,7 @@ class PurchasesService:
         payment = db.session.get(PurchasePayment, payment_id)
         if not payment or payment.organisation_id != context.organisation_id:
             raise ValueError("Supplier payment not found")
-        existing_total = PurchasesService.payment_allocated(payment.id)
-        available = _money(payment.amount) - existing_total
+        available = PurchasesService.payment_available(payment.id)
         requested = sum((_money(item.get("amount")) for item in allocations), Decimal("0.00"))
         if requested <= 0:
             raise ValueError("Allocation amount must be greater than zero")
@@ -422,11 +613,10 @@ class PurchasesService:
 
             db.session.flush()
             for bill in affected:
-                outstanding = PurchasesService.bill_outstanding(bill)
-                bill.status = "paid" if outstanding == 0 else "part_paid"
+                PurchasesService.refresh_bill_status(bill)
 
             allocated_total = PurchasesService.payment_allocated(payment.id)
-            payment.status = "allocated" if allocated_total == _money(payment.amount) else "partially_allocated"
+            PurchasesService.refresh_payment_status(payment)
             record_audit_event(
                 context,
                 module_id="purchases",

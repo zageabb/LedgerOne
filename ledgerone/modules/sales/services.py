@@ -6,6 +6,7 @@ from ledgerone.models.ledger import Account, Journal, JournalLine
 from ledgerone.modules.sales.models import (
     Customer,
     SalesInvoice,
+    SalesCreditRefund,
     SalesInvoiceLine,
     SalesPayment,
     SalesPaymentAllocation,
@@ -102,6 +103,197 @@ class SalesService:
             .scalar()
         )
         return _money(value)
+
+    @staticmethod
+    def payment_refunded(payment_id: str) -> Decimal:
+        value = (
+            db.session.query(db.func.coalesce(db.func.sum(SalesCreditRefund.amount), 0))
+            .filter(SalesCreditRefund.source_payment_id == payment_id)
+            .scalar()
+        )
+        return _money(value)
+
+    @staticmethod
+    def payment_available(payment_id: str) -> Decimal:
+        payment = db.session.get(SalesPayment, payment_id)
+        if not payment:
+            return Decimal("0.00")
+        consumed = SalesService.payment_allocated(payment_id) + SalesService.payment_refunded(payment_id)
+        return max(Decimal("0.00"), _money(payment.amount) - consumed)
+
+    @staticmethod
+    def customer_credit_balance(context: AccessContext, customer_id: str) -> Decimal:
+        rows = SalesPayment.query.filter_by(
+            organisation_id=context.organisation_id,
+            customer_id=customer_id,
+        ).all()
+        return sum((SalesService.payment_available(row.id) for row in rows), Decimal("0.00"))
+
+    @staticmethod
+    def list_credit_refunds(context: AccessContext, limit: int = 100):
+        return (
+            SalesCreditRefund.query.filter_by(organisation_id=context.organisation_id)
+            .order_by(SalesCreditRefund.refund_date.desc(), SalesCreditRefund.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def refresh_payment_status(payment: SalesPayment) -> None:
+        allocated = SalesService.payment_allocated(payment.id)
+        refunded = SalesService.payment_refunded(payment.id)
+        consumed = allocated + refunded
+        total = _money(payment.amount)
+        if consumed <= 0:
+            payment.status = "unallocated"
+        elif consumed >= total:
+            if refunded > 0 and allocated > 0:
+                payment.status = "settled"
+            elif refunded > 0:
+                payment.status = "refunded"
+            else:
+                payment.status = "allocated"
+        else:
+            payment.status = "partially_used" if refunded > 0 else "partially_allocated"
+
+    @staticmethod
+    def refresh_invoice_status(invoice: SalesInvoice) -> None:
+        from ledgerone.modules.sales.credit_models import SalesCreditNote
+
+        credited = _money(
+            db.session.query(db.func.coalesce(db.func.sum(SalesCreditNote.total), 0))
+            .filter(SalesCreditNote.invoice_id == invoice.id)
+            .scalar()
+        )
+        allocated = SalesService.invoice_allocated(invoice.id)
+        outstanding = max(Decimal("0.00"), _money(invoice.total) - allocated)
+        if credited >= _money(invoice.total):
+            invoice.status = "credited"
+        elif outstanding == 0:
+            invoice.status = "paid"
+        elif credited > 0:
+            invoice.status = "part_credited"
+        elif allocated > 0:
+            invoice.status = "part_paid"
+        else:
+            invoice.status = "posted"
+
+    @staticmethod
+    def record_credit_refund(
+        context: AccessContext,
+        *,
+        source_payment_id: str,
+        refund_date,
+        amount,
+        bank_account_id: str,
+        receivable_account_id: str,
+        reference: str | None = None,
+    ):
+        if not context.can("sales.write"):
+            raise PermissionError("sales.write")
+        source = db.session.get(SalesPayment, source_payment_id)
+        if not source or source.organisation_id != context.organisation_id:
+            raise ValueError("Customer credit source not found")
+        amount = _money(amount)
+        if amount <= 0:
+            raise ValueError("Refund amount must be greater than zero")
+        available = SalesService.payment_available(source.id)
+        if amount > available:
+            raise ValueError("Refund exceeds the available customer credit")
+
+        bank = db.session.get(Account, bank_account_id)
+        receivable = db.session.get(Account, receivable_account_id)
+        if (
+            not bank
+            or bank.organisation_id != context.organisation_id
+            or not bank.is_active
+            or bank.account_type != "asset"
+            or bank.is_control_account
+        ):
+            raise ValueError("Bank ledger account must be an active non-control asset account")
+        if (
+            not receivable
+            or receivable.organisation_id != context.organisation_id
+            or not receivable.is_active
+            or receivable.account_type != "asset"
+            or (receivable.metadata_json or {}).get("control_role") != "accounts_receivable"
+        ):
+            raise ValueError("Receivables account must be the configured accounts-receivable control account")
+        if bank.id == receivable.id:
+            raise ValueError("Bank and receivables accounts must be different")
+
+        refund_id = new_id()
+        try:
+            journal = LedgerService.post_journal(
+                context,
+                journal_date=refund_date,
+                description=f"Customer credit refund - {source.customer.name}",
+                reference=(reference or "").strip() or source.reference,
+                source_module="sales",
+                source_reference=refund_id,
+                lines=[
+                    {
+                        "account_id": receivable.id,
+                        "debit": amount,
+                        "credit": 0,
+                        "description": source.customer.name,
+                        "currency": source.currency,
+                        "dimensions": {
+                            "customer_id": source.customer_id,
+                            "sales_credit_refund_id": refund_id,
+                            "source_payment_id": source.id,
+                        },
+                    },
+                    {
+                        "account_id": bank.id,
+                        "debit": 0,
+                        "credit": amount,
+                        "description": source.customer.name,
+                        "currency": source.currency,
+                        "dimensions": {
+                            "customer_id": source.customer_id,
+                            "sales_credit_refund_id": refund_id,
+                            "source_payment_id": source.id,
+                        },
+                    },
+                ],
+                commit=False,
+            )
+            refund = SalesCreditRefund(
+                id=refund_id,
+                organisation_id=context.organisation_id,
+                customer_id=source.customer_id,
+                source_payment_id=source.id,
+                refund_date=refund_date,
+                amount=amount,
+                currency=source.currency,
+                bank_account_id=bank.id,
+                receivable_account_id=receivable.id,
+                journal_id=journal.id,
+                reference=(reference or "").strip() or journal.reference,
+            )
+            db.session.add(refund)
+            db.session.flush()
+            SalesService.refresh_payment_status(source)
+            record_audit_event(
+                context,
+                module_id="sales",
+                action="customer_credit_refunded",
+                entity_type="sales_credit_refund",
+                entity_id=refund.id,
+                detail={
+                    "customer_id": source.customer_id,
+                    "source_payment_id": source.id,
+                    "journal_id": journal.id,
+                    "amount": str(amount),
+                    "remaining_credit": str(SalesService.payment_available(source.id)),
+                },
+            )
+            db.session.commit()
+            return refund
+        except Exception:
+            db.session.rollback()
+            raise
 
     @staticmethod
     def create_invoice(context: AccessContext, *, customer_id: str, invoice_number: str | None,
@@ -385,8 +577,7 @@ class SalesService:
         payment = db.session.get(SalesPayment, payment_id)
         if not payment or payment.organisation_id != context.organisation_id:
             raise ValueError("Customer payment not found")
-        existing_total = SalesService.payment_allocated(payment.id)
-        available = _money(payment.amount) - existing_total
+        available = SalesService.payment_available(payment.id)
         requested = sum((_money(item.get("amount")) for item in allocations), Decimal("0.00"))
         if requested <= 0:
             raise ValueError("Allocation amount must be greater than zero")
@@ -426,11 +617,10 @@ class SalesService:
 
             db.session.flush()
             for invoice in affected:
-                outstanding = SalesService.invoice_outstanding(invoice)
-                invoice.status = "paid" if outstanding == 0 else "part_paid"
+                SalesService.refresh_invoice_status(invoice)
 
             allocated_total = SalesService.payment_allocated(payment.id)
-            payment.status = "allocated" if allocated_total == _money(payment.amount) else "partially_allocated"
+            SalesService.refresh_payment_status(payment)
             record_audit_event(
                 context,
                 module_id="sales",
