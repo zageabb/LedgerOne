@@ -137,3 +137,5 @@ def bootstrap_database(*, create_schema: bool = True, seed_defaults: bool = True
         fresh_chart = _seed_chart(organisation.id)
         module_registry.seed_org_defaults(organisation.id)
         _ensure_control_metadata_once(organisation.id, fresh_chart=fresh_chart)
+        from ledgerone.services.account_roles import PostingAccountService
+        PostingAccountService.seed_defaults(organisation.id)
