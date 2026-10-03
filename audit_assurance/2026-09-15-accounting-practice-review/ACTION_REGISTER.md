@@ -320,33 +320,40 @@ Test/retest notes: PR #9 candidate CI passed compile, clean migration validation
 
 ## LO-AUD-012 — Account classification and posting-role validation
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** MEDIUM
 
 ### Implementation checklist
 
-- [ ] Restrict account types to supported enum/check constraint.
-- [ ] Validate parent/child account classification rules where applicable.
-- [ ] Configure default/system posting accounts centrally.
+- [x] Restrict account types to the supported asset/liability/equity/income/expense set at service and database levels.
+- [x] Validate parent/child account classification rules where applicable.
+- [x] Configure default/system posting accounts centrally and seed defaults from the starter chart.
+- [x] Make sales/purchase workflows resolve central defaults when explicit posting accounts are not supplied.
 - [x] Validate AR posting role/control ownership.
 - [x] Validate AP posting role/control ownership.
-- [ ] Validate revenue/income posting role.
-- [ ] Validate expense/asset posting roles according to supported workflows.
-- [x] Reject control accounts as linked bank accounts and reject same-account bank/AR or bank/AP payments.
-- [ ] Define controlled overrides where legitimate accounting scenarios require them.
+- [x] Validate revenue/income posting role.
+- [x] Validate expense/asset posting roles according to supported purchase workflows.
+- [x] Reject incompatible, inactive and control accounts as linked bank accounts; revalidate the linked ledger account at posting time.
+- [x] Reject same-account bank/AR or bank/AP payments.
+- [x] Provide audited permission-controlled posting-role overrides for legitimate exceptional non-control account-type cases.
+- [x] Keep control-account ownership and control-account-as-bank restrictions non-overridable.
 
 ### Required tests
 
-- [ ] Invalid account type rejected.
-- [ ] Sales workflow rejects all incompatible AR/revenue account configurations.
-- [ ] Purchase workflow rejects all incompatible AP account configurations.
+- [x] Invalid account type rejected by the service and database constraint.
+- [x] Parent/child classification mismatch rejected.
+- [x] Sales workflow rejects incompatible revenue classification and retains no journal/document side effects.
+- [x] Purchase workflow rejects incompatible cost classification, permits supported asset purchases, and retains no side effects after rejection.
 - [x] Same-account customer and supplier payment attempts are rejected before any payment/allocation/journal side effects.
-- [ ] Bank account link rejects every incompatible ledger account where policy requires it.
+- [x] Bank account links reject incompatible liability/control accounts and accept a valid active non-control asset.
+- [x] Central default configuration validates the account role.
+- [x] Exceptional override requires authority and a retained reason.
 
 ### Closure evidence
 
-Implementation commit: `Partial at 45f99295ac85d92ed0e8bfcba8c6f36d96d236d6`  
-Test/retest notes: `Same-account payment and control-account bank-link protection are implemented as part of LO-AUD-003. Remaining account classification and revenue/expense role validation keeps LO-AUD-012 OPEN.`
+Implementation branch head: `8c444fb35b5b8ca5fc1c75e1b77f5f2a17b7472b`  
+Merged to main: `bc0906d86dd969861f52f6897e726f3dfc95a7e7`  
+Test/retest notes: PR #10 CI run #449 passed compile, clean migration through `0019_account_roles`, Alembic autogenerate validation and the full regression suite: 223 passed, 3 skipped. After merge, LedgerOne CI run #450 independently validated the exact merged `main` commit with the same clean migration/autogenerate checks and 223 passed, 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
@@ -549,6 +556,7 @@ Add a row whenever one or more findings are submitted for retest.
 | 2026-09-18 | `8a8cf7c9aa3df08a8de27811e6202c00a9c58916` | LO-AUD-006, LO-AUD-007 | Submitted / pending independent retest | Pending independent reviewer | PR #7 CI run #425: compile and clean migration checks passed; 200 tests passed, 3 skipped. Reverse-charge/import VAT and direct HMRC MTD submission remain outside the supported scope. |
 | 2026-09-18 | `2289ccaad0bd10c4032b703f52e8fe5c96a4b539` | LO-AUD-010 | Submitted / pending independent retest | Pending independent reviewer | PR #8 CI run #432: compile and clean migration checks passed; 210 tests passed, 3 skipped. Append-only ORM guard, per-organisation hash chain, retained head, integrity verifier and audited exports implemented. |
 | 2026-10-03 | `0388f1b592a64a704172078aee67b2421d2e0043` | LO-AUD-011 | Submitted / pending independent retest | Pending independent reviewer | PR #9 merged to main. CI run #442 passed compile, clean migration through 0018 and the full suite: 215 passed, 3 skipped. Paid-document credits, reusable customer/supplier credit, cross-document allocation, cash refunds, refund immutability and AR/AP reconciliation implemented. |
+| 2026-10-03 | `bc0906d86dd969861f52f6897e726f3dfc95a7e7` | LO-AUD-012 | Submitted / pending independent retest | Pending independent reviewer | PR #10 merged to main. CI run #450 passed compile, clean migration through 0019, Alembic autogenerate validation and the full suite: 223 passed, 3 skipped. Account classifications, parent/child validation, central posting defaults, sales/purchase role validation, bank-link rules and audited exceptional overrides implemented. |
 
 ---
 
