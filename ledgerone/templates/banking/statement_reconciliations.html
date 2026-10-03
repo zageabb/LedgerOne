@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Statement reconciliations · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Statement reconciliations</h1>
+    <p>Prepare and retain formal statement-to-ledger reconciliation evidence.</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('banking.reconcile') }}">Transaction matching</a>
+    <a class="button button-secondary" href="{{ url_for('banking.index') }}">Banking</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Prepare reconciliation</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field field-full">
+          <label>Bank account</label>
+          <select name="bank_account_id" required>
+            <option value="">Select account</option>
+            {% for row in bank_accounts %}
+              <option value="{{ row.id }}">{{ row.name }}{% if row.institution %} · {{ row.institution }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Statement start</label><input type="date" name="statement_start_date" required></div>
+        <div class="field"><label>Statement end</label><input type="date" name="statement_end_date" required></div>
+        <div class="field"><label>Opening balance</label><input type="number" step="0.01" name="statement_opening_balance" required></div>
+        <div class="field"><label>Closing balance</label><input type="number" step="0.01" name="statement_closing_balance" required></div>
+        <div class="field"><label>Explained difference</label><input type="number" step="0.01" name="explained_difference" value="0.00"></div>
+        <div class="field field-full"><label>Explanation</label><textarea name="explanation" rows="3"></textarea></div>
+        <div class="field-full"><button class="button" type="submit">Prepare reconciliation</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Reconciliation register</h2><span class="badge">{{ reconciliations|length }}</span></div>
+    <div class="table-wrap">
+      {% if reconciliations %}
+      <table>
+        <thead><tr><th>Statement end</th><th>Bank</th><th>Status</th><th class="number">Residual</th><th></th></tr></thead>
+        <tbody>
+        {% for row in reconciliations %}
+          <tr>
+            <td>{{ row.statement_end_date.strftime('%d %b %Y') }}</td>
+            <td>{{ row.bank_account.name }}</td>
+            <td><span class="badge {{ 'badge-success' if row.status == 'finalised' else 'badge-warning' }}">{{ row.status }}</span></td>
+            <td class="number">{{ row.bank_account.currency }} {{ '%.2f'|format(row.residual_difference) }}</td>
+            <td><a class="button button-small button-secondary" href="{{ url_for('banking.statement_reconciliation_detail', reconciliation_id=row.id) }}">Open</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">No statement reconciliations yet.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
