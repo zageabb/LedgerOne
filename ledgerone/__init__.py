@@ -19,6 +19,7 @@ def create_app(config_overrides: dict | None = None):
     from ledgerone.module_registry import module_registry
     from ledgerone.models import User
     from ledgerone.services.audit_integrity import install_audit_integrity_guard
+    from ledgerone.services.bank_reconciliation_immutability import install_bank_reconciliation_immutability_guard
     from ledgerone.services.control_accounts import install_control_account_service_guards
     from ledgerone.services.currency import install_currency_service_guards
     from ledgerone.services.document_immutability import install_document_immutability_guard
@@ -46,6 +47,7 @@ def create_app(config_overrides: dict | None = None):
 
     module_registry.discover()
     install_audit_integrity_guard()
+    install_bank_reconciliation_immutability_guard()
     install_control_account_service_guards()
     install_period_policy_guards()
     install_document_immutability_guard()
