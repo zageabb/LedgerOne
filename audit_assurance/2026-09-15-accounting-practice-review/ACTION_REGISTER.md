@@ -359,28 +359,34 @@ Test/retest notes: PR #10 CI run #449 passed compile, clean migration through `0
 
 ## LO-AUD-013 — API/integration idempotency
 
-**Status:** OPEN  
+**Status:** READY FOR RETEST  
 **Severity:** MEDIUM
 
 ### Implementation checklist
 
-- [ ] Define `Idempotency-Key` contract for write endpoints.
-- [ ] Persist request key, operation and response/result reference.
-- [ ] Repeat of identical request returns original result.
-- [ ] Same key with different payload is rejected as conflict.
-- [ ] Consider source-system/source-reference uniqueness where business semantics permit it.
-- [ ] Add retention policy for idempotency records.
+- [x] Define optional `Idempotency-Key` contract for authenticated write endpoints.
+- [x] Persist organisation, operation, request key, request fingerprint, response and result reference.
+- [x] Persist an in-progress reservation before business execution to block concurrent duplicate side effects.
+- [x] Repeat of an identical completed request returns the original result/status with `Idempotency-Replayed: true`.
+- [x] Same key with different payload/path/query is rejected as HTTP 409 conflict.
+- [x] Add optional `X-Source-System` / `X-Source-Reference` uniqueness per organisation and operation.
+- [x] Apply the control centrally to authenticated POST/PUT/PATCH/DELETE API operations.
+- [x] Define 90-day retention and cleanup behaviour in `docs/API_IDEMPOTENCY.md`.
 
 ### Required tests
 
-- [ ] Repeated journal POST with same key creates one journal.
-- [ ] Repeated invoice/bill creation with same key creates one document.
-- [ ] Different payload with same key is rejected.
+- [x] Repeated journal POST with same key creates one journal and returns the original response.
+- [x] Repeated invoice creation with same key creates one invoice.
+- [x] Repeated bill creation with same key creates one bill.
+- [x] Different payload with same key is rejected.
+- [x] Stable source-system/source-reference replay is deduplicated.
+- [x] The same idempotency key remains isolated between organisations.
 
 ### Closure evidence
 
-Implementation commit: `—`  
-Test/retest notes: `—`
+Implementation branch head: `f4e858f7cf1f0ace668d5c2f9817918a6aebbc08`  
+Merged to main: `bc3a704ae51705598f7a42f89590d18e6c9ed7a6`  
+Test/retest notes: PR #11 CI run #453 passed compile, clean migration through `0020_api_idempotency`, Alembic autogenerate validation and the full suite: 228 passed, 3 skipped. After merge, LedgerOne CI run #454 independently validated the exact merged `main` commit with the same migration/autogenerate checks and 228 passed, 3 skipped. Awaiting independent audit retest before closure.
 
 ---
 
@@ -557,6 +563,7 @@ Add a row whenever one or more findings are submitted for retest.
 | 2026-09-18 | `2289ccaad0bd10c4032b703f52e8fe5c96a4b539` | LO-AUD-010 | Submitted / pending independent retest | Pending independent reviewer | PR #8 CI run #432: compile and clean migration checks passed; 210 tests passed, 3 skipped. Append-only ORM guard, per-organisation hash chain, retained head, integrity verifier and audited exports implemented. |
 | 2026-10-03 | `0388f1b592a64a704172078aee67b2421d2e0043` | LO-AUD-011 | Submitted / pending independent retest | Pending independent reviewer | PR #9 merged to main. CI run #442 passed compile, clean migration through 0018 and the full suite: 215 passed, 3 skipped. Paid-document credits, reusable customer/supplier credit, cross-document allocation, cash refunds, refund immutability and AR/AP reconciliation implemented. |
 | 2026-10-03 | `bc0906d86dd969861f52f6897e726f3dfc95a7e7` | LO-AUD-012 | Submitted / pending independent retest | Pending independent reviewer | PR #10 merged to main. CI run #450 passed compile, clean migration through 0019, Alembic autogenerate validation and the full suite: 223 passed, 3 skipped. Account classifications, parent/child validation, central posting defaults, sales/purchase role validation, bank-link rules and audited exceptional overrides implemented. |
+| 2026-10-03 | `bc3a704ae51705598f7a42f89590d18e6c9ed7a6` | LO-AUD-013 | Submitted / pending independent retest | Pending independent reviewer | PR #11 merged to main. CI run #454 passed compile, clean migration through 0020, Alembic autogenerate validation and the full suite: 228 passed, 3 skipped. Authenticated API write idempotency, response replay, conflict detection, integration source-reference uniqueness, retention and organisation isolation implemented. |
 
 ---
 
