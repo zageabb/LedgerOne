@@ -88,7 +88,10 @@ def require_api(permission: str | None = None):
             if permission and not context.can(permission):
                 return jsonify({"error": "forbidden", "permission": permission}), 403
             g.access_context = context
-            return fn(*args, **kwargs)
+            from ledgerone.services.idempotency import IdempotencyService
+
+            operation = request.endpoint or f"{request.method}:{request.path}"
+            return IdempotencyService.execute(context, operation, fn, *args, **kwargs)
 
         return wrapper
 

@@ -225,3 +225,35 @@ class NumberAllocation(db.Model):
     voided_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     sequence = db.relationship("NumberSequence", back_populates="allocations")
+
+
+class IdempotencyRecord(db.Model):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "organisation_id", "operation", "idempotency_key",
+            name="uq_idempotency_org_operation_key",
+        ),
+        db.UniqueConstraint(
+            "organisation_id", "operation", "source_system", "source_reference",
+            name="uq_idempotency_org_operation_source",
+        ),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(
+        db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True
+    )
+    operation = db.Column(db.String(160), nullable=False, index=True)
+    idempotency_key = db.Column(db.String(255), nullable=False)
+    request_fingerprint = db.Column(db.String(64), nullable=False)
+    source_system = db.Column(db.String(120), nullable=True)
+    source_reference = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="in_progress", index=True)
+    response_status = db.Column(db.Integer, nullable=True)
+    response_json = db.Column(db.JSON, nullable=True)
+    result_entity_type = db.Column(db.String(120), nullable=True)
+    result_entity_id = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
