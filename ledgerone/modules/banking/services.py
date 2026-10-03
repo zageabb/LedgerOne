@@ -372,7 +372,19 @@ class BankingService:
             .order_by(BankTransaction.transaction_date.asc(), BankTransaction.created_at.asc())
             .all()
         )
-        matched_journal_ids = {row.matched_journal_id for row in transactions if row.matched_journal_id}
+        matched_journal_ids = {
+            value
+            for (value,) in (
+                db.session.query(BankTransaction.matched_journal_id)
+                .filter(
+                    BankTransaction.bank_account_id == bank_account.id,
+                    BankTransaction.transaction_date <= end_date,
+                    BankTransaction.matched_journal_id.isnot(None),
+                )
+                .all()
+            )
+            if value
+        }
         statement_rows = []
         unmatched_statement_total = Decimal("0.00")
         for row in transactions:
