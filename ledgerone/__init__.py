@@ -18,6 +18,7 @@ def create_app(config_overrides: dict | None = None):
     from ledgerone.extensions import csrf, db, login_manager, migrate
     from ledgerone.module_registry import module_registry
     from ledgerone.models import User
+    from ledgerone.services.approval_policy_guards import install_approval_policy_guards
     from ledgerone.services.audit_integrity import install_audit_integrity_guard
     from ledgerone.services.bank_reconciliation_immutability import install_bank_reconciliation_immutability_guard
     from ledgerone.services.control_accounts import install_control_account_service_guards
@@ -52,6 +53,7 @@ def create_app(config_overrides: dict | None = None):
     install_period_policy_guards()
     install_document_immutability_guard()
     install_numbering_guards()
+    install_approval_policy_guards()
     module_registry.register_blueprints(app)
 
     @app.before_request
