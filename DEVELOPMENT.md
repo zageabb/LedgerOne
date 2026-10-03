@@ -68,19 +68,23 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 
 ### DEV-002 — Finish account classification and posting-role validation / LO-AUD-012
 
-**Status:** OPEN
+**Status:** ENGINEERING COMPLETE — merged to `main`, awaiting independent audit retest
 
-Some control-account and same-account validation is already implemented, but the remaining account-classification rules are not.
+- [x] Restrict account type values to the supported classification set at service and database levels.
+- [x] Validate parent/child account classification where applicable.
+- [x] Define/configure central default system posting accounts and seed starter-chart defaults.
+- [x] Make sales/purchase posting paths consume central defaults when an explicit account is not supplied.
+- [x] Validate sales revenue/income account roles.
+- [x] Validate purchase expense/asset account roles.
+- [x] Ensure banking account links reject incompatible, inactive and control ledger accounts and revalidate at posting time.
+- [x] Define audited, permission-controlled overrides for legitimate exceptional non-control account-type cases.
+- [x] Keep AR/AP/control-account ownership rules non-overridable.
+- [x] Add regression tests for invalid classifications and sales, purchase and bank account-role combinations.
+- [x] Add migration `0019_account_roles` and verify no missing Alembic operations.
+- [x] Record implementation/retest evidence in the audit register.
+- [ ] Independent audit retest and formal finding closure.
 
-- [ ] Restrict account type values to the supported classification set.
-- [ ] Validate parent/child account classification where applicable.
-- [ ] Define/configure default system posting accounts centrally.
-- [ ] Validate sales revenue/income account roles.
-- [ ] Validate purchase expense/asset account roles.
-- [ ] Ensure banking account links reject all incompatible ledger-account roles.
-- [ ] Define controlled overrides for legitimate exceptional accounting cases.
-- [ ] Add regression tests for invalid sales, purchase and bank account-role combinations.
-- [ ] Record implementation/retest evidence in the audit register.
+**Completion evidence:** PR #10; merge commit `bc0906d86dd969861f52f6897e726f3dfc95a7e7`; LedgerOne CI run #450; clean migration through `0019_account_roles`; 223 tests passed, 3 skipped.
 
 ### DEV-003 — Add replay-safe API/integration idempotency / LO-AUD-013
 
@@ -334,16 +338,15 @@ The base local-AI chat and organisation Knowledge capabilities already exist. Re
 
 ## 12. Recommended development order
 
-1. DEV-002 — LO-AUD-012 account classification/posting-role validation.
-2. DEV-003 — LO-AUD-013 API idempotency.
-3. DEV-004 — LO-AUD-014 formal bank reconciliation.
-4. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
-5. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011 and reconciling LO-AUD-009 numbering evidence.
-6. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
-7. DEV-007 — operational-list balances.
-8. DEV-008 — accounting workflow guide and in-app links.
-9. DEV-009 — numbering UX/integration consistency pass.
-10. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
+1. DEV-003 — LO-AUD-013 API idempotency.
+2. DEV-004 — LO-AUD-014 formal bank reconciliation.
+3. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
+4. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011, DEV-002/LO-AUD-012, and reconciling LO-AUD-009 numbering evidence.
+5. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
+6. DEV-007 — operational-list balances.
+7. DEV-008 — accounting workflow guide and in-app links.
+8. DEV-009 — numbering UX/integration consistency pass.
+9. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
 
 ---
 
