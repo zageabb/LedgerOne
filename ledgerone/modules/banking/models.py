@@ -42,3 +42,36 @@ class BankTransaction(db.Model):
 
     bank_account = db.relationship("BankAccount", back_populates="transactions")
     matched_journal = db.relationship("Journal")
+
+
+class BankReconciliation(db.Model):
+    __tablename__ = "bank_reconciliations"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
+    bank_account_id = db.Column(db.String(36), db.ForeignKey("bank_accounts.id"), nullable=False, index=True)
+    statement_start_date = db.Column(db.Date, nullable=False)
+    statement_end_date = db.Column(db.Date, nullable=False, index=True)
+    statement_opening_balance = db.Column(db.Numeric(18, 2), nullable=False)
+    statement_closing_balance = db.Column(db.Numeric(18, 2), nullable=False)
+    ledger_balance = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    unmatched_statement_total = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    outstanding_book_total = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    explained_difference = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    residual_difference = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    explanation = db.Column(db.String(2000), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    snapshot_json = db.Column(db.JSON, nullable=False, default=dict)
+    prepared_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    approved_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    prepared_identity = db.Column(db.String(120), nullable=True)
+    approved_identity = db.Column(db.String(120), nullable=True)
+    prepared_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    approved_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    finalised_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    bank_account = db.relationship("BankAccount")
+    prepared_by_user = db.relationship("User", foreign_keys=[prepared_by_user_id])
+    approved_by_user = db.relationship("User", foreign_keys=[approved_by_user_id])

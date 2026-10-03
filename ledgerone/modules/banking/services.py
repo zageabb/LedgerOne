@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from ledgerone.extensions import db
 from ledgerone.models.ledger import Account, Journal, JournalLine
-from ledgerone.modules.banking.models import BankAccount, BankTransaction
+from ledgerone.modules.banking.models import BankAccount, BankReconciliation, BankTransaction
 from ledgerone.services.account_roles import PostingAccountService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
@@ -328,3 +328,326 @@ class BankingService:
         )
         db.session.commit()
         return transaction
+
+
+    @staticmethod
+    def _identity(context: AccessContext) -> str:
+        if context.user_id:
+            return f"user:{context.user_id}"
+        if context.api_key_id:
+            return f"api_key:{context.api_key_id}"
+        return context.identity_type or "system"
+
+    @staticmethod
+    def _money(value) -> Decimal:
+        return Decimal(str(value or 0)).quantize(Decimal("0.01"))
+
+    @staticmethod
+    def _ledger_balance_at(bank_account: BankAccount, end_date):
+        if not bank_account.ledger_account_id:
+            raise ValueError("Link the bank account to a ledger account before creating a formal reconciliation")
+        value = (
+            db.session.query(
+                db.func.coalesce(db.func.sum(JournalLine.debit - JournalLine.credit), 0)
+            )
+            .join(Journal, Journal.id == JournalLine.journal_id)
+            .filter(
+                Journal.organisation_id == bank_account.organisation_id,
+                Journal.status == "posted",
+                Journal.journal_date <= end_date,
+                JournalLine.account_id == bank_account.ledger_account_id,
+            )
+            .scalar()
+        )
+        return BankingService._money(value)
+
+    @staticmethod
+    def _formal_snapshot(context: AccessContext, bank_account: BankAccount, start_date, end_date):
+        transactions = (
+            BankTransaction.query.filter(
+                BankTransaction.bank_account_id == bank_account.id,
+                BankTransaction.transaction_date >= start_date,
+                BankTransaction.transaction_date <= end_date,
+            )
+            .order_by(BankTransaction.transaction_date.asc(), BankTransaction.created_at.asc())
+            .all()
+        )
+        matched_journal_ids = {
+            value
+            for (value,) in (
+                db.session.query(BankTransaction.matched_journal_id)
+                .filter(
+                    BankTransaction.bank_account_id == bank_account.id,
+                    BankTransaction.transaction_date <= end_date,
+                    BankTransaction.matched_journal_id.isnot(None),
+                )
+                .all()
+            )
+            if value
+        }
+        statement_rows = []
+        unmatched_statement_total = Decimal("0.00")
+        for row in transactions:
+            amount = BankingService._money(row.amount)
+            if not row.matched_journal_id:
+                unmatched_statement_total += amount
+            statement_rows.append(
+                {
+                    "id": row.id,
+                    "date": row.transaction_date.isoformat(),
+                    "description": row.description,
+                    "amount": str(amount),
+                    "status": row.status,
+                    "matched_journal_id": row.matched_journal_id,
+                    "external_id": row.external_id,
+                }
+            )
+
+        book_rows = (
+            db.session.query(JournalLine, Journal)
+            .join(Journal, Journal.id == JournalLine.journal_id)
+            .filter(
+                Journal.organisation_id == context.organisation_id,
+                Journal.status == "posted",
+                Journal.journal_date >= start_date,
+                Journal.journal_date <= end_date,
+                JournalLine.account_id == bank_account.ledger_account_id,
+            )
+            .order_by(Journal.journal_date.asc(), Journal.created_at.asc())
+            .all()
+        )
+        outstanding_book = []
+        outstanding_book_total = Decimal("0.00")
+        for line, journal in book_rows:
+            if journal.id in matched_journal_ids:
+                continue
+            net = BankingService._money(line.debit) - BankingService._money(line.credit)
+            if not net:
+                continue
+            outstanding_book_total += net
+            outstanding_book.append(
+                {
+                    "journal_id": journal.id,
+                    "date": journal.journal_date.isoformat(),
+                    "reference": journal.reference,
+                    "description": journal.description,
+                    "amount": str(net),
+                }
+            )
+
+        return {
+            "statement_transactions": statement_rows,
+            "outstanding_book_items": outstanding_book,
+            "unmatched_statement_total": str(BankingService._money(unmatched_statement_total)),
+            "outstanding_book_total": str(BankingService._money(outstanding_book_total)),
+            "ledger_balance": str(BankingService._ledger_balance_at(bank_account, end_date)),
+        }
+
+    @staticmethod
+    def _recalculate_formal(row: BankReconciliation, snapshot: dict):
+        unmatched = BankingService._money(snapshot["unmatched_statement_total"])
+        outstanding = BankingService._money(snapshot["outstanding_book_total"])
+        ledger_balance = BankingService._money(snapshot["ledger_balance"])
+        explained = BankingService._money(row.explained_difference)
+        adjusted_statement = (
+            BankingService._money(row.statement_closing_balance)
+            - unmatched
+            + outstanding
+            + explained
+        )
+        residual = BankingService._money(adjusted_statement - ledger_balance)
+        row.ledger_balance = ledger_balance
+        row.unmatched_statement_total = unmatched
+        row.outstanding_book_total = outstanding
+        row.residual_difference = residual
+        row.snapshot_json = {
+            **snapshot,
+            "statement_opening_balance": str(BankingService._money(row.statement_opening_balance)),
+            "statement_closing_balance": str(BankingService._money(row.statement_closing_balance)),
+            "explained_difference": str(explained),
+            "adjusted_statement_balance": str(BankingService._money(adjusted_statement)),
+            "residual_difference": str(residual),
+        }
+
+    @staticmethod
+    def list_formal_reconciliations(context: AccessContext, bank_account_id: str | None = None):
+        query = BankReconciliation.query.filter_by(organisation_id=context.organisation_id)
+        if bank_account_id:
+            query = query.filter(BankReconciliation.bank_account_id == bank_account_id)
+        return query.order_by(
+            BankReconciliation.statement_end_date.desc(),
+            BankReconciliation.created_at.desc(),
+        ).all()
+
+    @staticmethod
+    def get_formal_reconciliation(context: AccessContext, reconciliation_id: str):
+        row = db.session.get(BankReconciliation, reconciliation_id)
+        if not row or row.organisation_id != context.organisation_id:
+            raise ValueError("Bank reconciliation not found")
+        return row
+
+    @staticmethod
+    def create_formal_reconciliation(
+        context: AccessContext,
+        *,
+        bank_account_id: str,
+        statement_start_date,
+        statement_end_date,
+        statement_opening_balance,
+        statement_closing_balance,
+        explained_difference=0,
+        explanation: str | None = None,
+    ):
+        if not context.can("banking.reconcile"):
+            raise PermissionError("banking.reconcile")
+        if statement_end_date < statement_start_date:
+            raise ValueError("Statement end date cannot be before statement start date")
+        account = db.session.get(BankAccount, bank_account_id)
+        if not account or account.organisation_id != context.organisation_id:
+            raise ValueError("Invalid bank account")
+        PostingAccountService.validate(context, account.ledger_account_id, "bank")
+        snapshot = BankingService._formal_snapshot(
+            context, account, statement_start_date, statement_end_date
+        )
+        row = BankReconciliation(
+            organisation_id=context.organisation_id,
+            bank_account_id=account.id,
+            statement_start_date=statement_start_date,
+            statement_end_date=statement_end_date,
+            statement_opening_balance=BankingService._money(statement_opening_balance),
+            statement_closing_balance=BankingService._money(statement_closing_balance),
+            explained_difference=BankingService._money(explained_difference),
+            explanation=(explanation or "").strip() or None,
+            prepared_by_user_id=context.user_id,
+            prepared_identity=BankingService._identity(context),
+        )
+        BankingService._recalculate_formal(row, snapshot)
+        db.session.add(row)
+        db.session.flush()
+        record_audit_event(
+            context,
+            module_id="banking",
+            action="bank_reconciliation_prepared",
+            entity_type="bank_reconciliation",
+            entity_id=row.id,
+            detail={
+                "bank_account_id": account.id,
+                "statement_start_date": statement_start_date.isoformat(),
+                "statement_end_date": statement_end_date.isoformat(),
+                "statement_closing_balance": str(row.statement_closing_balance),
+                "ledger_balance": str(row.ledger_balance),
+                "residual_difference": str(row.residual_difference),
+            },
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
+    def refresh_formal_reconciliation(
+        context: AccessContext,
+        reconciliation_id: str,
+        *,
+        explained_difference=None,
+        explanation: str | None = None,
+    ):
+        if not context.can("banking.reconcile"):
+            raise PermissionError("banking.reconcile")
+        row = BankingService.get_formal_reconciliation(context, reconciliation_id)
+        if row.status != "draft":
+            raise ValueError("Finalised bank reconciliation is immutable")
+        if explained_difference is not None:
+            row.explained_difference = BankingService._money(explained_difference)
+        if explanation is not None:
+            row.explanation = explanation.strip() or None
+        snapshot = BankingService._formal_snapshot(
+            context, row.bank_account, row.statement_start_date, row.statement_end_date
+        )
+        BankingService._recalculate_formal(row, snapshot)
+        record_audit_event(
+            context,
+            module_id="banking",
+            action="bank_reconciliation_refreshed",
+            entity_type="bank_reconciliation",
+            entity_id=row.id,
+            detail={
+                "ledger_balance": str(row.ledger_balance),
+                "unmatched_statement_total": str(row.unmatched_statement_total),
+                "outstanding_book_total": str(row.outstanding_book_total),
+                "explained_difference": str(row.explained_difference),
+                "residual_difference": str(row.residual_difference),
+            },
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
+    def finalise_formal_reconciliation(context: AccessContext, reconciliation_id: str):
+        if not context.can("banking.reconcile"):
+            raise PermissionError("banking.reconcile")
+        row = BankingService.get_formal_reconciliation(context, reconciliation_id)
+        if row.status != "draft":
+            raise ValueError("Bank reconciliation is already finalised")
+        snapshot = BankingService._formal_snapshot(
+            context, row.bank_account, row.statement_start_date, row.statement_end_date
+        )
+        BankingService._recalculate_formal(row, snapshot)
+        if BankingService._money(row.residual_difference) != Decimal("0.00"):
+            raise ValueError(
+                f"Bank reconciliation cannot be finalised with residual difference {row.residual_difference}"
+            )
+        from ledgerone.models.core import utcnow
+
+        row.status = "finalised"
+        row.approved_by_user_id = context.user_id
+        row.approved_identity = BankingService._identity(context)
+        row.approved_at = utcnow()
+        row.finalised_at = row.approved_at
+        record_audit_event(
+            context,
+            module_id="banking",
+            action="bank_reconciliation_finalised",
+            entity_type="bank_reconciliation",
+            entity_id=row.id,
+            detail={
+                "bank_account_id": row.bank_account_id,
+                "statement_end_date": row.statement_end_date.isoformat(),
+                "statement_closing_balance": str(row.statement_closing_balance),
+                "ledger_balance": str(row.ledger_balance),
+                "residual_difference": str(row.residual_difference),
+                "prepared_by": row.prepared_identity,
+                "approved_by": row.approved_identity,
+            },
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
+    def formal_reconciliation_evidence(context: AccessContext, reconciliation_id: str) -> dict:
+        row = BankingService.get_formal_reconciliation(context, reconciliation_id)
+        return {
+            "id": row.id,
+            "status": row.status,
+            "bank_account": {
+                "id": row.bank_account.id,
+                "name": row.bank_account.name,
+                "institution": row.bank_account.institution,
+                "currency": row.bank_account.currency,
+                "ledger_account_id": row.bank_account.ledger_account_id,
+            },
+            "statement_start_date": row.statement_start_date.isoformat(),
+            "statement_end_date": row.statement_end_date.isoformat(),
+            "statement_opening_balance": str(BankingService._money(row.statement_opening_balance)),
+            "statement_closing_balance": str(BankingService._money(row.statement_closing_balance)),
+            "ledger_balance": str(BankingService._money(row.ledger_balance)),
+            "unmatched_statement_total": str(BankingService._money(row.unmatched_statement_total)),
+            "outstanding_book_total": str(BankingService._money(row.outstanding_book_total)),
+            "explained_difference": str(BankingService._money(row.explained_difference)),
+            "residual_difference": str(BankingService._money(row.residual_difference)),
+            "explanation": row.explanation,
+            "prepared_by": row.prepared_identity,
+            "approved_by": row.approved_identity,
+            "prepared_at": row.prepared_at.isoformat() if row.prepared_at else None,
+            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+            "finalised_at": row.finalised_at.isoformat() if row.finalised_at else None,
+            "snapshot": row.snapshot_json,
+        }
