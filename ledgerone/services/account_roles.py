@@ -9,6 +9,15 @@ from ledgerone.services.context import AccessContext
 
 SUPPORTED_ACCOUNT_TYPES = ("asset", "liability", "equity", "income", "expense")
 
+DEFAULT_POSTING_ACCOUNT_CODES = {
+    "bank": "1000",
+    "accounts_receivable": "1200",
+    "accounts_payable": "2100",
+    "opening_equity": "3000",
+    "sales_revenue": "4000",
+    "purchase_cost": "5000",
+}
+
 POSTING_ROLE_RULES = {
     "accounts_receivable": {"types": {"asset"}, "control_role": "accounts_receivable"},
     "accounts_payable": {"types": {"liability"}, "control_role": "accounts_payable"},
@@ -75,6 +84,37 @@ class PostingAccountService:
                 f"account type must be one of {', '.join(sorted(rule['types']))}"
             )
         return account
+
+    @staticmethod
+    def seed_defaults(organisation_id: str) -> bool:
+        changed = False
+        for role, code in DEFAULT_POSTING_ACCOUNT_CODES.items():
+            PostingAccountService._rule(role)
+            existing = Setting.query.filter_by(
+                organisation_id=organisation_id,
+                scope=PostingAccountService.SETTING_SCOPE,
+                key=role,
+            ).first()
+            if existing:
+                continue
+            account = Account.query.filter_by(
+                organisation_id=organisation_id,
+                code=code,
+            ).first()
+            if not account:
+                continue
+            db.session.add(
+                Setting(
+                    organisation_id=organisation_id,
+                    scope=PostingAccountService.SETTING_SCOPE,
+                    key=role,
+                    value={"account_id": account.id},
+                )
+            )
+            changed = True
+        if changed:
+            db.session.commit()
+        return changed
 
     @staticmethod
     def default_account_id(organisation_id: str, role: str) -> str | None:
