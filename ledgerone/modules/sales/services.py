@@ -12,6 +12,7 @@ from ledgerone.modules.sales.models import (
     SalesPaymentAllocation,
 )
 from ledgerone.modules.sales.numbering import assign_sales_invoice_number
+from ledgerone.services.account_roles import PostingAccountService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
@@ -319,6 +320,15 @@ class SalesService:
         if due_date < invoice_date:
             raise ValueError("Invoice due date cannot be before the invoice date")
 
+        receivable_account = PostingAccountService.resolve(
+            context, "accounts_receivable", receivable_account_id
+        )
+        revenue_account = PostingAccountService.resolve(
+            context, "sales_revenue", revenue_account_id
+        )
+        receivable_account_id = receivable_account.id
+        revenue_account_id = revenue_account.id
+
         from ledgerone.modules.tax.services import TaxService
         effective_tax_point = tax_point or invoice_date
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
@@ -458,12 +468,10 @@ class SalesService:
         customer = db.session.get(Customer, customer_id)
         if not customer or customer.organisation_id != context.organisation_id:
             raise ValueError("Invalid customer")
-        bank_account = db.session.get(Account, bank_account_id)
-        receivable = db.session.get(Account, receivable_account_id)
-        if not bank_account or bank_account.organisation_id != context.organisation_id:
-            raise ValueError("Invalid bank ledger account")
-        if not receivable or receivable.organisation_id != context.organisation_id:
-            raise ValueError("Invalid receivables account")
+        bank_account = PostingAccountService.validate(context, bank_account_id, "bank")
+        receivable = PostingAccountService.validate(
+            context, receivable_account_id, "accounts_receivable"
+        )
 
         payment_id = new_id()
         try:

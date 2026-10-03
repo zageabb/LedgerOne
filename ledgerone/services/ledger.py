@@ -16,6 +16,7 @@ from ledgerone.models.ledger import (
     RecurringJournal,
     RecurringJournalRun,
 )
+from ledgerone.services.account_roles import SUPPORTED_ACCOUNT_TYPES
 from ledgerone.services.context import AccessContext
 
 
@@ -88,17 +89,31 @@ class LedgerService:
             raise LedgerError("An organisation is required")
         code = code.strip()
         name = name.strip()
+        account_type = (account_type or "").strip().lower()
         if not code or not name:
             raise LedgerError("Account code and name are required")
+        if account_type not in SUPPORTED_ACCOUNT_TYPES:
+            raise LedgerError(
+                "Account type must be one of: " + ", ".join(SUPPORTED_ACCOUNT_TYPES)
+            )
         if Account.query.filter_by(organisation_id=context.organisation_id, code=code).first():
             raise LedgerError(f"Account code {code} already exists")
+        parent = None
+        if parent_id:
+            parent = db.session.get(Account, parent_id)
+            if not parent or parent.organisation_id != context.organisation_id:
+                raise LedgerError("Parent account not found")
+            if parent.account_type != account_type:
+                raise LedgerError(
+                    f"Parent account type {parent.account_type} is incompatible with child type {account_type}"
+                )
         account = Account(
             organisation_id=context.organisation_id,
             code=code,
             name=name,
-            account_type=account_type.strip().lower(),
+            account_type=account_type,
             currency=currency.upper() if currency else None,
-            parent_id=parent_id,
+            parent_id=parent.id if parent else None,
         )
         db.session.add(account)
         LedgerService._audit(

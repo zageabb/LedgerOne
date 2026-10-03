@@ -10,7 +10,13 @@ from ledgerone.models.core import new_id, utcnow
 
 class Account(db.Model):
     __tablename__ = "accounts"
-    __table_args__ = (db.UniqueConstraint("organisation_id", "code", name="uq_account_org_code"),)
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "code", name="uq_account_org_code"),
+        db.CheckConstraint(
+            "account_type IN ('asset','liability','equity','income','expense')",
+            name="ck_accounts_account_type",
+        ),
+    )
 
     id = db.Column(db.String(36), primary_key=True, default=new_id)
     organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)

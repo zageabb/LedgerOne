@@ -4,6 +4,7 @@ from decimal import Decimal
 from ledgerone.extensions import db
 from ledgerone.models.ledger import Account, Journal, JournalLine
 from ledgerone.modules.banking.models import BankAccount, BankTransaction
+from ledgerone.services.account_roles import PostingAccountService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerError, LedgerService
@@ -26,9 +27,9 @@ class BankingService:
             raise ValueError("Bank account name is required")
         ledger_account = None
         if ledger_account_id:
-            ledger_account = db.session.get(Account, ledger_account_id)
-            if not ledger_account or ledger_account.organisation_id != context.organisation_id:
-                raise ValueError("Invalid linked ledger account")
+            ledger_account = PostingAccountService.validate(
+                context, ledger_account_id, "bank"
+            )
         row = BankAccount(
             organisation_id=context.organisation_id,
             name=name,
@@ -222,6 +223,7 @@ class BankingService:
         bank_account = transaction.bank_account
         if not bank_account.ledger_account_id:
             raise ValueError("Link the bank account to a ledger account before reconciling")
+        PostingAccountService.validate(context, bank_account.ledger_account_id, "bank")
         offset_account = db.session.get(Account, offset_account_id)
         if not offset_account or offset_account.organisation_id != context.organisation_id:
             raise ValueError("Invalid offset account")
