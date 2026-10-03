@@ -88,17 +88,23 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 
 ### DEV-003 — Add replay-safe API/integration idempotency / LO-AUD-013
 
-**Status:** OPEN
+**Status:** ENGINEERING COMPLETE — merged to `main`, awaiting independent audit retest
 
-- [ ] Define an `Idempotency-Key` contract for write endpoints.
-- [ ] Persist idempotency key, operation, request fingerprint and resulting entity/response reference.
-- [ ] Return the original result for an identical replay.
-- [ ] Reject reuse of the same key with a different payload.
-- [ ] Add source-system/source-reference uniqueness where business semantics require it.
-- [ ] Define retention/cleanup policy for idempotency records.
-- [ ] Cover journals, invoices, bills and other consequential write endpoints.
-- [ ] Add replay/conflict tests and organisation-isolation tests.
-- [ ] Document integration behaviour.
+- [x] Define an optional `Idempotency-Key` contract for authenticated write endpoints.
+- [x] Persist organisation, operation, idempotency key, request fingerprint, response/result reference and lifecycle timestamps.
+- [x] Reserve the key before business execution so concurrent duplicate requests cannot both create accounting side effects.
+- [x] Return the original successful status/body for an identical replay and mark it with `Idempotency-Replayed: true`.
+- [x] Reject reuse of the same key with a different payload using HTTP 409 `idempotency_conflict`.
+- [x] Support `X-Source-System` + `X-Source-Reference` uniqueness as a second integration replay guard.
+- [x] Define a 90-day retention policy and cleanup service.
+- [x] Apply the guard centrally through `require_api` to authenticated POST/PUT/PATCH/DELETE operations, covering journals, invoices, bills, payments, banking, workflows and other consequential writes.
+- [x] Add replay, conflict, source-reference and organisation-isolation tests.
+- [x] Add migration `0020_api_idempotency` and verify no missing Alembic operations.
+- [x] Document the integration contract in `docs/API_IDEMPOTENCY.md`.
+- [x] Record implementation/retest evidence in the audit register.
+- [ ] Independent audit retest and formal finding closure.
+
+**Completion evidence:** PR #11; merge commit `bc3a704ae51705598f7a42f89590d18e6c9ed7a6`; LedgerOne CI run #454; clean migration through `0020_api_idempotency`; 228 tests passed, 3 skipped.
 
 ### DEV-004 — Formal statement-to-GL bank reconciliation / LO-AUD-014
 
@@ -338,15 +344,14 @@ The base local-AI chat and organisation Knowledge capabilities already exist. Re
 
 ## 12. Recommended development order
 
-1. DEV-003 — LO-AUD-013 API idempotency.
-2. DEV-004 — LO-AUD-014 formal bank reconciliation.
-3. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
-4. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011, DEV-002/LO-AUD-012, and reconciling LO-AUD-009 numbering evidence.
-5. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
-6. DEV-007 — operational-list balances.
-7. DEV-008 — accounting workflow guide and in-app links.
-8. DEV-009 — numbering UX/integration consistency pass.
-9. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
+1. DEV-004 — LO-AUD-014 formal bank reconciliation.
+2. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
+3. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011, DEV-002/LO-AUD-012, DEV-003/LO-AUD-013, and reconciling LO-AUD-009 numbering evidence.
+4. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
+5. DEV-007 — operational-list balances.
+6. DEV-008 — accounting workflow guide and in-app links.
+7. DEV-009 — numbering UX/integration consistency pass.
+8. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
 
 ---
 
