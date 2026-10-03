@@ -160,7 +160,7 @@ def test_bank_link_requires_active_non_control_asset_account(app):
                 ledger_account_id=accounts["2000"].id,
             )
 
-        with pytest.raises(PostingAccountError, match="control accounts"):
+        with pytest.raises(ValueError, match="control account"):
             BankingService.create_account(
                 context,
                 name="Invalid AR bank",
