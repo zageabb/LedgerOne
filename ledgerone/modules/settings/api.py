@@ -6,6 +6,7 @@ from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import require_api
+from ledgerone.services.approval_policy import ApprovalPolicyService, POLICY_KEYS
 from ledgerone.services.payment_terms import PaymentTermsService
 
 api_bp = Blueprint("settings_api", __name__, url_prefix="/api/v1/settings")
@@ -282,5 +283,32 @@ def revoke_api_key(key_id):
     try:
         row = SettingsService.revoke_api_key(g.access_context, key_id)
         return jsonify({"id": row.id, "is_active": row.is_active})
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/approval-policies")
+@require_api("settings.read")
+def approval_policies():
+    return jsonify({
+        "policies": ApprovalPolicyService.list(g.access_context),
+        "supported": list(POLICY_KEYS),
+    })
+
+
+@api_bp.put("/approval-policies/<policy_key>")
+@require_api("workflows.manage")
+def update_approval_policy(policy_key):
+    payload = request.get_json(silent=True) or {}
+    try:
+        policy = ApprovalPolicyService.set(
+            g.access_context,
+            policy_key,
+            enabled=bool(payload.get("enabled", False)),
+            threshold=payload.get("threshold"),
+            approval_role=payload.get("approval_role"),
+            separate_approver=bool(payload.get("separate_approver", True)),
+        )
+        return jsonify({"policy_key": policy_key, "policy": policy})
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
