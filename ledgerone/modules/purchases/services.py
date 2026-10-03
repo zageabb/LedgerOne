@@ -323,11 +323,11 @@ class PurchasesService:
         if due_date < bill_date:
             raise ValueError("Bill due date cannot be before the bill date")
 
-        payable_account = PostingAccountService.validate(
-            context, payable_account_id, "accounts_payable"
+        payable_account = PostingAccountService.resolve(
+            context, "accounts_payable", payable_account_id
         )
-        cost_account = PostingAccountService.validate(
-            context, expense_account_id, "purchase_cost"
+        cost_account = PostingAccountService.resolve(
+            context, "purchase_cost", expense_account_id
         )
         payable_account_id = payable_account.id
         expense_account_id = cost_account.id
