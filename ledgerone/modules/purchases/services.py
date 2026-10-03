@@ -11,6 +11,7 @@ from ledgerone.modules.purchases.models import (
     PurchasePaymentAllocation,
     Supplier,
 )
+from ledgerone.services.account_roles import PostingAccountService
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerService
@@ -322,6 +323,15 @@ class PurchasesService:
         if due_date < bill_date:
             raise ValueError("Bill due date cannot be before the bill date")
 
+        payable_account = PostingAccountService.validate(
+            context, payable_account_id, "accounts_payable"
+        )
+        cost_account = PostingAccountService.validate(
+            context, expense_account_id, "purchase_cost"
+        )
+        payable_account_id = payable_account.id
+        expense_account_id = cost_account.id
+
         from ledgerone.modules.tax.services import TaxService
         effective_tax_point = tax_point or bill_date
         tax_code = TaxService.code_for_use(context, tax_code_id, "purchase")
@@ -454,12 +464,10 @@ class PurchasesService:
         supplier = db.session.get(Supplier, supplier_id)
         if not supplier or supplier.organisation_id != context.organisation_id:
             raise ValueError("Invalid supplier")
-        bank_account = db.session.get(Account, bank_account_id)
-        payable = db.session.get(Account, payable_account_id)
-        if not bank_account or bank_account.organisation_id != context.organisation_id:
-            raise ValueError("Invalid bank ledger account")
-        if not payable or payable.organisation_id != context.organisation_id:
-            raise ValueError("Invalid payables account")
+        bank_account = PostingAccountService.validate(context, bank_account_id, "bank")
+        payable = PostingAccountService.validate(
+            context, payable_account_id, "accounts_payable"
+        )
 
         payment_id = new_id()
         try:
