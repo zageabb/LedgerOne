@@ -320,11 +320,11 @@ class SalesService:
         if due_date < invoice_date:
             raise ValueError("Invoice due date cannot be before the invoice date")
 
-        receivable_account = PostingAccountService.validate(
-            context, receivable_account_id, "accounts_receivable"
+        receivable_account = PostingAccountService.resolve(
+            context, "accounts_receivable", receivable_account_id
         )
-        revenue_account = PostingAccountService.validate(
-            context, revenue_account_id, "sales_revenue"
+        revenue_account = PostingAccountService.resolve(
+            context, "sales_revenue", revenue_account_id
         )
         receivable_account_id = receivable_account.id
         revenue_account_id = revenue_account.id
