@@ -49,22 +49,22 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 
 ### DEV-001 — Complete paid-document credits and refunds / LO-AUD-011
 
-**Status:** IN PROGRESS — open PR #9
+**Status:** ENGINEERING COMPLETE — merged to `main`, awaiting independent audit retest
 
-PR #9 implements paid invoice/bill credit handling, unapplied customer/supplier credit, cross-document allocation and cash refunds, but it is not yet merged to `main`.
+- [x] Review PR #9 against current `main`.
+- [x] Confirm no code rebase was required; intervening `main` changes were development/agent documentation only.
+- [x] Verify paid invoice -> credit -> unapplied customer credit.
+- [x] Verify customer credit -> another invoice allocation.
+- [x] Verify customer credit -> cash refund.
+- [x] Verify equivalent supplier-credit/refund paths.
+- [x] Verify refund records remain immutable audit evidence.
+- [x] Merge PR #9 to `main`.
+- [x] Run clean migration validation through `0018_credit_refunds`.
+- [x] Run the complete merged-main regression suite.
+- [x] Update LO-AUD-011 evidence and submit it for independent retest.
+- [ ] Independent audit retest and formal finding closure.
 
-- [ ] Review PR #9 against current `main`.
-- [ ] Rebase/reconcile it if required.
-- [ ] Run the complete CI suite on the final candidate.
-- [ ] Verify paid invoice -> credit -> unapplied customer credit.
-- [ ] Verify customer credit -> another invoice allocation.
-- [ ] Verify customer credit -> cash refund.
-- [ ] Verify equivalent supplier-credit/refund paths.
-- [ ] Verify refund records remain immutable audit evidence.
-- [ ] Merge to `main`.
-- [ ] Update LO-AUD-011 evidence and submit it for independent retest.
-
-**Completion evidence:** merged commit, full CI result, regression tests, updated action register.
+**Completion evidence:** merge commit `0388f1b592a64a704172078aee67b2421d2e0043`; LedgerOne CI run #442; clean migration upgrade; 215 tests passed, 3 skipped.
 
 ### DEV-002 — Finish account classification and posting-role validation / LO-AUD-012
 
@@ -334,17 +334,16 @@ The base local-AI chat and organisation Knowledge capabilities already exist. Re
 
 ## 12. Recommended development order
 
-1. DEV-001 — finish and merge PR #9 / LO-AUD-011.
-2. DEV-002 — LO-AUD-012 account classification/posting-role validation.
-3. DEV-003 — LO-AUD-013 API idempotency.
-4. DEV-004 — LO-AUD-014 formal bank reconciliation.
-5. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
-6. Independently retest and close engineering-complete audit findings, including reconciling LO-AUD-009 numbering evidence.
-7. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
-8. DEV-007 — operational-list balances.
-9. DEV-008 — accounting workflow guide and in-app links.
-10. DEV-009 — numbering UX/integration consistency pass.
-11. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
+1. DEV-002 — LO-AUD-012 account classification/posting-role validation.
+2. DEV-003 — LO-AUD-013 API idempotency.
+3. DEV-004 — LO-AUD-014 formal bank reconciliation.
+4. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
+5. Independently retest and close engineering-complete audit findings, including DEV-001/LO-AUD-011 and reconciling LO-AUD-009 numbering evidence.
+6. DEV-006 — finish customer/supplier address management and close the remaining v0.3 usability gap.
+7. DEV-007 — operational-list balances.
+8. DEV-008 — accounting workflow guide and in-app links.
+9. DEV-009 — numbering UX/integration consistency pass.
+10. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
 
 ---
 
