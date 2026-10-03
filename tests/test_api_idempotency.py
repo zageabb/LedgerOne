@@ -160,3 +160,47 @@ def test_source_reference_pair_is_unique_per_operation(client, app):
     assert second.status_code == 201
     assert second.headers["Idempotency-Replayed"] == "true"
     assert second.get_json() == first.get_json()
+
+
+def test_idempotency_keys_are_isolated_by_organisation(client, app):
+    first_org_id, first_token, _ = _setup(app)
+    with app.app_context():
+        second_org = Organisation(
+            name="Second Ledger",
+            slug="second-ledger",
+            base_currency="GBP",
+            country_code="GB",
+        )
+        db.session.add(second_org)
+        db.session.flush()
+        second_key, second_token = ApiKey.issue(
+            name="second-org-idempotency",
+            organisation_id=second_org.id,
+            full_access=True,
+        )
+        db.session.add(second_key)
+        db.session.commit()
+        second_org_id = second_org.id
+
+    headers_one = _headers(first_token, "shared-key")
+    headers_two = _headers(second_token, "shared-key")
+    first = client.post(
+        "/api/v1/ledger/accounts",
+        headers=headers_one,
+        json={"code": "9901", "name": "Org One Expense", "account_type": "expense"},
+    )
+    second = client.post(
+        "/api/v1/ledger/accounts",
+        headers=headers_two,
+        json={"code": "9901", "name": "Org Two Expense", "account_type": "expense"},
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    with app.app_context():
+        assert IdempotencyRecord.query.filter_by(
+            organisation_id=first_org_id, idempotency_key="shared-key"
+        ).count() == 1
+        assert IdempotencyRecord.query.filter_by(
+            organisation_id=second_org_id, idempotency_key="shared-key"
+        ).count() == 1
