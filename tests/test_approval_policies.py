@@ -6,6 +6,7 @@ from ledgerone.extensions import db
 from ledgerone.models.core import Membership, Organisation, User
 from ledgerone.models.ledger import Account
 from ledgerone.modules.sales.services import SalesService
+from ledgerone.services.control_accounts import ControlAccountService
 from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import UserAction, WorkflowInstance
 from ledgerone.modules.workflows.services import WorkflowError, WorkflowService
@@ -255,3 +256,67 @@ def test_ai_write_policy_creates_generic_approval_request(app):
             title="Approve AI write: sales.create_customer",
         )
         assert authorised.id == workflow.id
+
+
+
+def test_customer_payment_policy_guards_real_service_and_consumes_approval(app):
+    with app.app_context():
+        maker, checker, accounts = _maker_checker()
+        customer = SalesService.create_customer(maker, name="Payment Customer")
+        ApprovalPolicyService.set(
+            maker,
+            "payment",
+            enabled=True,
+            threshold="100.00",
+            approval_role="manager",
+        )
+
+        kwargs = {
+            "customer_id": customer.id,
+            "payment_date": date(2026, 9, 15),
+            "amount": "150.00",
+            "bank_account_id": accounts["1000"].id,
+            "receivable_account_id": accounts["1200"].id,
+            "reference": "PAY-APPROVAL",
+            "currency": "GBP",
+        }
+        with pytest.raises(ApprovalRequired) as required:
+            SalesService.record_payment(maker, **kwargs)
+        workflow = required.value.workflow
+        assert SalesService.list_payments(maker) == []
+
+        _approve(checker, workflow, comments="Payment independently approved")
+        payment = SalesService.record_payment(maker, **kwargs)
+
+        assert payment.amount == ApprovalPolicyService._money("150.00")
+        assert db.session.get(WorkflowInstance, workflow.id).status == "executed"
+
+
+def test_control_account_adjustment_policy_guards_posting(app):
+    with app.app_context():
+        maker, checker, accounts = _maker_checker()
+        ApprovalPolicyService.set(
+            maker,
+            "control_adjustment",
+            enabled=True,
+            approval_role="manager",
+        )
+        kwargs = {
+            "journal_date": date(2026, 9, 15),
+            "description": "Approved AR correction",
+            "reference": "CTRL-APP-1",
+            "reason": "Independent correction evidence",
+            "lines": [
+                {"account_id": accounts["1200"].id, "debit": "10.00", "credit": 0},
+                {"account_id": accounts["4000"].id, "debit": 0, "credit": "10.00"},
+            ],
+        }
+        with pytest.raises(ApprovalRequired) as required:
+            ControlAccountService.post_adjustment(maker, **kwargs)
+        workflow = required.value.workflow
+
+        _approve(checker, workflow)
+        journal = ControlAccountService.post_adjustment(maker, **kwargs)
+
+        assert journal.source_module == "control_adjustment"
+        assert db.session.get(WorkflowInstance, workflow.id).status == "executed"
