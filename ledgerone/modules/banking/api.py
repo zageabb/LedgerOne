@@ -1,6 +1,9 @@
 from datetime import date
 
-from flask import Blueprint, g, jsonify, request
+import csv
+import io
+
+from flask import Blueprint, Response, g, jsonify, request
 
 from ledgerone.security import require_api
 from ledgerone.modules.banking.services import BankingService
@@ -181,3 +184,121 @@ def unmatch_transaction(transaction_id):
         )
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+def _formal_json(context, row):
+    return BankingService.formal_reconciliation_evidence(context, row.id)
+
+
+@api_bp.get("/reconciliations")
+@require_api("banking.read")
+def formal_reconciliations():
+    rows = BankingService.list_formal_reconciliations(
+        g.access_context, request.args.get("bank_account_id") or None
+    )
+    return jsonify({"reconciliations": [_formal_json(g.access_context, row) for row in rows]})
+
+
+@api_bp.post("/reconciliations")
+@require_api("banking.reconcile")
+def create_formal_reconciliation():
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = BankingService.create_formal_reconciliation(
+            g.access_context,
+            bank_account_id=payload["bank_account_id"],
+            statement_start_date=date.fromisoformat(payload["statement_start_date"]),
+            statement_end_date=date.fromisoformat(payload["statement_end_date"]),
+            statement_opening_balance=payload["statement_opening_balance"],
+            statement_closing_balance=payload["statement_closing_balance"],
+            explained_difference=payload.get("explained_difference", 0),
+            explanation=payload.get("explanation"),
+        )
+        return jsonify(_formal_json(g.access_context, row)), 201
+    except (KeyError, ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.patch("/reconciliations/<reconciliation_id>")
+@require_api("banking.reconcile")
+def refresh_formal_reconciliation(reconciliation_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        row = BankingService.refresh_formal_reconciliation(
+            g.access_context,
+            reconciliation_id,
+            explained_difference=payload.get("explained_difference"),
+            explanation=payload.get("explanation") if "explanation" in payload else None,
+        )
+        return jsonify(_formal_json(g.access_context, row))
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/reconciliations/<reconciliation_id>/finalise")
+@require_api("banking.reconcile")
+def finalise_formal_reconciliation(reconciliation_id):
+    try:
+        row = BankingService.finalise_formal_reconciliation(
+            g.access_context, reconciliation_id
+        )
+        return jsonify(_formal_json(g.access_context, row))
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/reconciliations/<reconciliation_id>")
+@require_api("banking.read")
+def formal_reconciliation(reconciliation_id):
+    try:
+        row = BankingService.get_formal_reconciliation(g.access_context, reconciliation_id)
+        return jsonify(_formal_json(g.access_context, row))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@api_bp.get("/reconciliations/<reconciliation_id>/export.csv")
+@require_api("banking.read")
+def export_formal_reconciliation(reconciliation_id):
+    try:
+        evidence = BankingService.formal_reconciliation_evidence(
+            g.access_context, reconciliation_id
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["LedgerOne formal bank reconciliation", evidence["id"]])
+    for key in (
+        "status", "statement_start_date", "statement_end_date",
+        "statement_opening_balance", "statement_closing_balance",
+        "ledger_balance", "unmatched_statement_total",
+        "outstanding_book_total", "explained_difference",
+        "residual_difference", "explanation", "prepared_by",
+        "approved_by", "prepared_at", "approved_at", "finalised_at",
+    ):
+        writer.writerow([key, evidence.get(key)])
+    writer.writerow([])
+    writer.writerow(["Statement transactions"])
+    writer.writerow(["id", "date", "description", "amount", "status", "journal_id"])
+    for item in evidence["snapshot"].get("statement_transactions", []):
+        writer.writerow([
+            item.get("id"), item.get("date"), item.get("description"),
+            item.get("amount"), item.get("status"), item.get("matched_journal_id"),
+        ])
+    writer.writerow([])
+    writer.writerow(["Outstanding book items"])
+    writer.writerow(["journal_id", "date", "reference", "description", "amount"])
+    for item in evidence["snapshot"].get("outstanding_book_items", []):
+        writer.writerow([
+            item.get("journal_id"), item.get("date"), item.get("reference"),
+            item.get("description"), item.get("amount"),
+        ])
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="bank-reconciliation-{reconciliation_id}.csv"'
+        },
+    )
