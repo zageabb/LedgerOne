@@ -6,11 +6,6 @@ from sqlalchemy.exc import IntegrityError
 from ledgerone.extensions import db
 from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account, Journal
-from ledgerone.modules.banking.services import BankingService
-from ledgerone.modules.purchases.models import PurchaseBill
-from ledgerone.modules.purchases.services import PurchasesService
-from ledgerone.modules.sales.models import SalesInvoice
-from ledgerone.modules.sales.services import SalesService
 from ledgerone.services.account_roles import PostingAccountError, PostingAccountService
 from ledgerone.services.context import AccessContext
 from ledgerone.services.ledger import LedgerError, LedgerService
@@ -76,6 +71,8 @@ def test_parent_and_child_accounts_must_share_classification(app):
 def test_sales_invoice_rejects_non_income_revenue_account_without_side_effects(app):
     with app.app_context():
         organisation, accounts, context = _setup()
+        from ledgerone.modules.sales.services import SalesService
+
         customer = SalesService.create_customer(context, name="Role Test Customer")
         before_journals = Journal.query.count()
 
@@ -94,13 +91,15 @@ def test_sales_invoice_rejects_non_income_revenue_account_without_side_effects(a
             )
         db.session.rollback()
 
-        assert SalesInvoice.query.count() == 0
+        assert SalesService.list_invoices(context) == []
         assert Journal.query.count() == before_journals
 
 
 def test_purchase_bill_rejects_income_as_purchase_cost_without_side_effects(app):
     with app.app_context():
         organisation, accounts, context = _setup()
+        from ledgerone.modules.purchases.services import PurchasesService
+
         supplier = PurchasesService.create_supplier(context, name="Role Test Supplier")
         before_journals = Journal.query.count()
 
@@ -119,13 +118,15 @@ def test_purchase_bill_rejects_income_as_purchase_cost_without_side_effects(app)
             )
         db.session.rollback()
 
-        assert PurchaseBill.query.count() == 0
+        assert PurchasesService.list_bills(context) == []
         assert Journal.query.count() == before_journals
 
 
 def test_purchase_bill_allows_asset_cost_account(app):
     with app.app_context():
         organisation, accounts, context = _setup()
+        from ledgerone.modules.purchases.services import PurchasesService
+
         supplier = PurchasesService.create_supplier(context, name="Asset Supplier")
 
         bill = PurchasesService.create_bill(
@@ -146,6 +147,8 @@ def test_purchase_bill_allows_asset_cost_account(app):
 
 def test_bank_link_requires_active_non_control_asset_account(app):
     with app.app_context():
+        from ledgerone.modules.banking.services import BankingService
+
         organisation, accounts, context = _setup()
 
         with pytest.raises(PostingAccountError, match="bank"):
