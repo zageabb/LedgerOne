@@ -438,9 +438,9 @@ class BankingService:
         return {
             "statement_transactions": statement_rows,
             "outstanding_book_items": outstanding_book,
-            "unmatched_statement_total": BankingService._money(unmatched_statement_total),
-            "outstanding_book_total": BankingService._money(outstanding_book_total),
-            "ledger_balance": BankingService._ledger_balance_at(bank_account, end_date),
+            "unmatched_statement_total": str(BankingService._money(unmatched_statement_total)),
+            "outstanding_book_total": str(BankingService._money(outstanding_book_total)),
+            "ledger_balance": str(BankingService._ledger_balance_at(bank_account, end_date)),
         }
 
     @staticmethod
