@@ -354,7 +354,6 @@ class BankingService:
             .filter(
                 Journal.organisation_id == bank_account.organisation_id,
                 Journal.status == "posted",
-                Journal.journal_date >= start_date,
                 Journal.journal_date <= end_date,
                 JournalLine.account_id == bank_account.ledger_account_id,
             )
@@ -410,6 +409,7 @@ class BankingService:
             .filter(
                 Journal.organisation_id == context.organisation_id,
                 Journal.status == "posted",
+                Journal.journal_date >= start_date,
                 Journal.journal_date <= end_date,
                 JournalLine.account_id == bank_account.ledger_account_id,
             )
