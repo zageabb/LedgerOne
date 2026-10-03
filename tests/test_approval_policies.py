@@ -5,8 +5,6 @@ import pytest
 from ledgerone.extensions import db
 from ledgerone.models.core import Membership, Organisation, User
 from ledgerone.models.ledger import Account
-from ledgerone.modules.sales.services import SalesService
-from ledgerone.services.control_accounts import ControlAccountService
 from ledgerone.modules.workflows.journal_requests import JournalWorkflowService
 from ledgerone.modules.workflows.models import UserAction, WorkflowInstance
 from ledgerone.modules.workflows.services import WorkflowError, WorkflowService
@@ -72,6 +70,8 @@ def _approve(checker_context, workflow, *, comments="Checked and approved"):
 def test_master_data_policy_enforces_no_self_approval_and_consumes_history(app):
     with app.app_context():
         maker, checker, _ = _maker_checker()
+        from ledgerone.modules.sales.services import SalesService
+
         ApprovalPolicyService.set(
             maker,
             "master_data",
@@ -262,6 +262,8 @@ def test_ai_write_policy_creates_generic_approval_request(app):
 def test_customer_payment_policy_guards_real_service_and_consumes_approval(app):
     with app.app_context():
         maker, checker, accounts = _maker_checker()
+        from ledgerone.modules.sales.services import SalesService
+
         customer = SalesService.create_customer(maker, name="Payment Customer")
         ApprovalPolicyService.set(
             maker,
@@ -295,6 +297,8 @@ def test_customer_payment_policy_guards_real_service_and_consumes_approval(app):
 def test_control_account_adjustment_policy_guards_posting(app):
     with app.app_context():
         maker, checker, accounts = _maker_checker()
+        from ledgerone.services.control_accounts import ControlAccountService
+
         ApprovalPolicyService.set(
             maker,
             "control_adjustment",
