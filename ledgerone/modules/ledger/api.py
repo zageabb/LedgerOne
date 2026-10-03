@@ -4,6 +4,7 @@ from decimal import Decimal
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import or_
 
+from ledgerone.extensions import db
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.module_registry import module_registry
 from ledgerone.security import require_api
