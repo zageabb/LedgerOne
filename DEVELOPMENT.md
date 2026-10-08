@@ -186,7 +186,8 @@ Customer and supplier models already contain address data, and VAT output consum
 - [x] Add structured address fields to supplier creation UI.
 - [x] Add structured address fields to supplier edit UI (branch implementation; CI pending).
 - [x] Add customer/supplier edit screens and register navigation (branch implementation; CI pending).
-- [ ] Add regression tests and verify editing behaviour through CI before merge.
+- [x] Add service-level customer/supplier address create/edit round-trip tests (`tests/test_contact_addresses.py`).
+- [ ] Verify address workflows through latest CI and resolve any failures before merge.
 - [ ] Include postcode/country and sensible formatting/validation.
 - [ ] Keep API and browser behaviour aligned.
 - [ ] Add address round-trip tests.
