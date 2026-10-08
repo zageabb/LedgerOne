@@ -210,20 +210,20 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-008 — Accounting workflow guidance for non-accountants
 
-**Status:** IN PROGRESS — branch `dev/accounting-workflow-guidance`; guide and in-app navigation under development.
+**Status:** IN PROGRESS — full Mermaid workflow guide and authenticated in-app help page added; CI verification pending.
 
-- [ ] Create `docs/ACCOUNTING_WORKFLOWS.md`.
-- [ ] Add Mermaid flows for quote/order -> invoice -> payment/allocation.
-- [ ] Add supplier PO -> bill -> payment/allocation.
-- [ ] Add expense claim -> approval -> posting/reimbursement.
-- [ ] Add bank receipt/payment and bank transfer.
-- [ ] Add sales/purchase credit note and refund.
-- [ ] Add manual journal, opening balance and recurring journal.
-- [ ] Add VAT-related transaction path.
-- [ ] Explain the accounting effect in plain English and debit/credit terms where useful.
-- [ ] Clearly direct users toward Sales/Purchases/Banking workflows instead of manual AR/AP/VAT postings.
-- [ ] Include supported correction paths: reversal, credit, refund and cancellation.
-- [ ] Link the guide from Home/Apprentice UI and Help/documentation.
+- [x] Create `docs/ACCOUNTING_WORKFLOWS.md`.
+- [x] Add Mermaid flows for quote/order -> invoice -> payment/allocation.
+- [x] Add supplier PO -> bill -> payment/allocation.
+- [x] Add expense claim -> approval -> posting/reimbursement.
+- [x] Add bank receipt/payment and bank transfer.
+- [x] Add sales/purchase credit note and refund.
+- [x] Add manual journal, opening balance and recurring journal.
+- [x] Add VAT-related transaction path.
+- [x] Explain the accounting effect in plain English and debit/credit terms where useful.
+- [x] Clearly direct users toward Sales/Purchases/Banking workflows instead of manual AR/AP/VAT postings.
+- [x] Include supported correction paths: reversal, credit, refund and cancellation.
+- [x] Link the guide from Home/Apprentice UI and Help/documentation.
 
 ### DEV-009 — Numbering UX/integration consistency review
 
