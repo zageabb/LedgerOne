@@ -130,7 +130,8 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 ### DEV-005 — Maker/checker and segregation of duties / LO-AUD-015
 
 - [x] Fix approval-request JSON metadata serialisation for date/datetime/Decimal values and add regression coverage (branch commits `fd5583e`, `223c429`).
-- [ ] Obtain a green PR #13 CI run, then merge into `main` and verify merged-main CI before starting DEV-006.
+- [x] PR #13 CI #468 green and merged to main (`3287c759`).
+- [ ] Independent audit retest and closure of LO-AUD-015.
 
 **Status:** OPEN
 
@@ -176,12 +177,14 @@ These items should not be rebuilt unless independent retest identifies a defect.
 
 ### DEV-006 — Customer/supplier contact and address management
 
-**Status:** PARTIAL
+**Status:** IN PROGRESS — branch `dev/customer-supplier-addresses`; creation forms and service address persistence implemented, remaining editing/API parity/tests/CI pending
 
 Customer and supplier models already contain address data, and VAT output consumes customer address information, but the primary Sales/Purchases browser creation forms still expose only name/email/phone/payment terms.
 
-- [ ] Add structured address fields to customer creation/edit UI.
-- [ ] Add structured address fields to supplier creation/edit UI.
+- [x] Add structured address fields to customer creation UI.
+- [ ] Add structured address fields to customer edit UI.
+- [x] Add structured address fields to supplier creation UI.
+- [ ] Add structured address fields to supplier edit UI.
 - [ ] Add customer/supplier edit/detail screens rather than create-only list management.
 - [ ] Include postcode/country and sensible formatting/validation.
 - [ ] Keep API and browser behaviour aligned.
