@@ -88,9 +88,11 @@ def index():
     if module_registry.is_enabled(context.organisation_id, "tax") and context.can("tax.read"):
         from ledgerone.modules.tax.services import TaxService
         tax_codes = TaxService.list_codes(context, usage="sales")
+    from ledgerone.services.operational_balances import customer_balances
     return render_template(
         "sales/index.html",
         customers=SalesService.list_customers(context),
+        party_balances=customer_balances(context),
         invoices=invoices,
         outstanding={row.id: SalesService.invoice_outstanding(row) for row in invoices},
         receivable_accounts=[row for row in accounts if row.account_type == "asset"],
