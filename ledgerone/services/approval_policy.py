@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from ledgerone.extensions import db
@@ -166,6 +167,19 @@ class ApprovalPolicyService:
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
 
     @staticmethod
+    def _json_safe(value):
+        """Convert approval metadata to JSON-safe values without changing fingerprints."""
+        if isinstance(value, (date, datetime)):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, dict):
+            return {str(key): ApprovalPolicyService._json_safe(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [ApprovalPolicyService._json_safe(item) for item in value]
+        return value
+
+    @staticmethod
     def fingerprint(policy_key: str, payload: dict) -> str:
         return hashlib.sha256(
             f"{policy_key}\n{ApprovalPolicyService._canonical(payload)}".encode("utf-8")
@@ -235,7 +249,7 @@ class ApprovalPolicyService:
                 "transaction_type": policy_key,
                 "approval_policy_key": policy_key,
                 "request_fingerprint": fingerprint,
-                "request_payload": payload,
+                "request_payload": ApprovalPolicyService._json_safe(payload),
             },
             definition_id=definition.id,
             originator_user_id=context.user_id,
@@ -268,7 +282,7 @@ class ApprovalPolicyService:
         if metadata.get("approval_consumed_at"):
             raise WorkflowError("Approval has already been consumed")
         metadata["approval_consumed_at"] = utcnow().isoformat()
-        metadata["approval_execution_result"] = result or {}
+        metadata["approval_execution_result"] = ApprovalPolicyService._json_safe(result or {})
         workflow.metadata_json = metadata
         workflow.status = "executed"
         workflow.completed_at = utcnow()
