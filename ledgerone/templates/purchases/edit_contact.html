@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Edit Supplier · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Edit supplier</h1><p>Maintain contact and address information.</p></div><a class="button button-secondary" href="{{ url_for('purchases.index') }}">Back</a></div>
+<div class="card"><div class="card-body"><form method="post" class="form-grid">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="field"><label>Name</label><input name="name" value="{{ contact.name }}" required maxlength="255"></div>
+<div class="field"><label>Email</label><input name="email" type="email" value="{{ contact.email or '' }}"></div>
+<div class="field"><label>Phone</label><input name="phone" value="{{ contact.phone or '' }}"></div>
+<div class="field"><label>Payment terms override (days)</label><input type="number" name="payment_terms_days" min="0" max="365" value="{{ contact.payment_terms_days if contact.payment_terms_days is not none else '' }}"></div>
+<div class="field"><label>Address line 1</label><input name="line1" maxlength="255" value="{{ (contact.address or {}).get('line1', '') }}"></div>
+<div class="field"><label>Address line 2</label><input name="line2" maxlength="255" value="{{ (contact.address or {}).get('line2', '') }}"></div>
+<div class="field"><label>Town / city</label><input name="city" maxlength="255" value="{{ (contact.address or {}).get('city', '') }}"></div>
+<div class="field"><label>County</label><input name="county" maxlength="255" value="{{ (contact.address or {}).get('county', '') }}"></div>
+<div class="field"><label>Postcode</label><input name="postcode" maxlength="255" value="{{ (contact.address or {}).get('postcode', '') }}"></div>
+<div class="field"><label>Country</label><input name="country" maxlength="255" value="{{ (contact.address or {}).get('country', '') }}"></div>
+<div class="field-full"><button type="submit" class="button">Save changes</button></div>
+</form></div></div>
+{% endblock %}
