@@ -44,7 +44,7 @@ def create_credit_note():
         row = PurchaseCreditService.create_credit_note(
             g.access_context,
             bill_id=payload["bill_id"],
-            credit_number=payload["credit_number"],
+            credit_number=payload.get("credit_number") or None,
             credit_date=date.fromisoformat(payload.get("credit_date") or date.today().isoformat()),
             tax_point=date.fromisoformat(payload["tax_point"]) if payload.get("tax_point") else None,
             amount=payload["amount"],

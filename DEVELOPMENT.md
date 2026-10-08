@@ -227,13 +227,20 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-009 — Numbering UX/integration consistency review
 
-**Status:** VERIFY
+**Status:** IN PROGRESS — implemented blank purchase bill numbering across browser, API, workflow and final posting on PR #17; latest CI pending. Separate supplier external invoice reference and other document-type review remain outstanding.
 
 Controlled numbering is implemented on `main`, but browser behaviour should be reviewed across every supported document type.
 
 - [ ] Verify automatic numbering is reachable from browser, API and workflow paths for invoices, bills, sales/purchase credit notes, quotes, sales orders, purchase orders and expense claims.
-- [ ] Resolve any UI that still forces a manual number when the intended policy is controlled automatic numbering.
-- [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two.
+- [x] Identify purchase bill manual-number requirement in browser/API/service/workflow and document safe migration/compatibility plan.
+- [x] Allow blank bill numbers on Purchases browser form and API/workflow, assigning the controlled purchase-bill number only at final posting (PR #17, CI pending).
+- [x] Support blank bill number on purchase-order conversion browser/API, while preserving final-post controlled allocation (branch; CI pending).
+- [x] Review remaining sales quote/order, invoice-conversion, purchase credit note and purchase order browser forms; document the required-number gaps in `docs/NUMBERING_CONSISTENCY_AUDIT.md`.
+- [x] Implement purchase credit-note controlled numbering at posting for browser/API, including transactional rollback (PR #17, latest CI pending).
+- [x] Add controlled numbering to sales quotes, sales orders and purchase orders on creation, with optional browser/API number entry (branch; CI pending).
+- [x] Make quote/order conversion invoice-number fields optional in browser/API; reuse final invoice posting allocator (CI pending).
+- [ ] Verify expense claim numbering, external supplier invoice reference separation and complete regression coverage.
+- [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two (requires model migration, workflow/API/PDF review).
 - [ ] Verify cancelled/void document flows preserve number history.
 - [ ] Ensure the audit action register reflects the actual implementation and tests.
 

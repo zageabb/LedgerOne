@@ -62,9 +62,7 @@ class PurchaseCreditService:
         if not bill.posted_journal_id or bill.status == "draft":
             raise ValueError("Only posted bills can be credited")
         credit_number = (credit_number or "").strip()
-        if not credit_number:
-            raise ValueError("Credit note number is required")
-        if PurchaseCreditNote.query.filter_by(
+        if credit_number and PurchaseCreditNote.query.filter_by(
             organisation_id=context.organisation_id, credit_number=credit_number
         ).first():
             raise ValueError("Credit note number already exists")
@@ -163,6 +161,13 @@ class PurchaseCreditService:
             )
 
         try:
+            from ledgerone.modules.sales.numbering import _assign_number
+            credit_number = _assign_number(
+                context, sequence_key="purchase_credit_note", issue_date=credit_date,
+                entity_type="purchase_credit_note", entity_id=credit_id,
+                requested_number=credit_number, model=PurchaseCreditNote,
+                number_field="credit_number", date_field="credit_date",
+            )
             journal = LedgerService.post_journal(
                 context,
                 journal_date=credit_date,

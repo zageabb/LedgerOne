@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from ledgerone.extensions import db
+from ledgerone.models.core import new_id
 from ledgerone.models.ledger import Account
 from ledgerone.modules.sales.models import Customer
 from ledgerone.modules.sales.order_models import SalesOrder, SalesOrderLine
@@ -45,9 +46,7 @@ class SalesOrderService:
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         order_number = (order_number or "").strip()
-        if not order_number:
-            raise ValueError("Order number is required")
-        if SalesOrder.query.filter_by(
+        if order_number and SalesOrder.query.filter_by(
             organisation_id=context.organisation_id,
             order_number=order_number,
         ).first():
@@ -75,7 +74,16 @@ class SalesOrderService:
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
+        from ledgerone.modules.sales.numbering import _assign_number
+        order_id = new_id()
+        order_number = _assign_number(
+            context, sequence_key="sales_order", issue_date=order_date,
+            entity_type="sales_order", entity_id=order_id,
+            requested_number=order_number, model=SalesOrder,
+            number_field="order_number", date_field="order_date",
+        )
         order = SalesOrder(
+            id=order_id,
             organisation_id=context.organisation_id,
             customer_id=customer.id,
             order_number=order_number,

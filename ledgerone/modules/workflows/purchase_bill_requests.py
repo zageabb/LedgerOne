@@ -64,14 +64,12 @@ class PurchaseBillWorkflowService:
             raise WorkflowError("An organisation is required")
         LedgerService.assert_posting_date_open(context, bill_date)
         clean_number = (bill_number or "").strip()
-        if not clean_number:
-            raise WorkflowError("Bill number is required")
-        if PurchaseBill.query.filter_by(
+        if clean_number and PurchaseBill.query.filter_by(
             organisation_id=context.organisation_id,
             bill_number=clean_number,
         ).first():
             raise WorkflowError("Bill number already exists")
-        if PurchaseBillWorkflowService._pending_number_exists(context.organisation_id, clean_number):
+        if clean_number and PurchaseBillWorkflowService._pending_number_exists(context.organisation_id, clean_number):
             raise WorkflowError("Bill number already exists in an open workflow")
         supplier = db.session.get(Supplier, supplier_id)
         if not supplier or supplier.organisation_id != context.organisation_id or not supplier.is_active:
@@ -187,7 +185,7 @@ class PurchaseBillWorkflowService:
             submission_context,
             entity_type=PurchaseBillWorkflowService.ENTITY_TYPE,
             entity_id=request_id,
-            title=f"Bill {payload['bill_number']} - {payload['supplier_name']}",
+            title=f"Bill {payload['bill_number'] or '(automatic on posting)'} - {payload['supplier_name']}",
             amount=total,
             currency=payload["currency"],
             source_module=source_module,

@@ -366,8 +366,8 @@ class PurchasesService:
         supplier = db.session.get(Supplier, supplier_id)
         if not supplier or supplier.organisation_id != context.organisation_id:
             raise ValueError("Invalid supplier")
-        if PurchaseBill.query.filter_by(
-            organisation_id=context.organisation_id, bill_number=bill_number
+        if (bill_number or "").strip() and PurchaseBill.query.filter_by(
+            organisation_id=context.organisation_id, bill_number=bill_number.strip()
         ).first():
             raise ValueError("Bill number already exists")
         if due_date is None:
@@ -396,10 +396,21 @@ class PurchasesService:
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
 
+        # Allocate only at final posting, not when an approval request is submitted.
+        # The sequence change shares this posting transaction and rolls back on failure.
+        from ledgerone.modules.sales.numbering import _assign_number
+        bill_id = new_id()
+        issued_number = _assign_number(
+            context, sequence_key="purchase_bill", issue_date=bill_date,
+            entity_type="purchase_bill", entity_id=bill_id,
+            requested_number=bill_number, model=PurchaseBill,
+            number_field="bill_number", date_field="bill_date",
+        )
         bill = PurchaseBill(
+            id=bill_id,
             organisation_id=context.organisation_id,
             supplier_id=supplier.id,
-            bill_number=bill_number.strip(),
+            bill_number=issued_number,
             bill_date=bill_date,
             tax_point=effective_tax_point,
             due_date=due_date,
