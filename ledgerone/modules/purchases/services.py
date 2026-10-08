@@ -22,6 +22,26 @@ def _money(value) -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
 
+def _normalise_address(address):
+    if address is None:
+        return {}
+    if not isinstance(address, dict):
+        raise ValueError("Address must be an object")
+    allowed = {"line1", "line2", "city", "county", "postcode", "country"}
+    if any(key not in allowed for key in address):
+        raise ValueError("Unsupported address field")
+    values = {}
+    for key, value in address.items():
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Address {key} must be text")
+        clean = (value or "").strip()
+        if len(clean) > 255:
+            raise ValueError(f"Address {key} exceeds 255 characters")
+        if clean:
+            values[key] = clean
+    return values
+
+
 class PurchasesService:
     @staticmethod
     def list_suppliers(context: AccessContext):
@@ -47,7 +67,7 @@ class PurchasesService:
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
             payment_terms_days=payment_terms_days,
-            address={key: str(value).strip()[:255] for key, value in (address or {}).items() if key in {"line1", "line2", "city", "county", "postcode", "country"} and value},
+            address=_normalise_address(address),
         )
         db.session.add(supplier)
         db.session.flush()
@@ -89,8 +109,7 @@ class PurchasesService:
         row.email = (email or "").strip() or None
         row.phone = (phone or "").strip() or None
         row.payment_terms_days = payment_terms_days
-        row.address = {key: str(value).strip()[:255] for key, value in (address or {}).items()
-                       if key in {"line1", "line2", "city", "county", "postcode", "country"} and value}
+        row.address = _normalise_address(address)
         record_audit_event(
             context, module_id="purchases",
             action="supplier_updated", entity_type="supplier", entity_id=row.id,
