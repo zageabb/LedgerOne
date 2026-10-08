@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from ledgerone.extensions import db
+from ledgerone.models.core import new_id
 from ledgerone.models.ledger import Account
 from ledgerone.modules.sales.models import Customer
 from ledgerone.modules.sales.quote_models import SalesQuote, SalesQuoteLine
@@ -45,9 +46,7 @@ class SalesQuoteService:
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         quote_number = (quote_number or "").strip()
-        if not quote_number:
-            raise ValueError("Quote number is required")
-        if SalesQuote.query.filter_by(
+        if quote_number and SalesQuote.query.filter_by(
             organisation_id=context.organisation_id,
             quote_number=quote_number,
         ).first():
@@ -75,7 +74,16 @@ class SalesQuoteService:
         tax_code = TaxService.code_for_use(context, tax_code_id, "sales")
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
+        from ledgerone.modules.sales.numbering import _assign_number
+        quote_id = new_id()
+        quote_number = _assign_number(
+            context, sequence_key="sales_quote", issue_date=quote_date,
+            entity_type="sales_quote", entity_id=quote_id,
+            requested_number=quote_number, model=SalesQuote,
+            number_field="quote_number", date_field="quote_date",
+        )
         quote = SalesQuote(
+            id=quote_id,
             organisation_id=context.organisation_id,
             customer_id=customer.id,
             quote_number=quote_number,
