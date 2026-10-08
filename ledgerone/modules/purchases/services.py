@@ -31,7 +31,8 @@ class PurchasesService:
 
     @staticmethod
     def create_supplier(context: AccessContext, *, name: str, email: str | None = None,
-                        phone: str | None = None, payment_terms_days: int | None = None):
+                        phone: str | None = None, payment_terms_days: int | None = None,
+                        address: dict | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         if not name.strip():
@@ -46,6 +47,7 @@ class PurchasesService:
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
             payment_terms_days=payment_terms_days,
+            address={key: str(value).strip()[:255] for key, value in (address or {}).items() if key in {"line1", "line2", "city", "county", "postcode", "country"} and value},
         )
         db.session.add(supplier)
         db.session.flush()
