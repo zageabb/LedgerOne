@@ -182,3 +182,29 @@ def payments():
         journals=journals,
         today=date.today().isoformat(),
     )
+
+@bp.route("/suppliers/<supplier_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_module("purchases")
+def edit_supplier(supplier_id):
+    context = browser_context()
+    from ledgerone.modules.purchases.models import Supplier
+    row = Supplier.query.filter_by(id=supplier_id, organisation_id=context.organisation_id, is_active=True).first()
+    if row is None:
+        from flask import abort
+        abort(404)
+    if request.method == "POST":
+        try:
+            terms = (request.form.get("payment_terms_days") or "").strip()
+            PurchasesService.update_supplier(
+                context, supplier_id, name=request.form.get("name", ""),
+                email=request.form.get("email"), phone=request.form.get("phone"),
+                payment_terms_days=int(terms) if terms else None,
+                address={key: request.form.get(key, "").strip() for key in ("line1", "line2", "city", "county", "postcode", "country")},
+            )
+            flash("Supplier updated.", "success")
+            return redirect(url_for("purchases.index"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template("purchases/edit_contact.html", contact=row, kind="supplier")
+
