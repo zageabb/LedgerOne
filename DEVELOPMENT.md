@@ -240,7 +240,8 @@ Controlled numbering is implemented on `main`, but browser behaviour should be r
 - [x] Add controlled numbering to sales quotes, sales orders and purchase orders on creation, with optional browser/API number entry (branch; CI pending).
 - [x] Make quote/order conversion invoice-number fields optional in browser/API; reuse final invoice posting allocator (CI pending).
 - [ ] Verify expense claim numbering, external supplier invoice reference separation and complete regression coverage.
-- [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two (requires model migration, workflow/API/PDF review).
+- [x] Add a separate nullable supplier invoice reference with migration 0022, browser/API/workflow plumbing (follow-up branch; CI pending).
+- [ ] Review supplier reference PDF display and historical backfill policy, preserving original internal numbers.
 - [ ] Verify cancelled/void document flows preserve number history.
 - [ ] Ensure the audit action register reflects the actual implementation and tests.
 
