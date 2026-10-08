@@ -54,7 +54,7 @@ def create_order():
         row = SalesOrderService.create_order(
             g.access_context,
             customer_id=payload["customer_id"],
-            order_number=payload["order_number"],
+            order_number=payload.get("order_number") or None,
             order_date=date.fromisoformat(payload.get("order_date") or date.today().isoformat()),
             requested_delivery_date=date.fromisoformat(payload["requested_delivery_date"]) if payload.get("requested_delivery_date") else None,
             description=payload.get("description", "Sales"),
