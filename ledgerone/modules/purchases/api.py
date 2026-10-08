@@ -126,13 +126,14 @@ def create_bill():
             return jsonify({
                 "workflow_instance_id": workflow.id,
                 "status": workflow.status,
+                "number_mode": "manual" if payload.get("bill_number") else "automatic",
                 "posted": False,
             }), 201
 
         row = PurchasesService.create_bill(
             g.access_context,
             supplier_id=payload["supplier_id"],
-            bill_number=payload["bill_number"],
+            bill_number=payload.get("bill_number") or None,
             bill_date=bill_date,
             due_date=due_date,
             tax_point=tax_point,
@@ -145,6 +146,7 @@ def create_bill():
         )
         return jsonify({
             "id": row.id,
+            "bill_number": row.bill_number,
             "status": row.status,
             "tax_point": row.tax_point.isoformat(),
             "due_date": row.due_date.isoformat() if row.due_date else None,
