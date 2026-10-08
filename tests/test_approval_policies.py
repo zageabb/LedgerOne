@@ -324,3 +324,16 @@ def test_control_account_adjustment_policy_guards_posting(app):
 
         assert journal.source_module == "control_adjustment"
         assert db.session.get(WorkflowInstance, workflow.id).status == "executed"
+
+
+def test_approval_metadata_serialises_nested_dates_and_decimal(app):
+    from decimal import Decimal
+    with app.app_context():
+        maker, _, _ = _maker_checker()
+        ApprovalPolicyService.set(maker, "payment", enabled=True)
+        payload = {"payment_date": date(2026, 9, 15), "amount": Decimal("12.50"), "lines": [{"date": date(2026, 9, 16)}]}
+        with pytest.raises(ApprovalRequired) as required:
+            ApprovalPolicyService.guard(maker, "payment", payload=payload, title="Payment approval")
+        stored = db.session.get(WorkflowInstance, required.value.workflow.id).metadata_json["request_payload"]
+        assert stored == {"payment_date": "2026-09-15", "amount": "12.50", "lines": [{"date": "2026-09-16"}]}
+        assert ApprovalPolicyService.fingerprint("payment", payload) == ApprovalPolicyService.fingerprint("payment", stored)
