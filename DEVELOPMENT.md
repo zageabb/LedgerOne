@@ -129,6 +129,8 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 
 ### DEV-005 — Maker/checker and segregation of duties / LO-AUD-015
 
+- [ ] Fix approval-request JSON metadata serialisation for date/datetime/Decimal values; rerun PR #13 tests and CI before merging.
+
 **Status:** OPEN
 
 - [ ] Add organisation-level approval-policy configuration.
