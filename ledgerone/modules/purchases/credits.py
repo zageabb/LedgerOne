@@ -161,13 +161,13 @@ class PurchaseCreditService:
             )
 
         try:
-        from ledgerone.modules.sales.numbering import _assign_number
-        credit_number = _assign_number(
-            context, sequence_key="purchase_credit_note", issue_date=credit_date,
-            entity_type="purchase_credit_note", entity_id=credit_id,
-            requested_number=credit_number, model=PurchaseCreditNote,
-            number_field="credit_number", date_field="credit_date",
-        )
+            from ledgerone.modules.sales.numbering import _assign_number
+            credit_number = _assign_number(
+                context, sequence_key="purchase_credit_note", issue_date=credit_date,
+                entity_type="purchase_credit_note", entity_id=credit_id,
+                requested_number=credit_number, model=PurchaseCreditNote,
+                number_field="credit_number", date_field="credit_date",
+            )
             journal = LedgerService.post_journal(
                 context,
                 journal_date=credit_date,
