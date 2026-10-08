@@ -90,7 +90,7 @@ def convert_quote(quote_id):
         invoice, quote = SalesQuoteService.convert_to_invoice(
             g.access_context,
             quote_id,
-            invoice_number=payload["invoice_number"],
+            invoice_number=payload.get("invoice_number") or None,
             invoice_date=date.fromisoformat(payload.get("invoice_date") or date.today().isoformat()),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
         )
