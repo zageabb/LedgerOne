@@ -357,7 +357,7 @@ class PurchasesService:
                     tax_point=None,
                     payable_account_id: str, expense_account_id: str,
                     currency: str = "GBP", tax_code_id: str | None = None,
-                    metadata: dict | None = None, commit: bool = True):
+                    metadata: dict | None = None, supplier_invoice_reference: str | None = None, commit: bool = True):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -411,6 +411,7 @@ class PurchasesService:
             organisation_id=context.organisation_id,
             supplier_id=supplier.id,
             bill_number=issued_number,
+            supplier_invoice_reference=(supplier_invoice_reference or "").strip()[:120] or None,
             bill_date=bill_date,
             tax_point=effective_tax_point,
             due_date=due_date,
