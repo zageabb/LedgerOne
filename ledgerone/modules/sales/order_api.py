@@ -90,7 +90,7 @@ def convert_order(order_id):
         invoice, order = SalesOrderService.convert_to_invoice(
             g.access_context,
             order_id,
-            invoice_number=payload["invoice_number"],
+            invoice_number=payload.get("invoice_number") or None,
             invoice_date=date.fromisoformat(payload.get("invoice_date") or date.today().isoformat()),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
         )
