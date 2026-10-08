@@ -90,7 +90,7 @@ def convert_order(order_id):
         bill, order = PurchaseOrderService.convert_to_bill(
             g.access_context,
             order_id,
-            bill_number=payload["bill_number"],
+            bill_number=payload.get("bill_number") or None,
             bill_date=date.fromisoformat(payload.get("bill_date") or date.today().isoformat()),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
         )
