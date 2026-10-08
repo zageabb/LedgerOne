@@ -68,6 +68,41 @@ class SalesService:
         return customer
 
     @staticmethod
+    def update_customer(context: AccessContext, customer_id: str, *, name: str,
+                        email: str | None = None, phone: str | None = None,
+                        payment_terms_days: int | None = None, address: dict | None = None):
+        if not context.can("sales.write"):
+            raise PermissionError("sales.write")
+        row = Customer.query.filter_by(
+            id=customer_id, organisation_id=context.organisation_id, is_active=True
+        ).first()
+        if row is None:
+            raise ValueError("Customer not found")
+        if not name or not name.strip():
+            raise ValueError("Customer name is required")
+        if payment_terms_days is not None:
+            payment_terms_days = PaymentTermsService.customer_days(
+                context.organisation_id, payment_terms_days
+            )
+        previous = {"name": row.name, "email": row.email, "phone": row.phone,
+                    "payment_terms_days": row.payment_terms_days, "address": dict(row.address or {})}
+        row.name = name.strip()
+        row.email = (email or "").strip() or None
+        row.phone = (phone or "").strip() or None
+        row.payment_terms_days = payment_terms_days
+        row.address = {key: str(value).strip()[:255] for key, value in (address or {}).items()
+                       if key in {"line1", "line2", "city", "county", "postcode", "country"} and value}
+        record_audit_event(
+            context, module_id="sales",
+            action="customer_updated", entity_type="customer", entity_id=row.id,
+            detail={"previous": previous, "updated": {
+                "name": row.name, "email": row.email, "phone": row.phone,
+                "payment_terms_days": row.payment_terms_days, "address": row.address}},
+        )
+        db.session.commit()
+        return row
+
+    @staticmethod
     def list_invoices(context: AccessContext, limit: int = 100):
         return (
             SalesInvoice.query.filter_by(organisation_id=context.organisation_id)
