@@ -16,7 +16,7 @@
       <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field field-full"><label>Bill</label><select name="bill_id" required><option value="">Select bill</option>{% for row in bills %}<option value="{{ row.id }}">{{ row.bill_number }} · {{ row.supplier.name }} · {{ row.currency }} {{ '%.2f'|format(creditable[row.id]) }} available to credit{% if outstanding[row.id] == 0 %} · paid{% endif %}</option>{% endfor %}</select></div>
-        <div class="field"><label>Credit note number</label><input name="credit_number" placeholder="SCN-001" required></div>
+        <div class="field"><label>Credit note number</label><input name="credit_number" placeholder="Leave blank for automatic"><div class="help">LedgerOne assigns the next controlled purchase credit note number when posted.</div></div>
         <div class="field"><label>Date</label><input type="date" name="credit_date" value="{{ today }}" required></div>
         <div class="field"><label>VAT tax point</label><input type="date" name="tax_point"><div class="help">Leave blank to use the credit-note date.</div></div>
         <div class="field"><label>Net amount to credit</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
