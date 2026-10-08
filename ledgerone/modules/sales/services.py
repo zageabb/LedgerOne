@@ -32,7 +32,8 @@ class SalesService:
 
     @staticmethod
     def create_customer(context: AccessContext, *, name: str, email: str | None = None,
-                        phone: str | None = None, payment_terms_days: int | None = None):
+                        phone: str | None = None, payment_terms_days: int | None = None,
+                        address: dict | None = None):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         if not name.strip():
@@ -47,6 +48,7 @@ class SalesService:
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
             payment_terms_days=payment_terms_days,
+            address={key: str(value).strip()[:255] for key, value in (address or {}).items() if key in {"line1", "line2", "city", "county", "postcode", "country"} and value},
         )
         db.session.add(customer)
         db.session.flush()
