@@ -24,3 +24,11 @@
 ## Audit closure
 
 This document records engineering gaps, **not** a closed audit finding. Do not mark DEV-009 complete until a merged implementation, green CI, audit record update and independent retest where applicable.
+
+## Implemented in PR #17 (awaiting final validation)
+
+- Purchase bill posting invokes the existing controlled numbering helper, preserving next-number, manual override, legacy adoption and posting-time transaction semantics.
+- Purchase bill browser and both direct and workflow API paths accept blank internal numbers; the workflow does not consume a number at submission time.
+- Purchase-order conversion forms and API also accept blank numbers; the conversion posts through the same purchase bill service.
+- The original supplier invoice number is **not yet** a separate field; the existing `bill_number` must still be treated as LedgerOne's currently stored document identifier until migration and historic backfill policy are agreed and implemented.
+- CI #507 passed for an earlier commit. Final CI for the latest PR head is still required before merge.
