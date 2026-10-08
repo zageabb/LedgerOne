@@ -241,7 +241,8 @@ Controlled numbering is implemented on `main`, but browser behaviour should be r
 - [x] Make quote/order conversion invoice-number fields optional in browser/API; reuse final invoice posting allocator (CI pending).
 - [ ] Verify expense claim numbering, external supplier invoice reference separation and complete regression coverage.
 - [x] Add a separate nullable supplier invoice reference with migration 0022, browser/API/workflow plumbing (follow-up branch; CI pending).
-- [ ] Review supplier reference PDF display and historical backfill policy, preserving original internal numbers.
+- [x] Display both the LedgerOne document number and separate supplier reference on purchase bill PDFs (branch; CI pending).
+- [ ] Decide historical source-reference backfill policy: do not infer supplier invoice numbers from legacy internal numbers.
 - [ ] Verify cancelled/void document flows preserve number history.
 - [ ] Ensure the audit action register reflects the actual implementation and tests.
 
