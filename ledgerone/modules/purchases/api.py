@@ -109,7 +109,7 @@ def create_bill():
             workflow = PurchaseBillWorkflowService.create_request(
                 g.access_context,
                 supplier_id=payload["supplier_id"],
-                bill_number=payload["bill_number"],
+                bill_number=payload.get("bill_number") or None,
                 bill_date=bill_date,
                 due_date=due_date,
                 tax_point=tax_point,
