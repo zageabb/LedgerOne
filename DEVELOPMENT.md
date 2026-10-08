@@ -197,10 +197,10 @@ Customer and supplier models already contain address data, and VAT output consum
 
 **Status:** IN PROGRESS — `dev/operational-balances`; first increment chart of accounts and bank account book balances, followed by customer/supplier balances and regression coverage
 
-- [ ] Show current ledger balance on Chart of Accounts (current DEV-007 implementation).
+- [x] Show current cumulative ledger balance on Chart of Accounts (branch implementation, CI pending).
 - [ ] Show current receivable/outstanding balance on customer lists.
 - [ ] Show current payable/outstanding balance on supplier lists.
-- [ ] Show current ledger/book balance on bank-account lists.
+- [x] Show current ledger/book balance on bank-account lists, with unlinked accounts explicit (branch implementation, CI pending).
 - [ ] Reuse the same reporting/ageing services used by formal reports.
 - [ ] Avoid N+1 queries on larger lists.
 - [ ] Link balances to relevant account/customer/supplier activity where practical.
