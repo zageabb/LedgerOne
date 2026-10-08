@@ -182,10 +182,11 @@ These items should not be rebuilt unless independent retest identifies a defect.
 Customer and supplier models already contain address data, and VAT output consumes customer address information, but the primary Sales/Purchases browser creation forms still expose only name/email/phone/payment terms.
 
 - [x] Add structured address fields to customer creation UI.
-- [ ] Add structured address fields to customer edit UI.
+- [x] Add structured address fields to customer edit UI (branch implementation; CI pending).
 - [x] Add structured address fields to supplier creation UI.
-- [ ] Add structured address fields to supplier edit UI.
-- [ ] Add customer/supplier edit/detail screens rather than create-only list management.
+- [x] Add structured address fields to supplier edit UI (branch implementation; CI pending).
+- [x] Add customer/supplier edit screens and register navigation (branch implementation; CI pending).
+- [ ] Add regression tests and verify editing behaviour through CI before merge.
 - [ ] Include postcode/country and sensible formatting/validation.
 - [ ] Keep API and browser behaviour aligned.
 - [ ] Add address round-trip tests.
