@@ -15,3 +15,5 @@ def test_customer_supplier_balances_are_grouped_and_default_to_zero(app):
         supplier = PurchasesService.create_supplier(context, name="Balance Supplier")
         assert customer_balances(context).get(customer.id, 0) == 0
         assert supplier_balances(context).get(supplier.id, 0) == 0
+        assert all(isinstance(rows, list) for rows in customer_balances(context).values())
+        assert all(isinstance(rows, list) for rows in supplier_balances(context).values())
