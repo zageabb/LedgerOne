@@ -177,7 +177,7 @@ These items should not be rebuilt unless independent retest identifies a defect.
 
 ### DEV-006 — Customer/supplier contact and address management
 
-**Status:** IN PROGRESS — branch `dev/customer-supplier-addresses`; creation forms and service address persistence implemented, remaining editing/API parity/tests/CI pending
+**Status:** ENGINEERING MERGED — PR #14 (`0ee62e94`), CI #483 green; follow-up usability verification as required
 
 Customer and supplier models already contain address data, and VAT output consumes customer address information, but the primary Sales/Purchases browser creation forms still expose only name/email/phone/payment terms.
 
@@ -195,9 +195,9 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-007 — Show useful balances on operational lists
 
-**Status:** OUTSTANDING
+**Status:** IN PROGRESS — `dev/operational-balances`; first increment chart of accounts and bank account book balances, followed by customer/supplier balances and regression coverage
 
-- [ ] Show current ledger balance on Chart of Accounts.
+- [ ] Show current ledger balance on Chart of Accounts (current DEV-007 implementation).
 - [ ] Show current receivable/outstanding balance on customer lists.
 - [ ] Show current payable/outstanding balance on supplier lists.
 - [ ] Show current ledger/book balance on bank-account lists.
