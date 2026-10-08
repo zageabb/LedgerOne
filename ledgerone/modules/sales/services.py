@@ -23,6 +23,26 @@ def _money(value) -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
 
+def _normalise_address(address):
+    if address is None:
+        return {}
+    if not isinstance(address, dict):
+        raise ValueError("Address must be an object")
+    allowed = {"line1", "line2", "city", "county", "postcode", "country"}
+    if any(key not in allowed for key in address):
+        raise ValueError("Unsupported address field")
+    values = {}
+    for key, value in address.items():
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Address {key} must be text")
+        clean = (value or "").strip()
+        if len(clean) > 255:
+            raise ValueError(f"Address {key} exceeds 255 characters")
+        if clean:
+            values[key] = clean
+    return values
+
+
 class SalesService:
     @staticmethod
     def list_customers(context: AccessContext):
@@ -32,7 +52,8 @@ class SalesService:
 
     @staticmethod
     def create_customer(context: AccessContext, *, name: str, email: str | None = None,
-                        phone: str | None = None, payment_terms_days: int | None = None):
+                        phone: str | None = None, payment_terms_days: int | None = None,
+                        address: dict | None = None):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         if not name.strip():
@@ -47,6 +68,7 @@ class SalesService:
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
             payment_terms_days=payment_terms_days,
+            address=_normalise_address(address),
         )
         db.session.add(customer)
         db.session.flush()
@@ -64,6 +86,40 @@ class SalesService:
         )
         db.session.commit()
         return customer
+
+    @staticmethod
+    def update_customer(context: AccessContext, customer_id: str, *, name: str,
+                        email: str | None = None, phone: str | None = None,
+                        payment_terms_days: int | None = None, address: dict | None = None):
+        if not context.can("sales.write"):
+            raise PermissionError("sales.write")
+        row = Customer.query.filter_by(
+            id=customer_id, organisation_id=context.organisation_id, is_active=True
+        ).first()
+        if row is None:
+            raise ValueError("Customer not found")
+        if not name or not name.strip():
+            raise ValueError("Customer name is required")
+        if payment_terms_days is not None:
+            payment_terms_days = PaymentTermsService.customer_days(
+                context.organisation_id, payment_terms_days
+            )
+        previous = {"name": row.name, "email": row.email, "phone": row.phone,
+                    "payment_terms_days": row.payment_terms_days, "address": dict(row.address or {})}
+        row.name = name.strip()
+        row.email = (email or "").strip() or None
+        row.phone = (phone or "").strip() or None
+        row.payment_terms_days = payment_terms_days
+        row.address = _normalise_address(address)
+        record_audit_event(
+            context, module_id="sales",
+            action="customer_updated", entity_type="customer", entity_id=row.id,
+            detail={"previous": previous, "updated": {
+                "name": row.name, "email": row.email, "phone": row.phone,
+                "payment_terms_days": row.payment_terms_days, "address": row.address}},
+        )
+        db.session.commit()
+        return row
 
     @staticmethod
     def list_invoices(context: AccessContext, limit: int = 100):

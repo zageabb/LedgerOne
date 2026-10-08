@@ -14,7 +14,7 @@ api_bp = Blueprint("purchases_api", __name__, url_prefix="/api/v1/purchases")
 @require_api("purchases.read")
 def suppliers():
     rows = PurchasesService.list_suppliers(g.access_context)
-    return jsonify({"suppliers": [{"id": row.id, "name": row.name, "email": row.email, "phone": row.phone, "payment_terms_days": row.payment_terms_days, "is_active": row.is_active} for row in rows]})
+    return jsonify({"suppliers": [{"id": row.id, "name": row.name, "email": row.email, "phone": row.phone, "payment_terms_days": row.payment_terms_days, "address": row.address or {}, "is_active": row.is_active} for row in rows]})
 
 
 @api_bp.post("/suppliers")
@@ -28,9 +28,47 @@ def create_supplier():
             email=payload.get("email"),
             phone=payload.get("phone"),
             payment_terms_days=payload.get("payment_terms_days"),
+            address=payload.get("address"),
         )
-        return jsonify({"id": row.id, "name": row.name, "payment_terms_days": row.payment_terms_days}), 201
+        return jsonify({"id": row.id, "name": row.name, "payment_terms_days": row.payment_terms_days, "address": row.address or {}}), 201
     except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/suppliers/<supplier_id>")
+@require_api("purchases.read")
+def get_supplier(supplier_id):
+    from ledgerone.modules.purchases.models import Supplier
+    model = Supplier
+    row = model.query.filter_by(id=supplier_id, organisation_id=g.access_context.organisation_id, is_active=True).first()
+    if row is None:
+        return jsonify({"error": "supplier not found"}), 404
+    return jsonify({"id": row.id, "name": row.name, "email": row.email, "phone": row.phone,
+                    "payment_terms_days": row.payment_terms_days, "address": row.address or {}, "is_active": row.is_active})
+
+
+@api_bp.patch("/suppliers/<supplier_id>")
+@require_api("purchases.write")
+def update_supplier(supplier_id):
+    from ledgerone.modules.purchases.models import Supplier
+    model = Supplier
+    row = model.query.filter_by(id=supplier_id, organisation_id=g.access_context.organisation_id, is_active=True).first()
+    if row is None:
+        return jsonify({"error": "supplier not found"}), 404
+    payload = request.get_json(silent=True) or {}
+    try:
+        updated = PurchasesService.update_supplier(
+            g.access_context, supplier_id,
+            name=payload.get("name", row.name),
+            email=payload.get("email", row.email),
+            phone=payload.get("phone", row.phone),
+            payment_terms_days=payload.get("payment_terms_days", row.payment_terms_days),
+            address=payload.get("address", row.address),
+        )
+        return jsonify({"id": updated.id, "name": updated.name, "email": updated.email,
+                        "phone": updated.phone, "payment_terms_days": updated.payment_terms_days,
+                        "address": updated.address or {}})
+    except (ValueError, PermissionError, TypeError) as exc:
         return jsonify({"error": str(exc)}), 400
 
 

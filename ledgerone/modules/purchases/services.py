@@ -22,6 +22,26 @@ def _money(value) -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
 
+def _normalise_address(address):
+    if address is None:
+        return {}
+    if not isinstance(address, dict):
+        raise ValueError("Address must be an object")
+    allowed = {"line1", "line2", "city", "county", "postcode", "country"}
+    if any(key not in allowed for key in address):
+        raise ValueError("Unsupported address field")
+    values = {}
+    for key, value in address.items():
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Address {key} must be text")
+        clean = (value or "").strip()
+        if len(clean) > 255:
+            raise ValueError(f"Address {key} exceeds 255 characters")
+        if clean:
+            values[key] = clean
+    return values
+
+
 class PurchasesService:
     @staticmethod
     def list_suppliers(context: AccessContext):
@@ -31,7 +51,8 @@ class PurchasesService:
 
     @staticmethod
     def create_supplier(context: AccessContext, *, name: str, email: str | None = None,
-                        phone: str | None = None, payment_terms_days: int | None = None):
+                        phone: str | None = None, payment_terms_days: int | None = None,
+                        address: dict | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         if not name.strip():
@@ -46,6 +67,7 @@ class PurchasesService:
             email=(email or "").strip() or None,
             phone=(phone or "").strip() or None,
             payment_terms_days=payment_terms_days,
+            address=_normalise_address(address),
         )
         db.session.add(supplier)
         db.session.flush()
@@ -63,6 +85,40 @@ class PurchasesService:
         )
         db.session.commit()
         return supplier
+
+    @staticmethod
+    def update_supplier(context: AccessContext, supplier_id: str, *, name: str,
+                        email: str | None = None, phone: str | None = None,
+                        payment_terms_days: int | None = None, address: dict | None = None):
+        if not context.can("purchases.write"):
+            raise PermissionError("purchases.write")
+        row = Supplier.query.filter_by(
+            id=supplier_id, organisation_id=context.organisation_id, is_active=True
+        ).first()
+        if row is None:
+            raise ValueError("Supplier not found")
+        if not name or not name.strip():
+            raise ValueError("Supplier name is required")
+        if payment_terms_days is not None:
+            payment_terms_days = PaymentTermsService.supplier_days(
+                context.organisation_id, payment_terms_days
+            )
+        previous = {"name": row.name, "email": row.email, "phone": row.phone,
+                    "payment_terms_days": row.payment_terms_days, "address": dict(row.address or {})}
+        row.name = name.strip()
+        row.email = (email or "").strip() or None
+        row.phone = (phone or "").strip() or None
+        row.payment_terms_days = payment_terms_days
+        row.address = _normalise_address(address)
+        record_audit_event(
+            context, module_id="purchases",
+            action="supplier_updated", entity_type="supplier", entity_id=row.id,
+            detail={"previous": previous, "updated": {
+                "name": row.name, "email": row.email, "phone": row.phone,
+                "payment_terms_days": row.payment_terms_days, "address": row.address}},
+        )
+        db.session.commit()
+        return row
 
     @staticmethod
     def list_bills(context: AccessContext, limit: int = 100):
