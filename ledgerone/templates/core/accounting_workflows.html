@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Accounting Workflows · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Accounting workflows explained</h1><p>A quick guide to where transactions belong and what they do to the accounts.</p></div></div>
+<div class="grid grid-2">
+  <div class="card"><div class="card-head"><h2>Customer sales</h2></div><div class="card-body"><p>Quote → sales order → invoice → approval/posting → customer receipt → allocation.</p><p>A posted invoice records income and the amount owed by your customer. Allocate receipts to the invoice when paid.</p><a class="button button-secondary" href="{{ url_for('sales.index') }}">Sales</a></div></div>
+  <div class="card"><div class="card-head"><h2>Supplier purchases</h2></div><div class="card-body"><p>Purchase order → supplier bill → approval/posting → supplier payment → allocation.</p><p>The bill recognises an expense or asset and a supplier liability. Payment settles that liability.</p><a class="button button-secondary" href="{{ url_for('purchases.index') }}">Purchases</a></div></div>
+  <div class="card"><div class="card-head"><h2>Bank transactions</h2></div><div class="card-body"><p>Import bank transaction → match existing payment or post the correct entry → reconcile the statement.</p><p>Transfers between your own accounts are not income or expenses. Avoid recording the same payment twice.</p><a class="button button-secondary" href="{{ url_for('banking.index') }}">Banking</a></div></div>
+  <div class="card"><div class="card-head"><h2>Corrections and credit notes</h2></div><div class="card-body"><p>Use sales/purchase credits, approved refunds, or journal reversals instead of changing a posted document. Apply available credit to a new document or refund through the controlled workflow.</p></div></div>
+  <div class="card"><div class="card-head"><h2>Manual, opening and repeating entries</h2></div><div class="card-body"><p>A journal records equal debits and credits. Opening balances set the initial position, and recurring entries repeat adjustments. Use regular Sales, Purchases and Banking screens instead of manually changing their control accounts.</p><a class="button button-secondary" href="{{ url_for('ledger.accounts') }}">Ledger</a></div></div>
+  <div class="card"><div class="card-head"><h2>Expenses, VAT and approvals</h2></div><div class="card-body"><p>Attach supporting evidence for expense claims, complete required approvals, use correct tax codes and tax points, and let the application update VAT control accounts. Do not bypass period locks or maker/checker review.</p></div></div>
+</div>
+<p class="help">The full development guide, including Mermaid workflow diagrams and accounting entries, is in docs/ACCOUNTING_WORKFLOWS.md. Available modules depend on your organisation's permissions and configuration.</p>
+{% endblock %}
