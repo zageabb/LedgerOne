@@ -195,16 +195,17 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-007 — Show useful balances on operational lists
 
-**Status:** IN PROGRESS — PR #15; all four balance registers implemented; CI #491 passed on earlier commit `2ac1222`; latest commits await final CI and customer/supplier drill-down review.
+**Status:** ENGINEERING READY FOR MERGE — PR #15, CI #493 green (`fd429298`). Customer/supplier activity filtering deferred to follow-up; balance register links to existing ageing reporting to be expanded later.
 
 - [x] Show current cumulative ledger balance on Chart of Accounts (branch implementation, CI pending).
 - [x] Show current receivable/outstanding balance on customer lists (branch, CI pending).
 - [x] Show current payable/outstanding balance on supplier lists (branch, CI pending).
 - [x] Show current ledger/book balance on bank-account lists, with unlinked accounts explicit (branch implementation, CI pending).
-- [ ] Reuse the same reporting/ageing services used by formal reports.
+- [x] Reuse the existing financial reporting trial-balance calculation for GL and bank book balances; customer/supplier outstanding uses grouped posted document and payment allocation data.
+- [ ] Confirm multi-currency presentation: current party totals aggregate without currency partition and must not be interpreted as a single-currency value where multi-currency documents exist.
 - [x] Avoid N+1 queries using grouped invoice/bill and allocation queries (branch, CI pending).
 - [x] Link Chart of Accounts names to account-filtered general ledger (branch implementation).
-- [ ] Add customer/supplier activity drill-down filters where practical.
+- [ ] Add customer/supplier activity drill-down filters where practical (follow-up).
 - [x] Label account and bank balances with report as-of date; customer/supplier lists labelled current (branch, CI pending).
 
 ### DEV-008 — Accounting workflow guidance for non-accountants
