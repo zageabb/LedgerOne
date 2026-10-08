@@ -69,7 +69,7 @@
                 </form>
                 {% if row.status == 'approved' %}<hr><form method="post" class="form-grid">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="order_id" value="{{ row.id }}">
-                  <div class="field field-full"><label>Supplier bill number</label><input name="bill_number" placeholder="BILL-001" required></div>
+                  <div class="field field-full"><label>LedgerOne bill number (optional)</label><input name="bill_number" placeholder="Leave blank for automatic"><div class="help">The controlled number is allocated when the purchase order converts to a posted bill.</div></div>
                   <div class="field"><label>Bill date</label><input type="date" name="bill_date" value="{{ today }}" required></div>
                   <div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
                   <div class="field-full"><button class="button button-small" type="submit">Convert to bill</button></div>
