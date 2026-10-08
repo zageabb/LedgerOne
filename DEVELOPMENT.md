@@ -238,7 +238,8 @@ Controlled numbering is implemented on `main`, but browser behaviour should be r
 - [x] Review remaining sales quote/order, invoice-conversion, purchase credit note and purchase order browser forms; document the required-number gaps in `docs/NUMBERING_CONSISTENCY_AUDIT.md`.
 - [x] Implement purchase credit-note controlled numbering at posting for browser/API, including transactional rollback (PR #17, latest CI pending).
 - [x] Add controlled numbering to sales quotes, sales orders and purchase orders on creation, with optional browser/API number entry (branch; CI pending).
-- [ ] Verify expense claim numbering and both quote/order invoice-conversion form consistency.
+- [x] Make quote/order conversion invoice-number fields optional in browser/API; reuse final invoice posting allocator (CI pending).
+- [ ] Verify expense claim numbering, external supplier invoice reference separation and complete regression coverage.
 - [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two (requires model migration, workflow/API/PDF review).
 - [ ] Verify cancelled/void document flows preserve number history.
 - [ ] Ensure the audit action register reflects the actual implementation and tests.
