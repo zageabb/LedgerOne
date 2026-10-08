@@ -50,3 +50,15 @@ def test_supplier_address_create_edit_and_roundtrip(app):
         )
         assert changed.email == "orders@example.test"
         assert db.session.get(type(changed), changed.id).address["postcode"] == "ST16 4ZZ"
+
+
+def test_address_validation_rejects_malformed_input(app):
+    import pytest
+    with app.app_context():
+        context = _context()
+        with pytest.raises(ValueError, match="Address must be an object"):
+            SalesService.create_customer(context, name="Invalid Address", address="text")
+        with pytest.raises(ValueError, match="Unsupported address field"):
+            PurchasesService.create_supplier(context, name="Invalid Supplier", address={"unknown": "value"})
+        with pytest.raises(ValueError, match="exceeds 255"):
+            SalesService.create_customer(context, name="Too Long", address={"line1": "x" * 256})
