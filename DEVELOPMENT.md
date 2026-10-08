@@ -227,13 +227,14 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-009 — Numbering UX/integration consistency review
 
-**Status:** IN PROGRESS — branch `dev/numbering-consistency-review`; identified purchase bills requiring a manual number in browser/API/service; verify numbering policy before introducing automatic sequences.
+**Status:** IN PROGRESS — confirmed purchase bill browser/API/workflow numbering gap; design audit in `docs/NUMBERING_CONSISTENCY_AUDIT.md`; implementation and validation pending.
 
 Controlled numbering is implemented on `main`, but browser behaviour should be reviewed across every supported document type.
 
 - [ ] Verify automatic numbering is reachable from browser, API and workflow paths for invoices, bills, sales/purchase credit notes, quotes, sales orders, purchase orders and expense claims.
+- [x] Identify purchase bill manual-number requirement in browser/API/service/workflow and document safe migration/compatibility plan.
 - [ ] Resolve any UI that still forces a manual number when the intended policy is controlled automatic numbering.
-- [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two.
+- [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two (requires model migration, workflow/API/PDF review).
 - [ ] Verify cancelled/void document flows preserve number history.
 - [ ] Ensure the audit action register reflects the actual implementation and tests.
 
