@@ -17,7 +17,7 @@ def test_purchase_bill_auto_number_is_assigned_only_at_post(app):
         )
         supplier = PurchasesService.create_supplier(context, name="Numbering Test Supplier")
         accounts = Account.query.filter_by(organisation_id=org.id, is_active=True).all()
-        payable = next(row for row in accounts if row.account_type == "liability" and not row.is_control_account or row.code == "2000")
+        payable = next(row for row in accounts if (row.metadata_json or {}).get("control_role") == "accounts_payable")
         expense = next(row for row in accounts if row.account_type == "expense")
         bill_day = date(2027, 2, 15)
         LedgerService.create_period(
