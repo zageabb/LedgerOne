@@ -210,9 +210,7 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-008 — Accounting workflow guidance for non-accountants
 
-**Status:** OUTSTANDING
-
-`docs/ACCOUNTING_WORKFLOWS.md` does not currently exist.
+**Status:** IN PROGRESS — branch `dev/accounting-workflow-guidance`; guide and in-app navigation under development.
 
 - [ ] Create `docs/ACCOUNTING_WORKFLOWS.md`.
 - [ ] Add Mermaid flows for quote/order -> invoice -> payment/allocation.
