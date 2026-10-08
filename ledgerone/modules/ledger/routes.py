@@ -31,7 +31,11 @@ def accounts():
             return redirect(url_for("ledger.accounts"))
         except (LedgerError, PermissionError) as exc:
             flash(str(exc), "danger")
-    return render_template("ledger/accounts.html", accounts=LedgerService.list_accounts(context))
+    from ledgerone.services.reporting import FinancialReportingService
+    balances = FinancialReportingService.trial_balance(context)
+    return render_template("ledger/accounts.html", accounts=LedgerService.list_accounts(context),
+                           balances={row["id"]: row["balance"] for row in balances["rows"]},
+                           balance_as_of=balances["as_of"])
 
 
 @bp.get("/journals")

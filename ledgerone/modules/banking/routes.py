@@ -29,8 +29,12 @@ def index():
         except (ValueError, PermissionError) as exc:
             flash(str(exc), "danger")
 
+    from ledgerone.services.reporting import FinancialReportingService
+    balances = FinancialReportingService.trial_balance(context)
     return render_template(
         "banking/index.html",
+        ledger_balances={row["id"]: row["balance"] for row in balances["rows"]},
+        balance_as_of=balances["as_of"],
         bank_accounts=BankingService.list_accounts(context),
         transactions=BankingService.list_transactions(context, 50),
         ledger_accounts=LedgerService.list_accounts(context),

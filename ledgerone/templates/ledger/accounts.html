@@ -35,10 +35,10 @@
     <div class="card-head"><h2>{{ 'Your accounts' if ui_mode == 'home' else 'Active accounts' }}</h2><span class="badge">{{ accounts|length }}</span></div>
     <div class="table-wrap">
       <table>
-        <thead><tr>{% if ui_mode == 'professional' %}<th>Code</th>{% endif %}<th>Name</th><th>Type</th><th>Currency</th></tr></thead>
+        <thead><tr>{% if ui_mode == 'professional' %}<th>Code</th>{% endif %}<th>Name</th><th>Type</th><th>Currency</th><th class="number">Book balance ({{ balance_as_of }})</th></tr></thead>
         <tbody>
         {% for row in accounts %}
-          <tr>{% if ui_mode == 'professional' %}<td><span class="code">{{ row.code }}</span></td>{% endif %}<td>{{ row.name }}</td><td><span class="badge">{{ row.account_type|title }}</span></td><td>{{ row.currency or current_organisation.base_currency }}</td></tr>
+          <tr>{% if ui_mode == 'professional' %}<td><span class="code">{{ row.code }}</span></td>{% endif %}<td><a href="{{ url_for('reports.general_ledger', account_id=row.id) }}">{{ row.name }}</a></td><td><span class="badge">{{ row.account_type|title }}</span></td><td>{{ row.currency or current_organisation.base_currency }}</td><td class="number">{{ current_organisation.base_currency }} {{ "%.2f"|format(balances.get(row.id, 0)) }}</td></tr>
         {% endfor %}
         </tbody>
       </table>

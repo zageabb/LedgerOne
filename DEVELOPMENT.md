@@ -177,7 +177,7 @@ These items should not be rebuilt unless independent retest identifies a defect.
 
 ### DEV-006 — Customer/supplier contact and address management
 
-**Status:** IN PROGRESS — branch `dev/customer-supplier-addresses`; creation forms and service address persistence implemented, remaining editing/API parity/tests/CI pending
+**Status:** ENGINEERING MERGED — PR #14 (`0ee62e94`), CI #483 green; follow-up usability verification as required
 
 Customer and supplier models already contain address data, and VAT output consumes customer address information, but the primary Sales/Purchases browser creation forms still expose only name/email/phone/payment terms.
 
@@ -195,16 +195,18 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-007 — Show useful balances on operational lists
 
-**Status:** OUTSTANDING
+**Status:** IN PROGRESS — PR #15, CI #493 green on earlier commit (`fd429298`); currency-separated party balances added thereafter and latest CI pending. Customer/supplier activity filtering deferred to follow-up.
 
-- [ ] Show current ledger balance on Chart of Accounts.
-- [ ] Show current receivable/outstanding balance on customer lists.
-- [ ] Show current payable/outstanding balance on supplier lists.
-- [ ] Show current ledger/book balance on bank-account lists.
-- [ ] Reuse the same reporting/ageing services used by formal reports.
-- [ ] Avoid N+1 queries on larger lists.
-- [ ] Link balances to relevant account/customer/supplier activity where practical.
-- [ ] Clearly distinguish current balance from any historical `as_of` value.
+- [x] Show current cumulative ledger balance on Chart of Accounts (branch implementation, CI pending).
+- [x] Show current receivable/outstanding balance on customer lists (branch, CI pending).
+- [x] Show current payable/outstanding balance on supplier lists (branch, CI pending).
+- [x] Show current ledger/book balance on bank-account lists, with unlinked accounts explicit (branch implementation, CI pending).
+- [x] Reuse the existing financial reporting trial-balance calculation for GL and bank book balances; customer/supplier outstanding uses grouped posted document and payment allocation data.
+- [x] Separate outstanding receivables/payables by original document currency; do not sum unrelated currencies (branch, CI pending).
+- [x] Avoid N+1 queries using grouped invoice/bill and allocation queries (branch, CI pending).
+- [x] Link Chart of Accounts names to account-filtered general ledger (branch implementation).
+- [ ] Add customer/supplier activity drill-down filters where practical (follow-up).
+- [x] Label account and bank balances with report as-of date; customer/supplier lists labelled current (branch, CI pending).
 
 ### DEV-008 — Accounting workflow guidance for non-accountants
 
