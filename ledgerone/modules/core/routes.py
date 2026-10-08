@@ -33,3 +33,10 @@ def dashboard():
         expenses=expenses,
         recent_journals=recent_journals,
     )
+
+
+@bp.get("/help/accounting-workflows")
+@login_required
+def accounting_workflows():
+    """Plain-language entry point for business transaction workflows."""
+    return render_template("core/accounting_workflows.html")
