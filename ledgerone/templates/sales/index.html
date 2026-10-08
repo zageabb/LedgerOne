@@ -50,7 +50,7 @@
 <div class="grid grid-2 section">
   <div class="card">
     <div class="card-head"><h2>Customers</h2><span class="badge">{{ customers|length }}</span></div>
-    <div class="table-wrap">{% if customers %}<table><thead><tr><th>Name</th><th>Email</th><th>Terms</th></tr></thead><tbody>{% for row in customers %}<tr><td><a href="{{ url_for('sales.edit_customer', customer_id=row.id) }}">{{ row.name }}</a></td><td>{{ row.email or '—' }}</td><td>{{ (row.payment_terms_days|string ~ ' days') if row.payment_terms_days is not none else 'Default' }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No customers yet.</div>{% endif %}</div>
+    <div class="table-wrap">{% if customers %}<table><thead><tr><th>Name</th><th>Email</th><th>Terms</th><th class="number">Outstanding now</th></tr></thead><tbody>{% for row in customers %}<tr><td><a href="{{ url_for('sales.edit_customer', customer_id=row.id) }}">{{ row.name }}</a></td><td>{{ row.email or '—' }}</td><td>{{ (row.payment_terms_days|string ~ ' days') if row.payment_terms_days is not none else 'Default' }}</td><td class="number">{{ current_organisation.base_currency }} {{ '%.2f'|format(party_balances.get(row.id, 0)) }}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No customers yet.</div>{% endif %}</div>
   </div>
   <div class="card">
     <div class="card-head"><h2>{{ 'Recent income' if ui_mode == 'home' else 'Sales invoices' }}</h2></div>
