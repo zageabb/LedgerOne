@@ -227,7 +227,7 @@ Customer and supplier models already contain address data, and VAT output consum
 
 ### DEV-009 — Numbering UX/integration consistency review
 
-**Status:** VERIFY
+**Status:** IN PROGRESS — branch `dev/numbering-consistency-review`; identified purchase bills requiring a manual number in browser/API/service; verify numbering policy before introducing automatic sequences.
 
 Controlled numbering is implemented on `main`, but browser behaviour should be reviewed across every supported document type.
 
