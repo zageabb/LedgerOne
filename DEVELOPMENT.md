@@ -129,7 +129,8 @@ The older `docs/TODO.md` snapshot is no longer fully representative of `main`.
 
 ### DEV-005 — Maker/checker and segregation of duties / LO-AUD-015
 
-- [ ] Fix approval-request JSON metadata serialisation for date/datetime/Decimal values; rerun PR #13 tests and CI before merging.
+- [x] Fix approval-request JSON metadata serialisation for date/datetime/Decimal values and add regression coverage (branch commits `fd5583e`, `223c429`).
+- [ ] Obtain a green PR #13 CI run, then merge into `main` and verify merged-main CI before starting DEV-006.
 
 **Status:** OPEN
 
