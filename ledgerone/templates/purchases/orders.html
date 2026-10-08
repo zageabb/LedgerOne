@@ -17,7 +17,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="create">
         <div class="field"><label>Supplier</label><select name="supplier_id" required><option value="">Select</option>{% for row in suppliers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>PO number</label><input name="order_number" placeholder="PO-001" required></div>
+        <div class="field"><label>PO number</label><input name="order_number" placeholder="Leave blank for automatic"><div class="help">Leave blank for the next controlled document number.</div></div>
         <div class="field"><label>Order date</label><input type="date" name="order_date" value="{{ today }}" required></div>
         <div class="field"><label>Expected date</label><input type="date" name="expected_date" value="{{ default_expected }}"></div>
         <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
