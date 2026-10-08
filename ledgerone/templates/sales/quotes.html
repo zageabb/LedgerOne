@@ -69,7 +69,7 @@
                 </form>
                 {% if row.status != 'rejected' %}<hr><form method="post" class="form-grid">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="quote_id" value="{{ row.id }}">
-                  <div class="field field-full"><label>Invoice number</label><input name="invoice_number" placeholder="INV-001" required></div>
+                  <div class="field field-full"><label>Invoice number</label><input name="invoice_number" placeholder="Leave blank for automatic"><div class="help">Controlled invoice number is issued when the conversion posts.</div></div>
                   <div class="field"><label>Invoice date</label><input type="date" name="invoice_date" value="{{ today }}" required></div>
                   <div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
                   <div class="field-full"><button class="button button-small" type="submit">Convert to invoice</button></div>
