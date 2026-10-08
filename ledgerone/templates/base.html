@@ -28,6 +28,7 @@
     </nav>
 
     <div class="sidebar-bottom">
+      <a class="nav-item" href="{{ url_for('core.accounting_workflows') }}" title="Plain-language accounting guides"><span class="nav-icon">?</span><span>Accounting help</span></a>
       <div class="mode-card">
         <div>
           <strong>{{ 'Home / Apprentice' if ui_mode == 'home' else 'Professional' }}</strong>
