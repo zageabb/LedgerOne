@@ -54,7 +54,7 @@ def create_order():
         row = PurchaseOrderService.create_order(
             g.access_context,
             supplier_id=payload["supplier_id"],
-            order_number=payload["order_number"],
+            order_number=payload.get("order_number") or None,
             order_date=date.fromisoformat(payload.get("order_date") or date.today().isoformat()),
             expected_date=date.fromisoformat(payload["expected_date"]) if payload.get("expected_date") else None,
             description=payload.get("description", "Purchase"),
