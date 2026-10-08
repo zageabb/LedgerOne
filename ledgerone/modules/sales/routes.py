@@ -27,6 +27,7 @@ def index():
                     name=request.form.get("name", ""),
                     email=request.form.get("email"),
                     phone=request.form.get("phone"),
+                    address={key: request.form.get(key, "").strip() for key in ("line1", "line2", "city", "county", "postcode", "country")},
                     payment_terms_days=int(terms_raw) if terms_raw else None,
                 )
                 flash("Customer added.", "success")
