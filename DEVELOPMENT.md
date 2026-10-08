@@ -234,6 +234,7 @@ Controlled numbering is implemented on `main`, but browser behaviour should be r
 - [ ] Verify automatic numbering is reachable from browser, API and workflow paths for invoices, bills, sales/purchase credit notes, quotes, sales orders, purchase orders and expense claims.
 - [x] Identify purchase bill manual-number requirement in browser/API/service/workflow and document safe migration/compatibility plan.
 - [x] Allow blank bill numbers on Purchases browser form and API/workflow, assigning the controlled purchase-bill number only at final posting (PR #17, CI pending).
+- [x] Support blank bill number on purchase-order conversion browser/API, while preserving final-post controlled allocation (branch; CI pending).
 - [ ] Review remaining document-type forms for forced manual numbers.
 - [ ] Where a supplier's external invoice reference is required, keep that separate from LedgerOne's internal controlled document number rather than conflating the two (requires model migration, workflow/API/PDF review).
 - [ ] Verify cancelled/void document flows preserve number history.
