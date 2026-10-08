@@ -12,6 +12,7 @@ from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.modules.ai.knowledge import KnowledgeService
 from ledgerone.modules.ai.models import AIConversation, AIInteraction
 from ledgerone.modules.ai.tools import available_tools
+from ledgerone.services.approval_policy import ApprovalPolicyService
 from ledgerone.services.context import AccessContext
 
 
@@ -380,7 +381,21 @@ Read-list tools accept an optional limit where relevant.
                         result = {"error": f"Unknown, disabled or disallowed tool: {name}"}
                     else:
                         try:
+                            approval = None
+                            if spec.write:
+                                approval = ApprovalPolicyService.guard(
+                                    context,
+                                    "ai_write",
+                                    payload={"tool": name, "arguments": arguments},
+                                    title=f"Approve AI write: {name}",
+                                    amount=arguments.get("amount"),
+                                )
                             result = spec.handler(context, arguments)
+                            ApprovalPolicyService.consume(
+                                context,
+                                approval,
+                                result=result if isinstance(result, dict) else {"result": str(result)},
+                            )
                         except Exception as exc:
                             result = {"error": str(exc)}
                     log_entry = {"tool": name, "arguments": arguments, "result": result}
