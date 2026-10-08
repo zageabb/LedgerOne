@@ -187,10 +187,10 @@ Customer and supplier models already contain address data, and VAT output consum
 - [x] Add structured address fields to supplier edit UI (branch implementation; CI pending).
 - [x] Add customer/supplier edit screens and register navigation (branch implementation; CI pending).
 - [x] Add service-level customer/supplier address create/edit round-trip tests (`tests/test_contact_addresses.py`).
-- [ ] Verify address workflows through latest CI and resolve any failures before merge.
-- [ ] Include postcode/country and sensible formatting/validation.
-- [ ] Keep API and browser behaviour aligned.
-- [ ] Add address round-trip tests.
+- [ ] Verify latest DEV-006 CI and any failing browser/API regressions, then merge and validate main.
+- [x] Include postcode/country and validate structured address objects, supported keys, text fields and maximum lengths (branch implementation; CI pending).
+- [x] Add address fields to customer/supplier list/create API, detail GET and PATCH updates (branch implementation; CI pending).
+- [x] Add address round-trip and invalid-input tests (branch implementation; CI pending).
 - [ ] Mark the remaining v0.3 contact/address roadmap item complete only after the browser workflow is usable.
 
 ### DEV-007 — Show useful balances on operational lists
