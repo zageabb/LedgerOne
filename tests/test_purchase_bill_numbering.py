@@ -38,3 +38,4 @@ def test_purchase_bill_auto_number_is_assigned_only_at_post(app):
             expense_account_id=expense.id,
         )
         assert second.bill_number != first.bill_number
+        assert second.supplier_invoice_reference is None
