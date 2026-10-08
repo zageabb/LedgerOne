@@ -180,3 +180,29 @@ def payments():
         journals=journals,
         today=date.today().isoformat(),
     )
+
+@bp.route("/customers/<customer_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_module("sales")
+def edit_customer(customer_id):
+    context = browser_context()
+    from ledgerone.modules.sales.models import Customer
+    row = Customer.query.filter_by(id=customer_id, organisation_id=context.organisation_id, is_active=True).first()
+    if row is None:
+        from flask import abort
+        abort(404)
+    if request.method == "POST":
+        try:
+            terms = (request.form.get("payment_terms_days") or "").strip()
+            SalesService.update_customer(
+                context, customer_id, name=request.form.get("name", ""),
+                email=request.form.get("email"), phone=request.form.get("phone"),
+                payment_terms_days=int(terms) if terms else None,
+                address={key: request.form.get(key, "").strip() for key in ("line1", "line2", "city", "county", "postcode", "country")},
+            )
+            flash("Customer updated.", "success")
+            return redirect(url_for("sales.index"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template("sales/edit_contact.html", contact=row, kind="customer")
+
