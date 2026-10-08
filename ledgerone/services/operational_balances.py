@@ -11,10 +11,11 @@ def _party_outstanding(organisation_id, document_model, payment_model, allocatio
     docs = (
         db.session.query(
             getattr(document_model, party_field).label("party_id"),
+            document_model.currency.label("currency"),
             db.func.coalesce(db.func.sum(document_model.total), 0).label("total"),
         )
         .filter(document_model.organisation_id == organisation_id)
-        .group_by(getattr(document_model, party_field))
+        .group_by(getattr(document_model, party_field), document_model.currency)
         .all()
     )
     paid = (
@@ -28,10 +29,17 @@ def _party_outstanding(organisation_id, document_model, payment_model, allocatio
         .group_by(getattr(document_model, party_field))
         .all()
     )
-    totals = {row.party_id: Decimal(str(row.total or 0)) for row in docs}
+    totals = {}
+    for row in docs:
+        key = (row.party_id, row.currency)
+        totals[key] = Decimal(str(row.total or 0))
     for row in paid:
-        totals[row.party_id] = totals.get(row.party_id, Decimal("0")) - Decimal(str(row.allocated or 0))
-    return totals
+        key = (row.party_id, row.currency)
+        totals[key] = totals.get(key, Decimal("0")) - Decimal(str(row.allocated or 0))
+    grouped = {}
+    for (party_id, currency), amount in totals.items():
+        grouped.setdefault(party_id, []).append({"currency": currency, "amount": amount})
+    return grouped
 
 
 def customer_balances(context):
