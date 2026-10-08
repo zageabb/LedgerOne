@@ -71,6 +71,7 @@ def index():
                     context,
                     supplier_id=request.form.get("supplier_id", ""),
                     bill_number=request.form.get("bill_number", ""),
+                    supplier_invoice_reference=request.form.get("supplier_invoice_reference") or None,
                     bill_date=bill_date,
                     due_date=due_date,
                     tax_point=tax_point,
