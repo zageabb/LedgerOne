@@ -32,3 +32,13 @@ This document records engineering gaps, **not** a closed audit finding. Do not m
 - Purchase-order conversion forms and API also accept blank numbers; the conversion posts through the same purchase bill service.
 - The original supplier invoice number is **not yet** a separate field; the existing `bill_number` must still be treated as LedgerOne's currently stored document identifier until migration and historic backfill policy are agreed and implemented.
 - CI #507 passed for an earlier commit. Final CI for the latest PR head is still required before merge.
+
+## Additional browser form review
+
+- Sales quote form requires `quote_number` even though the shared `sales_quote` sequence exists.
+- Sales order form requires `order_number` even though the shared `sales_order` sequence exists.
+- The quote-to-invoice and sales-order-to-invoice conversion forms require an invoice number; review their conversion services and permit blank number where supported by final-post allocation.
+- Purchase credit note form requires `credit_number`, whereas the sales credit note form already supports automatic numbering. Inspect purchase-credit service before adjusting its browser/API.
+- Purchase order creation requires `order_number`, despite the `purchase_order` sequence being configured.
+
+These are verified user-interface inconsistencies; services, tests and allocation lifecycle still need review before changing their required fields.
