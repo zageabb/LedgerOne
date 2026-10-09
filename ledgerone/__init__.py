@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Flask, request, session
 from flask_login import current_user
+from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
 
@@ -33,6 +34,8 @@ def create_app(config_overrides: dict | None = None):
     install_currency_service_guards()
 
     app = Flask(__name__)
+    # Trust one isolated UDA/Caddy forwarding hop only.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_prefix=1)
     app.config.from_object(get_config())
     if config_overrides:
         app.config.update(config_overrides)

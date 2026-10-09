@@ -6,6 +6,15 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## OPS-UDA-001 — Reverse-proxy application mount
+Status: IN PROGRESS
+
+Scope: LedgerOne in the live UDA registry. Implement trusted single-hop forwarded-prefix support in Flask and prefix-safe static links/navigation, preserving LAN root access, existing CSRF and authorisation. Tests: `tests/test_uda_subpath.py`; full existing GitHub CI suite required.
+
+- [ ] CI green and merged to `main` for UDA deployment
+- [ ] User verifies login, logout, invoices/reports, uploads/exports, API and module navigation
+- [ ] Backend accessible only behind trusted ingress; public proxy remains disabled
+
 ## Working rules
 
 - Treat the current implementation and passing tests as stronger evidence than stale status text.
