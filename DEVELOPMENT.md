@@ -7,19 +7,20 @@
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
 ## CI-FIX-001 — Asset purchase posting accounting-period fixture
-Status: IMPLEMENTED ON BRANCH — CI and regression verification pending
+Status: MERGED TO MAIN — PR #20, CI #541 passed on PR head; main-branch CI verification pending
 
 - [x] Add an open October 2026 accounting period to `test_purchase_bill_allows_asset_cost_account` before posting the 3 October 2026 bill.
 - [x] Preserve required accounting-period validation in application code.
-- [ ] Confirm targeted test and full `tests/test_account_posting_roles.py` module pass in CI.
-- [ ] Confirm full main-branch CI passes, then merge and update this status.
+- [x] GitHub Actions PR #20 run #541 passed compilation, clean migration and automated tests (includes posting-role module).
+- [x] Merge PR #20 into `main` (squash `04b0c18`).
+- [ ] Verify post-merge `main` CI; do not claim deployment verification from PR CI.
 
 ## OPS-UDA-001 — Reverse-proxy application mount
 Status: IN PROGRESS
 
 Scope: LedgerOne in the live UDA registry. Implement trusted single-hop forwarded-prefix support in Flask and prefix-safe static links/navigation, preserving LAN root access, existing CSRF and authorisation. Tests: `tests/test_uda_subpath.py`; full existing GitHub CI suite required.
 
-- [ ] CI green and merged to `main` for UDA deployment
+- [x] Proxy-subpath compatibility merged to `main` via PR #19; PR #20 CI #541 also passed tests covering the existing code. Main-branch CI and live verification remain separate.
 - [ ] User verifies login, logout, invoices/reports, uploads/exports, API and module navigation
 - [ ] Backend accessible only behind trusted ingress; public proxy remains disabled
 
