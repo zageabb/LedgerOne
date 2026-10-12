@@ -128,6 +128,14 @@ def test_purchase_bill_allows_asset_cost_account(app):
         from ledgerone.modules.purchases.services import PurchasesService
 
         supplier = PurchasesService.create_supplier(context, name="Asset Supplier")
+        # Positive posting tests need an explicitly open accounting period.
+        # Keep the required-period policy enabled rather than bypassing it.
+        LedgerService.create_period(
+            context,
+            name="October 2026",
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 31),
+        )
 
         bill = PurchasesService.create_bill(
             context,
