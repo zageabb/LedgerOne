@@ -6,6 +6,14 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## CI-FIX-001 — Asset purchase posting accounting-period fixture
+Status: IMPLEMENTED ON BRANCH — CI and regression verification pending
+
+- [x] Add an open October 2026 accounting period to `test_purchase_bill_allows_asset_cost_account` before posting the 3 October 2026 bill.
+- [x] Preserve required accounting-period validation in application code.
+- [ ] Confirm targeted test and full `tests/test_account_posting_roles.py` module pass in CI.
+- [ ] Confirm full main-branch CI passes, then merge and update this status.
+
 ## OPS-UDA-001 — Reverse-proxy application mount
 Status: IN PROGRESS
 
