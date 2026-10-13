@@ -33,7 +33,7 @@ def test_supplier_reference_keeps_internal_bill_number_and_round_trips(app):
         )
         assert bill.bill_number == "INTERNAL-001"
         assert bill.supplier_invoice_reference == "SUPPLIER-42"
-        assert PurchasesService.list_bills(context)[0].supplier_invoice_reference == "SUPPLIER-42"
+        assert next(row for row in PurchasesService.list_bills(context) if row.id == bill.id).supplier_invoice_reference == "SUPPLIER-42"
 
         legacy = PurchasesService.create_bill(context, bill_number="INTERNAL-002", **kwargs)
         assert legacy.supplier_invoice_reference is None
