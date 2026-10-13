@@ -357,7 +357,8 @@ class PurchasesService:
                     tax_point=None,
                     payable_account_id: str, expense_account_id: str,
                     currency: str = "GBP", tax_code_id: str | None = None,
-                    metadata: dict | None = None, commit: bool = True):
+                    metadata: dict | None = None, commit: bool = True,
+                    supplier_invoice_reference: str | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -406,11 +407,17 @@ class PurchasesService:
             requested_number=bill_number, model=PurchaseBill,
             number_field="bill_number", date_field="bill_date",
         )
+        if supplier_invoice_reference is not None and not isinstance(supplier_invoice_reference, str):
+            raise ValueError("Supplier invoice reference must be text")
+        clean_supplier_reference = (supplier_invoice_reference or "").strip() or None
+        if clean_supplier_reference and len(clean_supplier_reference) > 120:
+            raise ValueError("Supplier invoice reference exceeds 120 characters")
         bill = PurchaseBill(
             id=bill_id,
             organisation_id=context.organisation_id,
             supplier_id=supplier.id,
             bill_number=issued_number,
+            supplier_invoice_reference=clean_supplier_reference,
             bill_date=bill_date,
             tax_point=effective_tax_point,
             due_date=due_date,
