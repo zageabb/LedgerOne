@@ -111,6 +111,7 @@ def create_bill():
                 g.access_context,
                 supplier_id=payload["supplier_id"],
                 bill_number=payload.get("bill_number") or None,
+            supplier_invoice_reference=payload.get("supplier_invoice_reference"),
                 supplier_invoice_reference=payload.get("supplier_invoice_reference"),
                 bill_date=bill_date,
                 due_date=due_date,
