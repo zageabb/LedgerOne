@@ -397,6 +397,12 @@ class PurchasesService:
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
 
+        if supplier_invoice_reference is not None and not isinstance(supplier_invoice_reference, str):
+            raise ValueError("Supplier invoice reference must be text")
+        clean_supplier_reference = (supplier_invoice_reference or "").strip() or None
+        if clean_supplier_reference and len(clean_supplier_reference) > 120:
+            raise ValueError("Supplier invoice reference exceeds 120 characters")
+
         # Allocate only at final posting, not when an approval request is submitted.
         # The sequence change shares this posting transaction and rolls back on failure.
         from ledgerone.modules.sales.numbering import _assign_number
@@ -407,11 +413,6 @@ class PurchasesService:
             requested_number=bill_number, model=PurchaseBill,
             number_field="bill_number", date_field="bill_date",
         )
-        if supplier_invoice_reference is not None and not isinstance(supplier_invoice_reference, str):
-            raise ValueError("Supplier invoice reference must be text")
-        clean_supplier_reference = (supplier_invoice_reference or "").strip() or None
-        if clean_supplier_reference and len(clean_supplier_reference) > 120:
-            raise ValueError("Supplier invoice reference exceeds 120 characters")
         bill = PurchaseBill(
             id=bill_id,
             organisation_id=context.organisation_id,
