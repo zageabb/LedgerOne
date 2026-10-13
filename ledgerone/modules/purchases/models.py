@@ -32,6 +32,7 @@ class PurchaseBill(db.Model):
     organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"), nullable=False, index=True)
     supplier_id = db.Column(db.String(36), db.ForeignKey("suppliers.id"), nullable=False, index=True)
     bill_number = db.Column(db.String(120), nullable=False, index=True)
+    supplier_invoice_reference = db.Column(db.String(120), nullable=True)
     bill_date = db.Column(db.Date, nullable=False, index=True)
     tax_point = db.Column(db.Date, nullable=False, index=True, default=_bill_tax_point_default)
     due_date = db.Column(db.Date, nullable=True)
