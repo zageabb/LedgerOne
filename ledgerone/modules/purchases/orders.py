@@ -164,6 +164,7 @@ class PurchaseOrderService:
         bill_number: str,
         bill_date: date,
         due_date: date | None = None,
+        supplier_invoice_reference: str | None = None,
     ):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
@@ -185,6 +186,7 @@ class PurchaseOrderService:
                 context,
                 supplier_id=order.supplier_id,
                 bill_number=bill_number,
+                supplier_invoice_reference=supplier_invoice_reference,
                 bill_date=bill_date,
                 due_date=due_date,
                 description=line.description,
