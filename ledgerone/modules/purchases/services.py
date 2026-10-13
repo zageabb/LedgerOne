@@ -357,7 +357,8 @@ class PurchasesService:
                     tax_point=None,
                     payable_account_id: str, expense_account_id: str,
                     currency: str = "GBP", tax_code_id: str | None = None,
-                    metadata: dict | None = None, commit: bool = True):
+                    metadata: dict | None = None, commit: bool = True,
+                    supplier_invoice_reference: str | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -396,6 +397,12 @@ class PurchasesService:
         tax_amount = TaxService.tax_amount(amount, tax_code)
         total = amount + tax_amount
 
+        if supplier_invoice_reference is not None and not isinstance(supplier_invoice_reference, str):
+            raise ValueError("Supplier invoice reference must be text")
+        clean_supplier_reference = (supplier_invoice_reference or "").strip() or None
+        if clean_supplier_reference and len(clean_supplier_reference) > 120:
+            raise ValueError("Supplier invoice reference exceeds 120 characters")
+
         # Allocate only at final posting, not when an approval request is submitted.
         # The sequence change shares this posting transaction and rolls back on failure.
         from ledgerone.modules.sales.numbering import _assign_number
@@ -411,6 +418,7 @@ class PurchasesService:
             organisation_id=context.organisation_id,
             supplier_id=supplier.id,
             bill_number=issued_number,
+            supplier_invoice_reference=clean_supplier_reference,
             bill_date=bill_date,
             tax_point=effective_tax_point,
             due_date=due_date,

@@ -91,6 +91,7 @@ def convert_order(order_id):
             g.access_context,
             order_id,
             bill_number=payload.get("bill_number") or None,
+            supplier_invoice_reference=payload.get("supplier_invoice_reference"),
             bill_date=date.fromisoformat(payload.get("bill_date") or date.today().isoformat()),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
         )
@@ -100,6 +101,7 @@ def convert_order(order_id):
                 "bill": {
                     "id": bill.id,
                     "bill_number": bill.bill_number,
+                    "supplier_invoice_reference": bill.supplier_invoice_reference,
                     "status": bill.status,
                     "subtotal": str(bill.subtotal),
                     "tax_total": str(bill.tax_total),

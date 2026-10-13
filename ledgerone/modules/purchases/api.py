@@ -79,6 +79,7 @@ def bills():
     return jsonify({"bills": [{
         "id": row.id,
         "bill_number": row.bill_number,
+        "supplier_invoice_reference": row.supplier_invoice_reference,
         "supplier_id": row.supplier_id,
         "bill_date": row.bill_date.isoformat(),
         "tax_point": row.tax_point.isoformat(),
@@ -110,6 +111,7 @@ def create_bill():
                 g.access_context,
                 supplier_id=payload["supplier_id"],
                 bill_number=payload.get("bill_number") or None,
+                supplier_invoice_reference=payload.get("supplier_invoice_reference"),
                 bill_date=bill_date,
                 due_date=due_date,
                 tax_point=tax_point,
@@ -134,6 +136,7 @@ def create_bill():
             g.access_context,
             supplier_id=payload["supplier_id"],
             bill_number=payload.get("bill_number") or None,
+            supplier_invoice_reference=payload.get("supplier_invoice_reference"),
             bill_date=bill_date,
             due_date=due_date,
             tax_point=tax_point,
@@ -147,6 +150,7 @@ def create_bill():
         return jsonify({
             "id": row.id,
             "bill_number": row.bill_number,
+            "supplier_invoice_reference": row.supplier_invoice_reference,
             "status": row.status,
             "tax_point": row.tax_point.isoformat(),
             "due_date": row.due_date.isoformat() if row.due_date else None,
