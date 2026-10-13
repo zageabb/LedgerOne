@@ -239,7 +239,9 @@ Controlled numbering is implemented on `main`, but browser behaviour should be r
 - [x] Implement purchase credit-note controlled numbering at posting for browser/API, including transactional rollback (PR #17, latest CI pending).
 - [x] Add controlled numbering to sales quotes, sales orders and purchase orders on creation, with optional browser/API number entry (branch; CI pending).
 - [x] Make quote/order conversion invoice-number fields optional in browser/API; reuse final invoice posting allocator (CI pending).
-- [ ] Verify expense claim numbering, external supplier invoice reference separation and complete regression coverage.
+- [x] Verify expense claim creation still requires a manual claim number in browser, API and service; configured expense_claim sequence exists.
+- [ ] Implement expense claim controlled numbering in a separate reviewed increment.
+- [ ] Complete supplier reference migration regression verification.
 - [x] Add a separate nullable supplier invoice reference with migration 0022, browser/API/workflow plumbing (follow-up branch; CI pending).
 - [x] Display both the LedgerOne document number and separate supplier reference on purchase bill PDFs (branch; CI pending).
 - [ ] Decide historical source-reference backfill policy: do not infer supplier invoice numbers from legacy internal numbers.
