@@ -285,6 +285,7 @@ def _document_pdf(
     tax_total,
     total,
     audit_trace: dict | None = None,
+    external_reference: str | None = None,
 ) -> bytes:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -315,6 +316,8 @@ def _document_pdf(
         [Paragraph("<b>Due date</b>", styles["BodyText"]), Paragraph(due_date.strftime("%d %b %Y") if due_date else "—", right)],
         [Paragraph("<b>Status</b>", styles["BodyText"]), Paragraph(_text(status.replace("_", " ").title()), right)],
     ]
+    if external_reference:
+        meta_rows.insert(1, [Paragraph("<b>Supplier invoice reference</b>", styles["BodyText"]), Paragraph(_text(external_reference), right)])
     if audit_trace:
         origin = audit_trace.get("origin") or {}
         journal = audit_trace.get("journal") or {}
@@ -454,6 +457,7 @@ class FinancialDocumentPdfService:
             subtotal=bill.subtotal,
             tax_total=bill.tax_total,
             total=bill.total,
+            external_reference=bill.supplier_invoice_reference,
             audit_trace=trace,
         )
         return pdf, _safe_filename("bill", bill.bill_number)
