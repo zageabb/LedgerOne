@@ -97,3 +97,22 @@ For every material development item:
 - for audit-linked items, retain the stricter audit rule: implementation evidence plus independent retest before the finding is marked CLOSED.
 
 When the user asks to "continue development", "continue", or gives an equivalent instruction without naming a different objective, resume from the highest-priority incomplete item in `DEVELOPMENT.md`.
+
+## Application-Standard adoption (12 November 2026)
+
+This repository follows [Application-Standard](https://github.com/zageabb/Application-Standard) v1.0 as a **P2 existing Flask web application**, with project-specific decisions in `DID.md`, `STANDARD_VERSION.md` and `docs/EXCEPTIONS.md`. Do not rewrite Flask/Jinja to React/MUI merely for template compliance. For substantial design or architectural changes, read `docs/ADR_TEMPLATE.md` and record an ADR.
+
+### Screen design and accessibility gate
+Before modifying a user-facing page, consult `DID.md`, `docs/SCREEN_QA_CHECKLIST.md` and `docs/SCREEN_SPEC_TEMPLATE.md`. Reuse LedgerOne's current dual UI modes and shared components. Specify responsive widths, keyboard/focus, accessibility, empty/loading/error/permission states, accurate financial figures and any optional light/dark behaviour. Validate what is implemented; do not claim official corporate brand or Figma parity from draft templates.
+
+### User manual maintenance (mandatory)
+For each user-visible feature, workflow, setting, installation or troubleshooting change, review and update the corresponding user-facing manual in the **same PR**. If no manual exists, create one where warranted or record the explicit documentation gap. Record manual paths, updated sections, tests and unresolved validation in `DEVELOPMENT.md`. Do not mark a user-visible change complete while affected guidance is stale.
+
+### Shared capability reuse gate
+Before implementing a significant reusable capability, check the current [shared-capabilities registry](https://github.com/zageabb/shared-capabilities) and the [Application-Standard reuse policy](https://github.com/zageabb/Application-Standard/blob/main/docs/SHARED_CAPABILITIES_POLICY.md). Confirm runtime fit, security, API compatibility, provenance, licence, maintenance and verified CI. Pin an approved version. Never copy unapproved corporate material or assume a listed candidate is an available package. Document reuse/rejection in the related DEV item.
+
+### UDA, integrations and sensitive information
+Use `LOCAL_UBUNTU_PROXY_COMPAT` for newly introduced proxy-specific code paths, keeping the original working convention intact. Test both local root paths and `/apps/ledgerone/`, including authentication, redirects, API, static files, uploads/exports and forwarded-header spoofing where relevant. Optional integrations must distinguish `not_configured` from legitimate empty results. Never commit production credentials, customer records or private template assets into this public repository.
+
+### Evidence and PR gate
+For each change record source implementation, local test results, GitHub CI, migration impact, manual changes, deployment verification and user/business acceptance **separately**. CI success is required before normal merge; when CI is blocked, keep work in PR and report the blocker. Formal independent accounting audit retest is still required for audit closure.
