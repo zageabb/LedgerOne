@@ -378,6 +378,26 @@ The base local-AI chat and organisation Knowledge capabilities already exist. Re
 
 ---
 
+## DEV-010 — Full sales and purchase order workflows with staff ownership
+
+**Status:** PLANNED — backlog/design only; no implementation or schema changes in this item.
+
+**Goal:** Extend the existing sales quotes/orders/invoice conversion and purchase orders/bill conversion into complete, navigable sales-order and purchase-order management workflows. Allow each order to be assigned to a responsible **salesperson** (sales order) or **buyer** (purchase order), with filtering, grouping, reporting and work queues by responsible person.
+
+### Requirements / acceptance criteria
+- [ ] Review current sales-order and purchase-order entities, statuses, permissions, APIs, screens, numbering, audit and downstream posting/conversion flows; extend the existing modules rather than create parallel workflows.
+- [ ] Add organisation-scoped responsible-person assignments to orders (salesperson and buyer respectively), with migrations only where needed; support unassigned orders and sensible reassignment/history.
+- [ ] Source selectable staff dynamically from existing organisation members, active identities and relevant security roles/permissions instead of maintaining separate hard-coded salesperson/buyer lists. Specify how eligible people are determined, how role changes affect eligibility, and how historical orders remain attributed when users become inactive or leave.
+- [ ] Provide searchable/filterable/groupable sales-order lists by salesperson and purchase-order lists by buyer, with **Mine / All permitted / Unassigned** options as appropriate; display owner on order detail and relevant exports/reports.
+- [ ] Cover practical order lifecycle: draft, edit, submit/confirm or approve where applicable, amend/cancel with audit, line items, quantities, prices, taxes, linked customer/supplier, conversion and remaining/fulfilled/partially converted balances where supported. Validate against the current accounting design before specifying new states.
+- [ ] Apply organisation isolation and least-privilege checks consistently through UI/API/service/AI routes; distinguish assignment from authority to approve, post or convert. Align with DEV-005 maker/checker and segregation-of-duties decisions.
+- [ ] Ensure dynamic assignee choices and grouping work when staff are added, removed, disabled or reassigned; prevent cross-organisation assignment and preserve historical audit attribution.
+- [ ] Add regression tests for list/group/filter, order ownership, permissions, reassignment, lifecycle, numbering, conversion and organisation isolation; update relevant user manuals and screen QA.
+- [ ] Record PR, final green CI, migration validation and manual acceptance separately before marking the stream complete.
+
+**Dependencies:** Existing Sales/Purchases modules; DEV-005 segregation-of-duties controls; organisation membership/roles; DEV-009 numbering consistency. **Design preference:** Use security identities as the source of people, with role/permission-based eligibility; do not assume a user necessarily has both salesperson and buyer responsibilities.
+
+---
 ## 12. Recommended development order
 
 1. DEV-005 — LO-AUD-015 maker/checker and segregation of duties.
@@ -386,7 +406,8 @@ The base local-AI chat and organisation Knowledge capabilities already exist. Re
 4. DEV-007 — operational-list balances.
 5. DEV-008 — accounting workflow guide and in-app links.
 6. DEV-009 — numbering UX/integration consistency pass.
-7. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
+7. DEV-010 — full sales/purchase order workflows, salesperson/buyer assignment and grouped work queues (design after DEV-005, implementation prioritised against remaining assurance work).
+8. Begin v0.4 only after the professional-bookkeeping assurance backlog above is stable.
 
 ---
 
@@ -402,3 +423,19 @@ A development item is complete only when all applicable evidence exists:
 - [ ] documentation/status is updated;
 - [ ] audit-linked work has implementation evidence and independent retest before CLOSED;
 - [ ] no stale PR or older TODO entry still presents superseded work as the active implementation.
+
+---
+
+## STD-001 — Adopt Application-Standard v1.0 (12 November 2026)
+**Status:** DOCUMENTATION CHANGE SUBMITTED ON PR BRANCH; CI AND MERGE PENDING.
+
+- [x] Reviewed `zageabb/Application-Standard` v1.0 against existing LedgerOne `AGENTS.md` and `DEVELOPMENT.md`.
+- [x] Preserved current P2 Flask/Jinja application architecture; documented exceptions rather than introducing a rewrite.
+- [x] Added `DID.md`, `STANDARD_VERSION.md`, `docs/EXCEPTIONS.md`, `docs/ADR_TEMPLATE.md`, `docs/SCREEN_QA_CHECKLIST.md`, and `docs/SCREEN_SPEC_TEMPLATE.md`.
+- [x] Added agent rules for screen/accessibility review, manual maintenance, shared-capability reuse, secure optional integrations and UDA routing.
+- [ ] Confirm GitHub CI / documentation links and review the adoption PR.
+- [ ] Merge to `main` only after CI is green or explicitly approved exception.
+- [ ] Independently validate any future visual design adoption with screenshots and browser testing; documentation does not alter live UI.
+- [ ] Maintain existing audit/numbering and proxy acceptance work items as independent priorities.
+
+**Validation scope:** documentation-only; no Python, migrations, deployment, data or user-facing runtime changed. **User manual:** no update required because no running feature or workflow changed. **Reference source:** `https://github.com/zageabb/Application-Standard` (private), master standard v1.0. Preserve current accounting project source of truth and make no production-certification claim.

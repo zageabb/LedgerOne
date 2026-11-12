@@ -242,3 +242,11 @@ See [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) for the reverse-enginee
 - [`docs/TODO.md`](docs/TODO.md) — master delivery and accounting-assurance backlog.
 - [`docs/CASHLINK_FORMAT.md`](docs/CASHLINK_FORMAT.md) — legacy CashLink reverse-engineering notes.
 - [`docs/SCHEDULED_JOBS.md`](docs/SCHEDULED_JOBS.md) — daily recurring-work generation through UDA/systemd.
+
+## Application development standard
+
+LedgerOne adopts [Application-Standard v1.0](https://github.com/zageabb/Application-Standard) incrementally as an existing **P2 Flask application**. Its current Flask/Jinja/SQLAlchemy architecture is retained; the standard does not require a React/FastAPI rewrite.
+
+For future work, start with [AGENTS.md](AGENTS.md), the active [DEVELOPMENT.md](DEVELOPMENT.md), [DID.md](DID.md), [STANDARD_VERSION.md](STANDARD_VERSION.md) and project-specific [exceptions](docs/EXCEPTIONS.md). For screens use the [screen specification](docs/SCREEN_SPEC_TEMPLATE.md) and [UI QA checklist](docs/SCREEN_QA_CHECKLIST.md); for major decisions use the [ADR template](docs/ADR_TEMPLATE.md). The development standards require same-change user-manual review, verified CI, accounting assurance and separate runtime/deployment acceptance.
+
+The reference repository is private; do not copy private design assets or internal/corporate information into this public repository. Documentation adoption does not mean LedgerOne's UI has been visually redesigned or accepted for unrestricted production accounting.
