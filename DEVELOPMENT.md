@@ -402,3 +402,19 @@ A development item is complete only when all applicable evidence exists:
 - [ ] documentation/status is updated;
 - [ ] audit-linked work has implementation evidence and independent retest before CLOSED;
 - [ ] no stale PR or older TODO entry still presents superseded work as the active implementation.
+
+---
+
+## STD-001 — Adopt Application-Standard v1.0 (12 November 2026)
+**Status:** DOCUMENTATION CHANGE SUBMITTED ON PR BRANCH; CI AND MERGE PENDING.
+
+- [x] Reviewed `zageabb/Application-Standard` v1.0 against existing LedgerOne `AGENTS.md` and `DEVELOPMENT.md`.
+- [x] Preserved current P2 Flask/Jinja application architecture; documented exceptions rather than introducing a rewrite.
+- [x] Added `DID.md`, `STANDARD_VERSION.md`, `docs/EXCEPTIONS.md`, `docs/ADR_TEMPLATE.md`, `docs/SCREEN_QA_CHECKLIST.md`, and `docs/SCREEN_SPEC_TEMPLATE.md`.
+- [x] Added agent rules for screen/accessibility review, manual maintenance, shared-capability reuse, secure optional integrations and UDA routing.
+- [ ] Confirm GitHub CI / documentation links and review the adoption PR.
+- [ ] Merge to `main` only after CI is green or explicitly approved exception.
+- [ ] Independently validate any future visual design adoption with screenshots and browser testing; documentation does not alter live UI.
+- [ ] Maintain existing audit/numbering and proxy acceptance work items as independent priorities.
+
+**Validation scope:** documentation-only; no Python, migrations, deployment, data or user-facing runtime changed. **User manual:** no update required because no running feature or workflow changed. **Reference source:** `https://github.com/zageabb/Application-Standard` (private), master standard v1.0. Preserve current accounting project source of truth and make no production-certification claim.
