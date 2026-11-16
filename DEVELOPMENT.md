@@ -6,6 +6,23 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## DEV-010 — Multi-company management (phases 1–5)
+Status: IMPLEMENTED ON FEATURE BRANCH; FULL CI, MIGRATION AND UDA ACCEPTANCE PENDING
+
+- [x] Phase 1: add company code/legal/trading/VAT/address profile, owner-gated company creation and Alembic migration.
+- [x] Phase 2: company selector after login for multi-company users; direct dashboard for single-company users and header switcher.
+- [x] Phase 3: reuse membership roles/permissions per organisation and prevent cross-company global password changes.
+- [x] Phase 4: add company selection, non-member, revoked-membership, credential-protection and accounting API boundary tests.
+- [x] Phase 5: assert independent charts and account API results for separate companies.
+- [ ] Run full CI, clean PostgreSQL + SQLite migration/drift verification and UDA/browser acceptance.
+- [ ] Independently validate existing banking, VAT, document workflows, reporting, AI and API isolation under multiple companies.
+- [ ] Verify chained revision `0023_multi_company` follows the merged PR #21 revision `0022_supplier_invoice_reference`.
+- [ ] Merge only after required test and review gates pass.
+
+Implementation details and verification steps: `docs/MULTI_COMPANY.md`.
+
+---
+
 ## CI-FIX-001 — Asset purchase posting accounting-period fixture
 Status: MERGED TO MAIN — PR #20, CI #541 passed on PR head; main-branch CI verification pending
 

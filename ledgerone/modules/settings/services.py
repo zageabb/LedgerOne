@@ -203,11 +203,10 @@ class SettingsService:
             db.session.flush()
             created_user = True
         else:
-            user.name = name
-            if password:
-                if len(password) < 8:
-                    raise ValueError("Password must be at least 8 characters")
-                user.set_password(password)
+            # User identity and credentials are global. A company administrator
+            # must not reset credentials belonging to another company member.
+            # Password/profile changes require a separate self-service workflow.
+            pass
 
         membership = Membership.query.filter_by(
             organisation_id=context.organisation_id,

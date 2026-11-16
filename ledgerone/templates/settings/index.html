@@ -8,6 +8,40 @@
   </div>
 </div>
 
+
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>Company profile</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="company_profile">
+        <div class="field"><label>Company code</label><input name="company_code" maxlength="20" required value="{{ organisation.company_code or '' }}" placeholder="ALB"></div>
+        <div class="field"><label>Trading name</label><input name="trading_name" value="{{ organisation.trading_name or '' }}"></div>
+        <div class="field"><label>Registration number</label><input name="registration_number" value="{{ organisation.registration_number or '' }}"></div>
+        <div class="field"><label>VAT number</label><input name="vat_number" value="{{ organisation.vat_number or '' }}"></div>
+        {% for key, title in [('line1','Address line 1'),('line2','Address line 2'),('city','City'),('county','County'),('postcode','Postcode'),('country','Country')] %}
+          <div class="field"><label>{{ title }}</label><input name="address_{{ key }}" value="{{ (organisation.registered_address or {}).get(key, '') }}"></div>
+        {% endfor %}
+        <div class="field-full"><button class="button" type="submit">Save company profile</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Create another company</h2></div>
+    <div class="card-body">
+      <p class="muted">Creates a separate company, chart of accounts, settings and owner membership. Only a current company owner may create companies.</p>
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="company_create">
+        <div class="field field-full"><label>Legal company name</label><input name="new_company_name" required></div>
+        <div class="field"><label>Unique code</label><input name="new_company_code" minlength="2" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_-]{1,19}" placeholder="TGE" required></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Create company</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="grid grid-2">
   <div class="card">
     <div class="card-head"><h2>{{ 'Your ledger' if ui_mode == 'home' else 'Organisation' }}</h2></div>
@@ -109,7 +143,7 @@
         <div class="field"><label>Name</label><input name="member_name" required></div>
         <div class="field"><label>Email</label><input type="email" name="member_email" required></div>
         <div class="field"><label>Role</label><select name="member_role"><option value="member">Member</option><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="owner">Owner</option></select></div>
-        <div class="field"><label>Temporary password</label><input type="password" name="member_password" minlength="8" required><div class="help">Required only when creating a new LedgerOne user.</div></div>
+        <div class="field"><label>Temporary password</label><input type="password" name="member_password" minlength="8"><div class="help">Required only when creating a new LedgerOne user.</div></div>
         <div class="field field-full"><label>Member permissions</label><div class="grid grid-2">{% for permission in permission_catalog %}<label><input style="width:auto" type="checkbox" name="member_permissions" value="{{ permission }}"> <span class="code">{{ permission }}</span></label>{% endfor %}</div></div>
         <div class="field-full"><button class="button" type="submit">Add member</button></div>
       </form>
@@ -131,7 +165,7 @@
               <div class="field"><label>Name</label><input name="member_name" value="{{ row.user.name }}" required></div>
               <div class="field"><label>Email</label><input type="email" name="member_email" value="{{ row.user.email }}" readonly></div>
               <div class="field"><label>Role</label><select name="member_role">{% for role in ['owner','admin','member','viewer'] %}<option value="{{ role }}" {% if role == row.role %}selected{% endif %}>{{ role|title }}</option>{% endfor %}</select></div>
-              <div class="field"><label>Reset password (optional)</label><input type="password" name="member_password" minlength="8"></div>
+              <div class="field"><label>Account password</label><input type="text" value="Managed by the account holder, not this company" readonly></div>
               <div class="field field-full"><label>Permissions</label><div class="grid grid-2">{% for permission in permission_catalog %}<label><input style="width:auto" type="checkbox" name="member_permissions" value="{{ permission }}" {% if permission in (row.permissions or []) %}checked{% endif %}> <span class="code">{{ permission }}</span></label>{% endfor %}</div></div>
               <div class="field-full"><button class="button" type="submit">Save access</button></div>
             </form>

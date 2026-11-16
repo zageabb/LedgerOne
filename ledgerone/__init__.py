@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Flask, request, session
+from flask import Flask, redirect, request, session, url_for
 from flask_login import current_user
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
@@ -69,6 +69,16 @@ def create_app(config_overrides: dict | None = None):
         ):
             csrf.protect()
 
+    @app.before_request
+    def require_company_selection():
+        if (current_user.is_authenticated
+                and request.endpoint not in {None, "auth.select_company", "auth.switch_organisation",
+                                             "auth.logout", "auth.ui_mode", "static"}
+                and not request.path.startswith("/api/")):
+            from ledgerone.security import browser_context
+            if browser_context() is None:
+                return redirect(url_for("auth.select_company"))
+
     @app.context_processor
     def inject_ledgerone_context():
         from ledgerone.models.core import Membership, Organisation
@@ -90,7 +100,9 @@ def create_app(config_overrides: dict | None = None):
         memberships = []
         if current_user.is_authenticated:
             memberships = (
-                Membership.query.filter_by(user_id=current_user.id, is_active=True)
+                Membership.query.join(Organisation).filter(
+                    Membership.user_id == current_user.id, Membership.is_active.is_(True),
+                    Organisation.is_active.is_(True))
                 .order_by(Membership.created_at.asc())
                 .all()
             )

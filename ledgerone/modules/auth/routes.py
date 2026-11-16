@@ -4,7 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from flask_login import current_user, login_required, login_user, logout_user
 
 from ledgerone.extensions import db
-from ledgerone.models.core import Membership, User
+from ledgerone.models.core import Membership, Organisation, User
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -33,8 +33,17 @@ def login():
                 .order_by(Membership.created_at.asc())
                 .first()
             )
-            if membership:
-                session["organisation_id"] = membership.organisation_id
+            eligible = (Membership.query.join(Organisation)
+                        .filter(Membership.user_id == user.id, Membership.is_active.is_(True),
+                                Organisation.is_active.is_(True))
+                        .order_by(Membership.created_at.asc()).all())
+            if len(eligible) == 1:
+                session["organisation_id"] = eligible[0].organisation_id
+                session.pop("company_selection_required", None)
+            else:
+                session.pop("organisation_id", None)
+                session["company_selection_required"] = True
+                return redirect(url_for("auth.select_company"))
             target = request.args.get("next")
             return redirect(target if _safe_next(target) else url_for("core.dashboard"))
         flash("Email or password was not recognised.", "danger")
@@ -65,6 +74,16 @@ def ui_mode():
     return redirect(request.referrer or url_for("core.dashboard"))
 
 
+@bp.get("/companies")
+@login_required
+def select_company():
+    choices = (Membership.query.join(Organisation)
+               .filter(Membership.user_id == current_user.id, Membership.is_active.is_(True),
+                       Organisation.is_active.is_(True))
+               .order_by(Organisation.name.asc()).all())
+    return render_template("auth/select_company.html", choices=choices)
+
+
 @bp.post("/organisation")
 @login_required
 def switch_organisation():
@@ -73,6 +92,9 @@ def switch_organisation():
         organisation_id=organisation_id,
         user_id=current_user.id,
         is_active=True,
-    ).first_or_404()
+    ).join(Organisation).filter(Organisation.is_active.is_(True)).first_or_404()
     session["organisation_id"] = membership.organisation_id
-    return redirect(request.referrer or url_for("core.dashboard"))
+    session.pop("company_selection_required", None)
+    session.pop("ai_test_values", None)
+    session.pop("ai_test_result", None)
+    return redirect(url_for("core.dashboard"))
