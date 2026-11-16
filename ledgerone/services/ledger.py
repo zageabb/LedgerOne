@@ -287,12 +287,17 @@ class LedgerService:
                 source_lines = request.get("lines") or []
                 if (request.get("journal_date") != journal_date.isoformat()
                         or request.get("source_module") != source_module
+                        or (request.get("description") or "").strip() != (description or "").strip()
+                        or (request.get("reference") or None) != (reference or None)
+                        or (request.get("source_reference") or workflow.entity_id) != source_reference
                         or len(source_lines) != len(prepared)
                         or any(
                             row.get("account_id") != account.id
                             or _money(row.get("debit")) != debit
                             or _money(row.get("credit")) != credit
-                            for row, (_, account, debit, credit, _) in zip(source_lines, prepared)
+                            or (row.get("currency") or None) != (raw.get("currency") or None)
+                            or (row.get("dimensions") or {}) != (raw.get("dimensions") or {})
+                            for row, (_, account, debit, credit, raw) in zip(source_lines, prepared)
                         )):
                     raise LedgerError("Approved journal content does not match the submitted workflow")
                 approvals = UserAction.query.filter_by(
