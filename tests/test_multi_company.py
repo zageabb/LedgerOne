@@ -110,3 +110,41 @@ def test_company_specific_roles_do_not_inherit(app):
         db.session.commit()
         assert Membership.query.filter_by(organisation_id=org_id, user_id=user_id).one().role == "owner"
         assert member.role == "viewer"
+
+
+def test_company_admin_cannot_reset_existing_account_password(app):
+    from ledgerone.modules.settings.services import SettingsService
+    user_id, org_id = _owner(app)
+    with app.app_context():
+        original = db.session.get(User, user_id)
+        old_hash = original.password_hash
+        admin = AccessContext(identity_type="user", user_id=user_id,
+                              organisation_id=org_id, full_access=True)
+        SettingsService.save_member(
+            admin, email=original.email, name="Changed by another company",
+            role="owner", password="unwanted-change", permissions=[])
+        db.session.refresh(original)
+        assert original.password_hash == old_hash
+        assert original.name == "LedgerOne Test Admin"
+
+
+def test_company_accounting_api_does_not_mix_accounts(client, app):
+    user_id, first_id = _owner(app)
+    with app.app_context():
+        owner = AccessContext(identity_type="user", user_id=user_id,
+                              organisation_id=first_id, full_access=True)
+        second_id = CompanyService.create(owner, name="Second Co", company_code="SECOND").id
+        db.session.add(Account(organisation_id=second_id, code="COMPANY2ONLY",
+                               name="Second company test account", account_type="asset"))
+        db.session.commit()
+    client.post("/auth/login", data={
+        "email": "test-admin@ledgerone.local", "password": "test-password"
+    })
+    client.post("/auth/organisation", data={"organisation_id": first_id})
+    first = client.get("/api/v1/ledger/accounts?per_page=100")
+    assert first.status_code == 200
+    assert "COMPANY2ONLY" not in first.get_data(as_text=True)
+    client.post("/auth/organisation", data={"organisation_id": second_id})
+    second = client.get("/api/v1/ledger/accounts?per_page=100")
+    assert second.status_code == 200
+    assert "COMPANY2ONLY" in second.get_data(as_text=True)
