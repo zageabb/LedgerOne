@@ -202,6 +202,7 @@ class JournalWorkflowService:
                 "workflow_originator_user_id": instance.originator_user_id,
             },
             commit=False,
+            approved_workflow_id=instance.id,
         )
 
         instance.status = "posted"
