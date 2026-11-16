@@ -39,8 +39,10 @@ def login():
                         .order_by(Membership.created_at.asc()).all())
             if len(eligible) == 1:
                 session["organisation_id"] = eligible[0].organisation_id
+                session.pop("company_selection_required", None)
             else:
                 session.pop("organisation_id", None)
+                session["company_selection_required"] = True
                 return redirect(url_for("auth.select_company"))
             target = request.args.get("next")
             return redirect(target if _safe_next(target) else url_for("core.dashboard"))
@@ -92,6 +94,7 @@ def switch_organisation():
         is_active=True,
     ).join(Organisation).filter(Organisation.is_active.is_(True)).first_or_404()
     session["organisation_id"] = membership.organisation_id
+    session.pop("company_selection_required", None)
     session.pop("ai_test_values", None)
     session.pop("ai_test_result", None)
     return redirect(url_for("core.dashboard"))
