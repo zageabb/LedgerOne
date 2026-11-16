@@ -449,8 +449,8 @@ class WorkflowService:
 
     @staticmethod
     def _can_access_action(context: AccessContext, action: UserAction) -> bool:
-        if context.full_access or "*" in context.permissions:
-            return True
+        # Explicit assignment and checker role are binding even on owners.
+        # Full access permits workflows, never impersonation of an assignee.
         if action.assigned_user_id and action.assigned_user_id != context.user_id:
             return False
         role = _membership_role(context)
@@ -469,16 +469,20 @@ class WorkflowService:
                 UserAction.status == "open",
             )
         )
-        if not (context.full_access or "*" in context.permissions):
-            role = _membership_role(context)
-            filters = [
-                and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))
-            ]
-            if context.user_id:
-                filters.append(UserAction.assigned_user_id == context.user_id)
+        role = _membership_role(context)
+        # Assigned-user and assigned-role requirements are both enforced.
+        # Never expose other people's actions just because a user is an owner.
+        filters = [and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))]
+        if context.user_id:
+            filters.append(and_(UserAction.assigned_user_id == context.user_id,
+                                UserAction.assigned_role.is_(None)))
             if role:
-                filters.append(UserAction.assigned_role == role)
-            query = query.filter(or_(*filters))
+                filters.append(and_(UserAction.assigned_user_id == context.user_id,
+                                    UserAction.assigned_role == role))
+        if role:
+            filters.append(and_(UserAction.assigned_user_id.is_(None),
+                                UserAction.assigned_role == role))
+        query = query.filter(or_(*filters))
         return query.order_by(UserAction.due_date.asc(), UserAction.created_at.asc()).limit(limit).all()
 
     @staticmethod
