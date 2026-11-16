@@ -25,6 +25,9 @@ def _current_membership():
             return membership
         # A revoked/disabled company must never silently select a different ledger.
         session.pop("organisation_id", None)
+        session["company_selection_required"] = True
+        return None
+    if session.get("company_selection_required"):
         return None
     memberships = query.join(Organisation).filter(Organisation.is_active.is_(True)).limit(2).all()
     if len(memberships) == 1:
