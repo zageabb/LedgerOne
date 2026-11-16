@@ -6,6 +6,21 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## DEV-011 — v0.3.1 company acceptance and independent approval controls
+Status: IN PROGRESS — implementation committed, CI and live acceptance pending
+
+- [x] Enforce signed-in independent approver on workflow approval actions, even for legacy rules permitting self-approval
+- [x] Add per-company workflow amount threshold and audit its changes
+- [x] Snapshot effective approval steps at submission to prevent later rule-edit bypass
+- [x] Add workflow administration UI, scoped API, and regression tests
+- [ ] Validate full CI including clean Alembic upgrade/drift check
+- [ ] Verify end-to-end live UDA company and accounting isolation, and obtain independent audit retest
+- [ ] Confirm any direct-post transaction policy separately; not covered by the workflow threshold
+
+See `docs/V031_ACCEPTANCE.md`.
+
+---
+
 ## DEV-010 — Multi-company management (phases 1–5)
 Status: IMPLEMENTED ON FEATURE BRANCH; FULL CI, MIGRATION AND UDA ACCEPTANCE PENDING
 
