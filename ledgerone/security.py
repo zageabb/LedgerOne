@@ -7,7 +7,7 @@ from flask import abort, g, jsonify, request, session
 from flask_login import current_user
 
 from ledgerone.extensions import db
-from ledgerone.models.core import ApiKey, Membership
+from ledgerone.models.core import ApiKey, Membership, Organisation
 from ledgerone.module_registry import module_registry
 from ledgerone.services.context import AccessContext
 
@@ -18,13 +18,18 @@ def _current_membership():
     org_id = session.get("organisation_id")
     query = Membership.query.filter_by(user_id=current_user.id, is_active=True)
     if org_id:
-        membership = query.filter_by(organisation_id=org_id).first()
+        membership = query.join(Organisation).filter(
+            Membership.organisation_id == org_id, Organisation.is_active.is_(True)
+        ).first()
         if membership:
             return membership
-    membership = query.order_by(Membership.created_at.asc()).first()
-    if membership:
-        session["organisation_id"] = membership.organisation_id
-    return membership
+        # A revoked/disabled company must never silently select a different ledger.
+        session.pop("organisation_id", None)
+    memberships = query.join(Organisation).filter(Organisation.is_active.is_(True)).limit(2).all()
+    if len(memberships) == 1:
+        session["organisation_id"] = memberships[0].organisation_id
+        return memberships[0]
+    return None
 
 
 def browser_context() -> AccessContext | None:
@@ -58,12 +63,15 @@ def _bearer_context() -> AccessContext | None:
     if len(parts) != 3 or parts[0] != "lo":
         return None
     record = db.session.get(ApiKey, parts[1])
-    if not record or not record.is_active or not record.verify_token(token):
+    if not record or not record.is_active or not record.organisation_id or not record.verify_token(token):
         return None
     expires_at = _normalise_utc(record.expires_at)
     if expires_at and expires_at <= datetime.now(timezone.utc):
         return None
-    record.last_used_at = datetime.now(timezone.utc)
+    organisation = db.session.get(Organisation, record.organisation_id)
+    if not organisation or not organisation.is_active:
+        return None
+    record.last_used_at = datetime.now(timezone.utc
     db.session.commit()
     return AccessContext(
         identity_type="api_key",
