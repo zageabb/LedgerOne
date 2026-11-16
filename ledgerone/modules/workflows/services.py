@@ -449,7 +449,9 @@ class WorkflowService:
 
     @staticmethod
     def _can_access_action(context: AccessContext, action: UserAction) -> bool:
-        if context.full_access or "*" in context.permissions:
+        # A role-bound approval always requires the actual checker membership.
+        # Preserve privileged review/revision access for non-approval actions.
+        if action.action_type != "approve" and (context.full_access or "*" in context.permissions):
             return True
         if action.assigned_user_id and action.assigned_user_id != context.user_id:
             return False
@@ -469,15 +471,22 @@ class WorkflowService:
                 UserAction.status == "open",
             )
         )
-        if not (context.full_access or "*" in context.permissions):
-            role = _membership_role(context)
-            filters = [
-                and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))
-            ]
-            if context.user_id:
-                filters.append(UserAction.assigned_user_id == context.user_id)
+        role = _membership_role(context)
+        # Assigned-user and assigned-role requirements are both enforced.
+        # Never expose other people's actions just because a user is an owner.
+        filters = [and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))]
+        if context.user_id:
+            filters.append(and_(UserAction.assigned_user_id == context.user_id,
+                                UserAction.assigned_role.is_(None)))
             if role:
-                filters.append(UserAction.assigned_role == role)
+                filters.append(and_(UserAction.assigned_user_id == context.user_id,
+                                    UserAction.assigned_role == role))
+        if role:
+            filters.append(and_(UserAction.assigned_user_id.is_(None),
+                                UserAction.assigned_role == role))
+        if context.full_access or "*" in context.permissions:
+            query = query.filter(or_(UserAction.action_type != "approve", *filters))
+        else:
             query = query.filter(or_(*filters))
         return query.order_by(UserAction.due_date.asc(), UserAction.created_at.asc()).limit(limit).all()
 
@@ -522,9 +531,6 @@ class WorkflowService:
             permission = "workflows.approve" if action.action_type == "approve" else "workflows.review"
         if not context.can(permission):
             raise PermissionError(permission)
-        if not WorkflowService._can_access_action(context, action):
-            raise PermissionError("This action is assigned to another user or role")
-
         instance = action.workflow_instance
         if action.action_type == "approve" and clean_decision == "approve":
             if not context.user_id:
@@ -533,6 +539,9 @@ class WorkflowService:
                 raise WorkflowError("Approval requires an identifiable originator")
             if instance.originator_user_id == context.user_id:
                 raise WorkflowError("The creator cannot approve their own item under this workflow")
+
+        if not WorkflowService._can_access_action(context, action):
+            raise PermissionError("This action is assigned to another user or role")
 
         action.status = "completed"
         action.decision = clean_decision

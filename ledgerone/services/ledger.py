@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from ledgerone.extensions import db
 from ledgerone.models.audit import AuditEvent
-from ledgerone.models.core import utcnow
+from ledgerone.models.core import Setting, utcnow
 from ledgerone.models.ledger import (
     Account,
     AccountingPeriod,
@@ -250,7 +250,8 @@ class LedgerService:
                      lines: list[dict], reference: str | None = None,
                      source_module: str = "ledger", source_reference: str | None = None,
                      metadata: dict | None = None, commit: bool = True,
-                     enforce_permission: bool = True, reversal_of_id: str | None = None):
+                     enforce_permission: bool = True, reversal_of_id: str | None = None,
+                     approved_workflow_id: str | None = None):
         if enforce_permission:
             can_post_directly = context.can("ledger.journals.post")
             can_post_for_module = (
@@ -263,6 +264,49 @@ class LedgerService:
             raise LedgerError("An organisation is required")
         LedgerService.assert_posting_date_open(context, journal_date)
         prepared, total_debit, total_credit = LedgerService._prepare_lines(context, lines)
+
+        # Apply the company's approval rule to direct manual/API journal posting,
+        # not only submissions that opt in to the workflow UI. Module-owned
+        # postings retain their own business approval paths.
+        if enforce_permission and source_module in {"ledger", "api"}:
+            policy_row = Setting.query.filter_by(
+                organisation_id=context.organisation_id,
+                scope="approval_controls", key="threshold"
+            ).first()
+            policy = dict(policy_row.value or {}) if policy_row else {}
+            threshold = _money(policy.get("threshold")) if policy.get("threshold") else None
+            if policy.get("enabled") and threshold is not None and total_debit >= threshold:
+                from ledgerone.modules.workflows.models import UserAction, WorkflowInstance
+
+                workflow = db.session.get(WorkflowInstance, approved_workflow_id) if approved_workflow_id else None
+                if (not workflow or workflow.organisation_id != context.organisation_id
+                        or workflow.entity_type != "journal" or workflow.status != "ready_to_post"
+                        or workflow.amount != total_debit or not workflow.originator_user_id):
+                    raise LedgerError("Company approval required: submit this journal to the approval workflow")
+                request = (workflow.metadata_json or {}).get("journal_request") or {}
+                source_lines = request.get("lines") or []
+                if (request.get("journal_date") != journal_date.isoformat()
+                        or request.get("source_module") != source_module
+                        or (request.get("description") or "").strip() != (description or "").strip()
+                        or (request.get("reference") or None) != (reference or None)
+                        or (request.get("source_reference") or workflow.entity_id) != source_reference
+                        or len(source_lines) != len(prepared)
+                        or any(
+                            row.get("account_id") != account.id
+                            or _money(row.get("debit")) != debit
+                            or _money(row.get("credit")) != credit
+                            or (row.get("currency") or None) != (raw.get("currency") or None)
+                            or (row.get("dimensions") or {}) != (raw.get("dimensions") or {})
+                            for row, (_, account, debit, credit, raw) in zip(source_lines, prepared)
+                        )):
+                    raise LedgerError("Approved journal content does not match the submitted workflow")
+                approvals = UserAction.query.filter_by(
+                    workflow_instance_id=workflow.id, action_type="approve",
+                    status="completed", decision="approve"
+                ).all()
+                if not any(a.completed_by_user_id
+                           and a.completed_by_user_id != workflow.originator_user_id for a in approvals):
+                    raise LedgerError("An independent approval is required before journal posting")
 
         journal = Journal(
             organisation_id=context.organisation_id,
