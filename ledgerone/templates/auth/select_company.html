@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Select company · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Select a company</h1>
+<p>Choose the company to work in. Each company has its own accounts, records and permissions.</p></div></div>
+<div class="grid grid-2">
+{% for membership in choices %}
+<div class="card">
+  <div class="card-head"><h2>{{ membership.organisation.name }}</h2></div>
+  <div class="card-body">
+    <p><strong>{{ membership.organisation.company_code or membership.organisation.slug }}</strong>
+       · {{ membership.role|title }} · {{ membership.organisation.base_currency }}</p>
+    <form method="post" action="{{ url_for('auth.switch_organisation') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="organisation_id" value="{{ membership.organisation_id }}">
+      <button class="button" type="submit">Open company</button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body">No active company membership is available. Ask your administrator for access.</div></div>
+{% endfor %}
+</div>
+{% endblock %}
