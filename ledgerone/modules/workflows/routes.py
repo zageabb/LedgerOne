@@ -92,6 +92,7 @@ def index():
         today=date.today().isoformat(),
         can_write=context.can("workflows.write"),
         can_manage=context.can("workflows.manage"),
+        approval_policy=WorkflowService.approval_policy(context),
     )
 
 
@@ -116,6 +117,13 @@ def definitions():
     context = browser_context()
     if request.method == "POST":
         try:
+            if request.form.get("action") == "approval_policy":
+                WorkflowService.set_approval_policy(
+                    context, enabled=request.form.get("threshold_enabled") == "1",
+                    threshold=request.form.get("approval_threshold") or None,
+                    approval_role=request.form.get("threshold_role") or None)
+                flash("Company approval threshold updated.", "success")
+                return redirect(url_for("workflows.definitions"))
             WorkflowService.create_definition(
                 context,
                 name=request.form.get("name", ""),
