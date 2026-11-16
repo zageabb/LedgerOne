@@ -285,6 +285,7 @@ def _document_pdf(
     tax_total,
     total,
     audit_trace: dict | None = None,
+    supplier_invoice_reference: str | None = None,
 ) -> bytes:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -315,6 +316,9 @@ def _document_pdf(
         [Paragraph("<b>Due date</b>", styles["BodyText"]), Paragraph(due_date.strftime("%d %b %Y") if due_date else "—", right)],
         [Paragraph("<b>Status</b>", styles["BodyText"]), Paragraph(_text(status.replace("_", " ").title()), right)],
     ]
+    if supplier_invoice_reference:
+        meta_rows.insert(1, [Paragraph("<b>Supplier invoice reference</b>", styles["BodyText"]),
+                             Paragraph(_text(supplier_invoice_reference), right)])
     if audit_trace:
         origin = audit_trace.get("origin") or {}
         journal = audit_trace.get("journal") or {}
@@ -438,8 +442,9 @@ class FinancialDocumentPdfService:
         pdf = _document_pdf(
             organisation=organisation,
             title="Purchase Bill",
-            number_label="Bill number",
+            number_label="LedgerOne bill number",
             number=bill.bill_number,
+            supplier_invoice_reference=bill.supplier_invoice_reference,
             document_date=bill.bill_date,
             due_date=bill.due_date,
             status=bill.status,
