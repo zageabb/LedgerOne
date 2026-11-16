@@ -19,13 +19,11 @@ def upgrade():
         batch.add_column(sa.Column("vat_number", sa.String(60), nullable=True))
         batch.add_column(sa.Column("registered_address", sa.JSON(), nullable=False, server_default="{}"))
         batch.add_column(sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()))
-        batch.create_unique_constraint("uq_organisations_company_code", ["company_code"])
-        batch.create_index("ix_organisations_company_code", ["company_code"])
+        batch.create_index("ix_organisations_company_code", ["company_code"], unique=True)
 
 def downgrade():
     with op.batch_alter_table("organisations") as batch:
         batch.drop_index("ix_organisations_company_code")
-        batch.drop_constraint("uq_organisations_company_code", type_="unique")
         for column in ("is_active", "registered_address", "vat_number",
                        "registration_number", "trading_name", "company_code"):
             batch.drop_column(column)
