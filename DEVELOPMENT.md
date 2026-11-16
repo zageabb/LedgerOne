@@ -6,6 +6,23 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## DEV-012 — Direct manual journal approval and checker assignment integrity
+Status: IN PROGRESS — PR CI and live acceptance pending
+
+- [x] Require evidence of a completed independent company approval for direct high-value manual/API journals when the company workflow threshold is enabled
+- [x] Verify approved workflow company, amount, date, source and journal account/debit/credit lines before posting
+- [x] Bind legitimate JournalWorkflowService posting to its approved instance
+- [x] Do not let owner or full-access permissions bypass an action's assigned user/role
+- [x] Restrict open-action listings to matching user/role assignments
+- [x] Add high-value direct posting, bypass, altered-payload, cross-company and role regression cases
+- [ ] Complete full CI and migration drift checks, merge only when green
+- [ ] Validate live UDA and independent accounting retest
+- [ ] Separate maker/checker enforcement for other domain-owned direct posting routes (sales, purchases, bank, claims, reversals, period reopen, master data)
+
+Important: only manual/API journal source_module `ledger`/`api` posting is gated by this release. The full enterprise maker/checker scope remains open.
+
+---
+
 ## DEV-011 — v0.3.1 company acceptance and independent approval controls
 Status: IN PROGRESS — implementation committed, CI and live acceptance pending
 
