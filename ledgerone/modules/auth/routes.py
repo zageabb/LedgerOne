@@ -94,4 +94,4 @@ def switch_organisation():
     session["organisation_id"] = membership.organisation_id
     session.pop("ai_test_values", None)
     session.pop("ai_test_result", None)
-    return redirect(request.referrer or url_for("core.dashboard"))
+    return redirect(url_for("core.dashboard"))
