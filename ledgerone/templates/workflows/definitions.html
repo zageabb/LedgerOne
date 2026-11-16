@@ -12,6 +12,22 @@
   </div>
 </div>
 
+{% if can_manage %}
+<div class="card section">
+  <div class="card-head"><h2>Company workflow approval threshold</h2></div>
+  <div class="card-body">
+    <p class="help">Applies to transactions submitted through the workflow engine. Transactions at or above the threshold require an independent approver. Direct posting outside workflows is not covered by this policy.</p>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="approval_policy">
+      <div class="field"><label><input type="checkbox" name="threshold_enabled" value="1" {% if approval_policy.enabled %}checked{% endif %}> Enable approval threshold</label></div>
+      <div class="field"><label>Threshold in company base currency</label><input type="number" min="0.01" step="0.01" name="approval_threshold" value="{{ approval_policy.threshold or '' }}"></div>
+      <div class="field"><label>Approver role (optional)</label><input name="threshold_role" maxlength="40" value="{{ approval_policy.approval_role or '' }}" placeholder="manager"></div>
+      <div class="field-full"><button type="submit" class="button">Save approval policy</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
 <div class="grid grid-2">
   {% if can_manage %}
   <div class="card">
@@ -48,7 +64,7 @@
         <div class="field field-full">
           <label><input type="checkbox" name="review_required" value="1" checked> Require review before approval/posting</label>
           <label><input type="checkbox" name="approval_required" value="1"> Require approval</label>
-          <label><input type="checkbox" name="separate_approver" value="1" checked> Creator cannot approve their own item</label>
+          <p class="help">Approvals always require a different signed-in user from the creator.</p>
         </div>
         <div class="field field-full"><button class="button" type="submit">Create rule</button></div>
       </form>

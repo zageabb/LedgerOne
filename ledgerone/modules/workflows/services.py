@@ -75,6 +75,47 @@ def _originator_mode(user_id: str | None) -> str:
 
 
 class WorkflowService:
+    """Company-scoped workflow controls."""
+
+    @staticmethod
+    def approval_policy(context: AccessContext):
+        if not context.organisation_id:
+            raise WorkflowError("An organisation is required")
+        row = Setting.query.filter_by(
+            organisation_id=context.organisation_id,
+            scope="approval_controls", key="threshold"
+        ).first()
+        return dict(row.value or {}) if row else {"enabled": False, "threshold": None, "approval_role": None}
+
+    @staticmethod
+    def set_approval_policy(context: AccessContext, *, enabled: bool, threshold, approval_role=None):
+        if not context.can("workflows.manage") or not context.user_id:
+            raise PermissionError("workflows.manage with a signed-in user is required")
+        if not context.organisation_id:
+            raise WorkflowError("An organisation is required")
+        amount = _money(threshold, allow_none=True)
+        if enabled and (amount is None or amount <= 0):
+            raise WorkflowError("An enabled approval threshold must be greater than zero")
+        if amount is not None and amount < 0:
+            raise WorkflowError("Approval threshold cannot be negative")
+        role = (approval_role or "").strip() or None
+        if role and (len(role) > 40 or not role.replace("_", "").replace("-", "").isalnum()):
+            raise WorkflowError("Invalid approval role")
+        value = {"enabled": bool(enabled), "threshold": str(amount) if amount is not None else None,
+                 "approval_role": role}
+        row = Setting.query.filter_by(organisation_id=context.organisation_id,
+                                     scope="approval_controls", key="threshold").first()
+        if not row:
+            row = Setting(organisation_id=context.organisation_id, scope="approval_controls", key="threshold")
+            db.session.add(row)
+        before = dict(row.value or {})
+        row.value = value
+        record_audit_event(context, module_id="workflows", action="approval_policy_updated",
+                           entity_type="organisation", entity_id=context.organisation_id,
+                           detail={"before": before, "after": value})
+        db.session.commit()
+        return value
+
     """Generic review/approval engine used by scheduled transactions and future modules."""
 
     @staticmethod
@@ -331,11 +372,20 @@ class WorkflowService:
             definition_id=definition_id,
         )
         if definition:
-            steps = list(definition.steps_json or [])
+            steps = [dict(step) for step in (definition.steps_json or [])]
         elif _originator_mode(originator) == "professional":
             steps = [{"type": "review", "label": "Professional review", "role": None}]
         else:
             steps = []
+
+        # Snapshot approvals at submission: later rule edits must not weaken an item.
+        policy = WorkflowService.approval_policy(context)
+        threshold = _money(policy.get("threshold"), allow_none=True)
+        if policy.get("enabled") and threshold is not None and clean_amount is not None and clean_amount >= threshold:
+            if not any(step.get("type") == "approve" for step in steps):
+                steps.append({"type": "approve", "label": "Company approval threshold",
+                              "role": policy.get("approval_role")})
+        meta["approval_steps"] = steps
 
         instance = WorkflowInstance(
             organisation_id=context.organisation_id,
@@ -476,9 +526,12 @@ class WorkflowService:
             raise PermissionError("This action is assigned to another user or role")
 
         instance = action.workflow_instance
-        if action.action_type == "approve" and instance.originator_user_id == context.user_id:
-            rules = instance.definition.rules_json if instance.definition else {}
-            if (rules or {}).get("separate_approver", True):
+        if action.action_type == "approve" and clean_decision == "approve":
+            if not context.user_id:
+                raise WorkflowError("Approval requires a signed-in individual")
+            if not instance.originator_user_id:
+                raise WorkflowError("Approval requires an identifiable originator")
+            if instance.originator_user_id == context.user_id:
                 raise WorkflowError("The creator cannot approve their own item under this workflow")
 
         action.status = "completed"
@@ -501,7 +554,9 @@ class WorkflowService:
                 assigned_user_id=instance.originator_user_id,
             )
         else:
-            steps = list(instance.definition.steps_json or []) if instance.definition else []
+            steps = (instance.metadata_json or {}).get("approval_steps")
+            if steps is None:
+                steps = list(instance.definition.steps_json or []) if instance.definition else []
             next_index = instance.current_step_index + 1
             instance.current_step_index = next_index
             if next_index < len(steps):
