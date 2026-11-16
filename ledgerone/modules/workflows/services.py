@@ -449,8 +449,10 @@ class WorkflowService:
 
     @staticmethod
     def _can_access_action(context: AccessContext, action: UserAction) -> bool:
-        # Explicit assignment and checker role are binding even on owners.
-        # Full access permits workflows, never impersonation of an assignee.
+        # A role-bound approval always requires the actual checker membership.
+        # Preserve privileged review/revision access for non-approval actions.
+        if action.action_type != "approve" and (context.full_access or "*" in context.permissions):
+            return True
         if action.assigned_user_id and action.assigned_user_id != context.user_id:
             return False
         role = _membership_role(context)
@@ -482,7 +484,10 @@ class WorkflowService:
         if role:
             filters.append(and_(UserAction.assigned_user_id.is_(None),
                                 UserAction.assigned_role == role))
-        query = query.filter(or_(*filters))
+        if context.full_access or "*" in context.permissions:
+            query = query.filter(or_(UserAction.action_type != "approve", *filters))
+        else:
+            query = query.filter(or_(*filters))
         return query.order_by(UserAction.due_date.asc(), UserAction.created_at.asc()).limit(limit).all()
 
     @staticmethod
@@ -526,9 +531,6 @@ class WorkflowService:
             permission = "workflows.approve" if action.action_type == "approve" else "workflows.review"
         if not context.can(permission):
             raise PermissionError(permission)
-        if not WorkflowService._can_access_action(context, action):
-            raise PermissionError("This action is assigned to another user or role")
-
         instance = action.workflow_instance
         if action.action_type == "approve" and clean_decision == "approve":
             if not context.user_id:
@@ -537,6 +539,9 @@ class WorkflowService:
                 raise WorkflowError("Approval requires an identifiable originator")
             if instance.originator_user_id == context.user_id:
                 raise WorkflowError("The creator cannot approve their own item under this workflow")
+
+        if not WorkflowService._can_access_action(context, action):
+            raise PermissionError("This action is assigned to another user or role")
 
         action.status = "completed"
         action.decision = clean_decision
