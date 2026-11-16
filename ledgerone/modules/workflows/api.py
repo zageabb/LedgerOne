@@ -187,6 +187,25 @@ def create_definition():
         return jsonify({"error": str(exc)}), 400
 
 
+@api_bp.get("/approval-policy")
+@require_api("workflows.read")
+def approval_policy():
+    return jsonify({"policy": WorkflowService.approval_policy(g.access_context)})
+
+
+@api_bp.post("/approval-policy")
+@require_api("workflows.manage")
+def set_approval_policy():
+    payload = request.get_json(silent=True) or {}
+    try:
+        policy = WorkflowService.set_approval_policy(
+            g.access_context, enabled=payload.get("enabled") is True,
+            threshold=payload.get("threshold"), approval_role=payload.get("approval_role"))
+        return jsonify({"policy": policy})
+    except (WorkflowError, PermissionError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @api_bp.get("/instances")
 @require_api("workflows.read")
 def instances():
