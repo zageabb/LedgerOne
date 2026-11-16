@@ -51,10 +51,11 @@
     <header class="topbar">
       <div>
         <div class="eyebrow">{{ 'Personal / learning view' if ui_mode == 'home' else 'Professional accounting workspace' }}</div>
-        <strong>{{ current_organisation.name if current_organisation else 'LedgerOne' }}</strong>
+        <strong>{{ current_organisation.name if current_organisation else 'Choose a company' }}{% if current_organisation and current_organisation.company_code %} <small>({{ current_organisation.company_code }})</small>{% endif %}</strong>
       </div>
       <div class="topbar-actions">
         {% if current_memberships|length > 1 %}
+        <a class="button button-secondary button-small" href="{{ url_for('auth.select_company') }}">Companies</a>
         <form method="post" action="{{ url_for('auth.switch_organisation') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <select name="organisation_id" onchange="this.form.submit()" aria-label="Organisation">
