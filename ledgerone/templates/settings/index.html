@@ -143,7 +143,7 @@
         <div class="field"><label>Name</label><input name="member_name" required></div>
         <div class="field"><label>Email</label><input type="email" name="member_email" required></div>
         <div class="field"><label>Role</label><select name="member_role"><option value="member">Member</option><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="owner">Owner</option></select></div>
-        <div class="field"><label>Temporary password</label><input type="password" name="member_password" minlength="8" required><div class="help">Required only when creating a new LedgerOne user.</div></div>
+        <div class="field"><label>Temporary password</label><input type="password" name="member_password" minlength="8"><div class="help">Required only when creating a new LedgerOne user.</div></div>
         <div class="field field-full"><label>Member permissions</label><div class="grid grid-2">{% for permission in permission_catalog %}<label><input style="width:auto" type="checkbox" name="member_permissions" value="{{ permission }}"> <span class="code">{{ permission }}</span></label>{% endfor %}</div></div>
         <div class="field-full"><button class="button" type="submit">Add member</button></div>
       </form>
@@ -165,7 +165,7 @@
               <div class="field"><label>Name</label><input name="member_name" value="{{ row.user.name }}" required></div>
               <div class="field"><label>Email</label><input type="email" name="member_email" value="{{ row.user.email }}" readonly></div>
               <div class="field"><label>Role</label><select name="member_role">{% for role in ['owner','admin','member','viewer'] %}<option value="{{ role }}" {% if role == row.role %}selected{% endif %}>{{ role|title }}</option>{% endfor %}</select></div>
-              <div class="field"><label>Reset password (optional)</label><input type="password" name="member_password" minlength="8"></div>
+              <div class="field"><label>Account password</label><input type="text" value="Managed by the account holder, not this company" readonly></div>
               <div class="field field-full"><label>Permissions</label><div class="grid grid-2">{% for permission in permission_catalog %}<label><input style="width:auto" type="checkbox" name="member_permissions" value="{{ permission }}" {% if permission in (row.permissions or []) %}checked{% endif %}> <span class="code">{{ permission }}</span></label>{% endfor %}</div></div>
               <div class="field-full"><button class="button" type="submit">Save access</button></div>
             </form>
