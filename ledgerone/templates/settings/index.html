@@ -8,6 +8,40 @@
   </div>
 </div>
 
+
+<div class="grid grid-2 section">
+  <div class="card">
+    <div class="card-head"><h2>Company profile</h2></div>
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="company_profile">
+        <div class="field"><label>Company code</label><input name="company_code" maxlength="20" required value="{{ organisation.company_code or '' }}" placeholder="ALB"></div>
+        <div class="field"><label>Trading name</label><input name="trading_name" value="{{ organisation.trading_name or '' }}"></div>
+        <div class="field"><label>Registration number</label><input name="registration_number" value="{{ organisation.registration_number or '' }}"></div>
+        <div class="field"><label>VAT number</label><input name="vat_number" value="{{ organisation.vat_number or '' }}"></div>
+        {% for key, title in [('line1','Address line 1'),('line2','Address line 2'),('city','City'),('county','County'),('postcode','Postcode'),('country','Country')] %}
+          <div class="field"><label>{{ title }}</label><input name="address_{{ key }}" value="{{ (organisation.registered_address or {}).get(key, '') }}"></div>
+        {% endfor %}
+        <div class="field-full"><button class="button" type="submit">Save company profile</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Create another company</h2></div>
+    <div class="card-body">
+      <p class="muted">Creates a separate company, chart of accounts, settings and owner membership. Only a current company owner may create companies.</p>
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="company_create">
+        <div class="field field-full"><label>Legal company name</label><input name="new_company_name" required></div>
+        <div class="field"><label>Unique code</label><input name="new_company_code" minlength="2" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_-]{1,19}" placeholder="TGE" required></div>
+        <div class="field-full"><button class="button button-secondary" type="submit">Create company</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="grid grid-2">
   <div class="card">
     <div class="card-head"><h2>{{ 'Your ledger' if ui_mode == 'home' else 'Organisation' }}</h2></div>
