@@ -1,5 +1,27 @@
 {% extends "base.html" %}
-{% block title %}New journal · LedgerOne{% endblock %}
+{% block title %}New journal · LedgerOne<script>
+(function () {
+  const debitTypes = new Set(['asset', 'expense']);
+  const creditTypes = new Set(['liability', 'income', 'equity']);
+  document.querySelectorAll('#manual-journal-form .journal-entry-row').forEach(function (row) {
+    const account = row.querySelector('.journal-account-select');
+    const debit = row.querySelector('.journal-debit');
+    const credit = row.querySelector('.journal-credit');
+    const hint = row.querySelector('.journal-account-hint');
+    function refresh() {
+      const option = account.options[account.selectedIndex];
+      const type = option ? option.dataset.accountType : '';
+      const side = debitTypes.has(type) ? 'debit' : creditTypes.has(type) ? 'credit' : '';
+      debit.classList.toggle('journal-normal-side', side === 'debit');
+      credit.classList.toggle('journal-normal-side', side === 'credit');
+      hint.textContent = side ? type.charAt(0).toUpperCase() + type.slice(1) + ' · normal ' + side + ' balance; opposite side allowed' : '';
+    }
+    account.addEventListener('change', refresh);
+    refresh();
+  });
+})();
+</script>
+{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -8,7 +30,17 @@
   </div>
   <div class="actions"><a class="button button-secondary" href="{{ url_for('ledger.journals') }}">Back to {{ 'transactions' if ui_mode == 'home' else 'journals' }}</a></div>
 </div>
-<form method="post">
+<style>
+.journal-normal-side { outline: 2px solid var(--accent, #3478c0); outline-offset: 2px; border-radius: 5px; background: rgba(52,120,192,.08); }
+.journal-account-hint { display: block; margin-top: .3rem; font-size: .75rem; color: var(--muted, #64748b); }
+.journal-guide { margin-bottom: 1rem; padding: .8rem 1rem; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; }
+.journal-guide summary { cursor: pointer; font-weight: 600; }
+</style>
+<details class="journal-guide"><summary>Debit / credit quick guide (DEAD CLIC)</summary>
+<p><strong>Debit increases:</strong> assets and expenses. <strong>Credit increases:</strong> liabilities, income and equity. Decreases use the opposite side.</p>
+<p class="help">Highlighted fields show the normal increase side, not a mandatory posting direction. Reversals, decreases and contra accounts can use the opposite side.</p>
+</details>
+<form method="post" id="manual-journal-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="card">
     <div class="card-body form-grid form-grid-3">
@@ -25,12 +57,12 @@
         <thead><tr><th>#</th><th>Account</th><th>Description</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead>
         <tbody>
           {% for index in range(1, 7) %}
-          <tr>
+          <tr class="journal-entry-row">
             <td>{{ index }}</td>
-            <td><select name="line_{{ index }}_account"><option value="">Select account</option>{% for account in accounts %}<option value="{{ account.id }}">{{ account.code }} · {{ account.name }}</option>{% endfor %}</select></td>
+            <td><select class="journal-account-select" name="line_{{ index }}_account"><option value="">Select account</option>{% for account in accounts %}<option value="{{ account.id }}" data-account-type="{{ account.account_type }}">{{ account.code }} · {{ account.name }}</option>{% endfor %}</select><small class="journal-account-hint" aria-live="polite"></small></td>
             <td><input name="line_{{ index }}_description" placeholder="Optional line note"></td>
-            <td><input name="line_{{ index }}_debit" inputmode="decimal" placeholder="0.00"></td>
-            <td><input name="line_{{ index }}_credit" inputmode="decimal" placeholder="0.00"></td>
+            <td><input class="journal-debit" name="line_{{ index }}_debit" inputmode="decimal" placeholder="0.00"></td>
+            <td><input class="journal-credit" name="line_{{ index }}_credit" inputmode="decimal" placeholder="0.00"></td>
           </tr>
           {% endfor %}
         </tbody>
