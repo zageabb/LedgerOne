@@ -53,8 +53,8 @@ class CompanyService:
     def create(context, *, name, company_code):
         # Company creation is a privileged owner operation, not a way for regular
         # members to grant themselves unrestricted access to another ledger.
-        if not context.user_id or not context.organisation_id:
-            raise PermissionError("A company owner is required")
+        if not context.user_id or not context.organisation_id or not context.can("settings.manage"):
+            raise PermissionError("A company owner with settings access is required")
         owner = Membership.query.filter_by(user_id=context.user_id,
                                            organisation_id=context.organisation_id,
                                            role="owner", is_active=True).first()
