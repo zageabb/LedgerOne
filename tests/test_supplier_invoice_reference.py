@@ -1,5 +1,9 @@
 """Supplier invoice references must remain separate from internal controlled numbers."""
 from datetime import date
+from io import BytesIO
+from pypdf import PdfReader
+
+from ledgerone.services.pdf_documents import FinancialDocumentPdfService
 
 import pytest
 
@@ -33,6 +37,11 @@ def test_supplier_reference_keeps_internal_bill_number_and_round_trips(app):
         )
         assert bill.bill_number == "INTERNAL-001"
         assert bill.supplier_invoice_reference == "SUPPLIER-42"
+        pdf, filename = FinancialDocumentPdfService.purchase_bill(context, bill.id)
+        text = "\\n".join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages)
+        assert "SUPPLIER-42" in text
+        assert "INTERNAL-001" in text
+        assert filename.endswith(".pdf")
         assert next(row for row in PurchasesService.list_bills(context) if row.id == bill.id).supplier_invoice_reference == "SUPPLIER-42"
 
         legacy = PurchasesService.create_bill(context, bill_number="INTERNAL-002", **kwargs)
