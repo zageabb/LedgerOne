@@ -1,5 +1,6 @@
 """Direct manual journal approval gates and strict approver assignment."""
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
@@ -62,7 +63,7 @@ def test_threshold_blocks_direct_post_but_allows_separately_approved_journal(app
 
         low = LedgerService.post_journal(maker, journal_date=POSTING_DATE,
                                          description="Small journal", lines=_lines(maker.organisation_id, "99.99"))
-        assert low.total_debit == 99.99
+        assert low.total_debit == Decimal('99.99')
         assert Journal.query.count() == starting + 1
 
         workflow = JournalWorkflowService.create_request(
@@ -77,7 +78,7 @@ def test_threshold_blocks_direct_post_but_allows_separately_approved_journal(app
         post = UserAction.query.filter_by(workflow_instance_id=workflow.id,
                                           action_type="post", status="open").one()
         journal = JournalWorkflowService.post_from_action(maker, post.id)
-        assert journal.total_debit == 100.00
+        assert journal.total_debit == Decimal('100.00')
         assert Journal.query.count() == starting + 2
         with pytest.raises(WorkflowError, match="not found"):
             JournalWorkflowService.post_from_action(maker, post.id)
