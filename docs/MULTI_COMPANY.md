@@ -7,14 +7,14 @@ LedgerOne's existing `Organisation.id` remains the authoritative company/tenant 
 - Existing organisation UUIDs, foreign keys, ledger transactions and organisation-scoped sequences are preserved.
 - Existing companies have a nullable company code until the owning administrator assigns one.
 - Owners of a company can create another company, which receives its own chart of accounts, settings and owner membership.
-- Production upgrade: `flask --app run.py db upgrade` (Alembic revision `0022_multi_company`).
+- Production upgrade: `flask --app run.py db upgrade` (Alembic revision `0023_multi_company`).
 
 ## Phase 2 — Selection and switching
 - Multiple active company memberships: user is presented with a company selection screen after sign-in.
 - Exactly one active membership: existing direct-to-dashboard experience is retained.
 - Switches use the authenticated, active membership and ignore arbitrary non-member organisation IDs.
 - The selected company remains in the session; the header shows company code/name.
-- A revoked membership or inactive company fails closed rather than continuing access.
+- A revoked membership or inactive company fails closed rather than continuing access. The user must explicitly reselect another permitted company.
 
 ## Phase 3 — Company/user security
 - `Membership` already provides role and permission separation per organisation.
