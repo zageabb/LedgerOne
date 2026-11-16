@@ -72,7 +72,7 @@ def _bearer_context() -> AccessContext | None:
     organisation = db.session.get(Organisation, record.organisation_id)
     if not organisation or not organisation.is_active:
         return None
-    record.last_used_at = datetime.now(timezone.utc
+    record.last_used_at = datetime.now(timezone.utc)
     db.session.commit()
     return AccessContext(
         identity_type="api_key",
