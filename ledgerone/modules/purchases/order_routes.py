@@ -47,6 +47,7 @@ def index():
                     context,
                     request.form.get("order_id", ""),
                     bill_number=request.form.get("bill_number", ""),
+                    supplier_invoice_reference=request.form.get("supplier_invoice_reference") or None,
                     bill_date=date.fromisoformat(request.form.get("bill_date") or date.today().isoformat()),
                     due_date=date.fromisoformat(request.form["due_date"]) if request.form.get("due_date") else None,
                 )

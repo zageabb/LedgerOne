@@ -59,6 +59,7 @@ class PurchaseBillWorkflowService:
         expense_account_id: str,
         currency: str,
         tax_code_id: str | None,
+        supplier_invoice_reference: str | None = None,
     ) -> tuple[dict, Decimal]:
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
@@ -113,7 +114,13 @@ class PurchaseBillWorkflowService:
             TaxService.assert_tax_point_open(context, effective_tax_point)
         tax_amount = TaxService.tax_amount(net_amount, tax_code)
         total = net_amount + tax_amount
+        if supplier_invoice_reference is not None and not isinstance(supplier_invoice_reference, str):
+            raise WorkflowError("Supplier invoice reference must be text")
+        clean_supplier_reference = (supplier_invoice_reference or "").strip() or None
+        if clean_supplier_reference and len(clean_supplier_reference) > 120:
+            raise WorkflowError("Supplier invoice reference exceeds 120 characters")
         payload = {
+            "supplier_invoice_reference": clean_supplier_reference,
             "supplier_id": supplier.id,
             "supplier_name": supplier.name,
             "bill_number": clean_number,
@@ -155,12 +162,14 @@ class PurchaseBillWorkflowService:
         source_module: str = "purchases",
         source_reference: str | None = None,
         metadata: dict | None = None,
+        supplier_invoice_reference: str | None = None,
     ) -> WorkflowInstance:
         submission_context = workflow_submission_context(context, "purchases.write")
         payload, total = PurchaseBillWorkflowService._validate_request(
             context,
             supplier_id=supplier_id,
             bill_number=bill_number,
+            supplier_invoice_reference=supplier_invoice_reference,
             bill_date=bill_date,
             due_date=due_date,
             tax_point=tax_point,
@@ -255,6 +264,7 @@ class PurchaseBillWorkflowService:
             context,
             supplier_id=payload["supplier_id"],
             bill_number=payload["bill_number"],
+            supplier_invoice_reference=payload.get("supplier_invoice_reference"),
             bill_date=date.fromisoformat(payload["bill_date"]),
             due_date=date.fromisoformat(payload["due_date"]) if payload.get("due_date") else None,
             tax_point=date.fromisoformat(payload["tax_point"]) if payload.get("tax_point") else None,
