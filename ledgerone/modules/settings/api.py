@@ -35,6 +35,12 @@ def get_settings():
             "organisation": {
                 "id": org.id,
                 "name": org.name,
+                "company_code": org.company_code,
+                "trading_name": org.trading_name,
+                "registration_number": org.registration_number,
+                "vat_number": org.vat_number,
+                "registered_address": org.registered_address or {},
+                "is_active": org.is_active,
                 "base_currency": org.base_currency,
                 "country_code": org.country_code,
                 "fiscal_year_start_month": org.fiscal_year_start_month,
