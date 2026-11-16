@@ -16,7 +16,7 @@ Status: IMPLEMENTED ON FEATURE BRANCH; FULL CI, MIGRATION AND UDA ACCEPTANCE PEN
 - [x] Phase 5: assert independent charts and account API results for separate companies.
 - [ ] Run full CI, clean PostgreSQL + SQLite migration/drift verification and UDA/browser acceptance.
 - [ ] Independently validate existing banking, VAT, document workflows, reporting, AI and API isolation under multiple companies.
-- [ ] Resolve supplier reference PR #21 migration collision (`0022`) before merging both.
+- [ ] Verify chained revision `0023_multi_company` follows the merged PR #21 revision `0022_supplier_invoice_reference`.
 - [ ] Merge only after required test and review gates pass.
 
 Implementation details and verification steps: `docs/MULTI_COMPANY.md`.
