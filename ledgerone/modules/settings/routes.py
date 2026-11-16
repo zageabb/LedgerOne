@@ -5,6 +5,7 @@ from flask_login import login_required
 
 from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
+from ledgerone.services.company import CompanyService
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context, require_browser_permission
 from ledgerone.services.numbering import NumberingError, NumberSequenceService
@@ -49,6 +50,21 @@ def index():
                     fiscal_year_start_day=int(request.form.get("fiscal_year_start_day", 1)),
                 )
                 flash("Organisation settings updated.", "success")
+            elif action == "company_profile":
+                CompanyService.update(context,
+                    company_code=request.form.get("company_code", ""),
+                    trading_name=request.form.get("trading_name", ""),
+                    registration_number=request.form.get("registration_number", ""),
+                    vat_number=request.form.get("vat_number", ""),
+                    registered_address={k: request.form.get("address_" + k, "") for k in
+                                        ("line1", "line2", "city", "county", "postcode", "country")})
+                flash("Company profile updated.", "success")
+            elif action == "company_create":
+                company = CompanyService.create(context,
+                    name=request.form.get("new_company_name", ""),
+                    company_code=request.form.get("new_company_code", ""))
+                session["organisation_id"] = company.id
+                flash("Company created with an independent ledger.", "success")
             elif action == "payment_terms":
                 PaymentTermsService.update(
                     context,
