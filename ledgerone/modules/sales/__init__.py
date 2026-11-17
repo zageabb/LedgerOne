@@ -1,3 +1,4 @@
+from ledgerone.modules.commercial import models as commercial_models  # noqa: F401
 from ledgerone.modules.sales import credit_models, models, order_models, quote_models  # noqa: F401
 from ledgerone.modules.sales.api import api_bp
 from ledgerone.modules.sales.credit_api import api_bp as credit_api_bp
