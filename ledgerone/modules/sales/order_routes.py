@@ -125,3 +125,65 @@ def index():
         default_delivery=(date.today() + timedelta(days=14)).isoformat(),
         default_due="",
     )
+
+
+@bp.route("/new", methods=["GET", "POST"])
+@login_required
+@require_module("sales")
+def new_order():
+    from ledgerone.modules.commercial.order_builder import MultiLineOrderService
+    from ledgerone.modules.commercial.workspace import order_form_data, submitted_order_lines
+    context = browser_context()
+    if not context.can("sales.write"):
+        raise PermissionError("sales.write")
+    if request.method == "POST":
+        try:
+            order = MultiLineOrderService.create(
+                context, kind="sales", party_id=request.form.get("party_id", ""),
+                order_number=request.form.get("order_number") or None,
+                order_date=date.fromisoformat(request.form.get("order_date") or ""),
+                expected_date=date.fromisoformat(request.form["expected_date"])
+                if request.form.get("expected_date") else None,
+                control_account_id=request.form.get("control_account_id", ""),
+                currency=request.form.get("currency", "GBP"),
+                lines=submitted_order_lines(request.form))
+            flash(f"Sales order {order.order_number} created as draft.", "success")
+            return redirect(url_for("sales_orders.order_detail", order_id=order.id))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template("commercial/order_editor.html", today=date.today().isoformat(),
+                           **order_form_data(context, "sales"))
+
+
+@bp.route("/<order_id>/detail", methods=["GET", "POST"])
+@login_required
+@require_module("sales")
+def order_detail(order_id):
+    from flask import abort
+    from ledgerone.extensions import db
+    from ledgerone.modules.sales.order_models import SalesOrder
+    from ledgerone.modules.commercial.workspace import order_documents
+    context = browser_context()
+    if not context.can("sales.read"):
+        raise PermissionError("sales.read")
+    order = db.session.get(SalesOrder, order_id)
+    if not order or order.organisation_id != context.organisation_id:
+        abort(404)
+    if request.method == "POST":
+        try:
+            if request.form.get("action") != "create_ack":
+                raise ValueError("Unknown acknowledgement action")
+            document = CommercialDocumentService.create(
+                context, document_type="so_ack", order_id=order.id,
+                document_date=date.fromisoformat(request.form.get("document_date") or ""),
+                external_reference=request.form.get("external_reference") or None)
+            flash(f"SO acknowledgement {document.document_number} recorded.", "success")
+            return redirect(url_for("sales_orders.order_detail", order_id=order.id, tab="ack"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "commercial/order_detail.html", order=order, is_purchase=False,
+        tab=request.args.get("tab", "lines") if request.args.get("tab", "lines") in {"lines","ack","documents"} else "lines",
+        acknowledgements=order_documents(context, order.id, "so_ack"),
+        fulfilments=order_documents(context, order.id, "delivery_note"),
+        today=date.today().isoformat())
