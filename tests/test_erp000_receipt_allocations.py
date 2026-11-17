@@ -66,3 +66,9 @@ def test_allocation_summary_is_company_scoped(app):
             PurchaseReceiptAllocationService.summary(other, order_id=order.id)
         with pytest.raises(ValueError, match="Purchase order not found"):
             PurchaseReceiptAllocationService.summary(context, order_id="missing")
+
+
+def test_receipt_allocation_read_only_api_registered(app):
+    with app.app_context():
+        endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
+        assert "commercial_api.purchase_receipt_allocations" in endpoints
