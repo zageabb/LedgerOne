@@ -1,27 +1,5 @@
 {% extends "base.html" %}
-{% block title %}New journal · LedgerOne<script>
-(function () {
-  const debitTypes = new Set(['asset', 'expense']);
-  const creditTypes = new Set(['liability', 'income', 'equity']);
-  document.querySelectorAll('#manual-journal-form .journal-entry-row').forEach(function (row) {
-    const account = row.querySelector('.journal-account-select');
-    const debit = row.querySelector('.journal-debit');
-    const credit = row.querySelector('.journal-credit');
-    const hint = row.querySelector('.journal-account-hint');
-    function refresh() {
-      const option = account.options[account.selectedIndex];
-      const type = option ? option.dataset.accountType : '';
-      const side = debitTypes.has(type) ? 'debit' : creditTypes.has(type) ? 'credit' : '';
-      debit.classList.toggle('journal-normal-side', side === 'debit');
-      credit.classList.toggle('journal-normal-side', side === 'credit');
-      hint.textContent = side ? type.charAt(0).toUpperCase() + type.slice(1) + ' · normal ' + side + ' balance; opposite side allowed' : '';
-    }
-    account.addEventListener('change', refresh);
-    refresh();
-  });
-})();
-</script>
-{% endblock %}
+{% block title %}New journal · LedgerOne{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -74,4 +52,27 @@
     </div>
   </div>
 </form>
+<script>
+(function () {
+  const debitTypes = new Set(['asset', 'expense']);
+  const creditTypes = new Set(['liability', 'income', 'equity']);
+  document.querySelectorAll('#manual-journal-form .journal-entry-row').forEach(function (row) {
+    const account = row.querySelector('.journal-account-select');
+    const debit = row.querySelector('.journal-debit');
+    const credit = row.querySelector('.journal-credit');
+    const hint = row.querySelector('.journal-account-hint');
+    function refresh() {
+      const option = account.options[account.selectedIndex];
+      const type = option ? option.dataset.accountType : '';
+      const side = debitTypes.has(type) ? 'debit' : creditTypes.has(type) ? 'credit' : '';
+      debit.classList.toggle('journal-normal-side', side === 'debit');
+      credit.classList.toggle('journal-normal-side', side === 'credit');
+      hint.textContent = side ? type.charAt(0).toUpperCase() + type.slice(1) + ' · normal ' + side + ' balance; opposite side allowed' : '';
+    }
+    account.addEventListener('change', refresh);
+    refresh();
+  });
+})();
+</script>
+
 {% endblock %}
