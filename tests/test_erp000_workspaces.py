@@ -94,3 +94,18 @@ def test_dedicated_workspaces_and_order_tabs_are_registered(app):
             "purchases/orders.html", "sales/orders.html",
         ):
             assert app.jinja_env.get_template(template) is not None
+
+
+def test_po_grn_navigation_points_to_workspace_and_keeps_history(app):
+    """GRNs must navigate to the receipt-entry page, not the document-history tab."""
+    from flask import url_for
+
+    with app.test_request_context():
+        source, _, _ = app.jinja_env.loader.get_source(
+            app.jinja_env, "commercial/order_detail.html")
+        assert 'href="{{ url_for(\'purchase_orders.grn_workspace\', order_id=order.id) }}">GRNs</a>' in source
+        assert 'href="?tab=documents">Receipt history</a>' in source
+        assert 'href="?tab=documents">Delivery notes</a>' in source
+        assert url_for("purchase_orders.grn_workspace", order_id="po-123").endswith(
+            "/purchases/orders/grn?order_id=po-123"
+        )
