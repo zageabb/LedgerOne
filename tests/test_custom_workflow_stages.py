@@ -1,5 +1,6 @@
 """Custom workflow routing, value bands, and tenant separation."""
 import pytest
+from decimal import Decimal
 
 from ledgerone.extensions import db
 from ledgerone.models.core import Membership, Organisation, User
@@ -47,8 +48,8 @@ def test_custom_steps_route_in_order_and_restrict_named_assignee(app):
             ],
         )
         assert WorkflowService.resolve_definition(
-            maker, entity_type="purchase_bill", amount=WorkflowService._money("100")
-        ) is None if hasattr(WorkflowService, "_money") else True
+            maker, entity_type="purchase_bill", amount=Decimal("100.00")
+        ) is None
         workflow = WorkflowService.start(
             maker, entity_type="purchase_bill", entity_id="custom-purchase",
             title="Purchase for approval", amount="750")
