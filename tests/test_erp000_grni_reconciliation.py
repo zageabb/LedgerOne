@@ -113,6 +113,12 @@ def test_posted_grn_tracks_partially_allocated_quantities(app):
         assert invalid["total_cleared_grni"] == "0.00"
         assert invalid["outstanding_grni"] == "45.00"
         assert any("does not have verified GRNI" in issue for issue in invalid["issues"])
+        # A reversal removes the receipt accrual from the reconciliation.
+        LedgerService.reverse_journal(ctx, journal.id, reversal_date=DAY,
+                                      reason="Testing return/reversal accounting")
+        reversed_report = GRNIReconciliationService.preview(ctx, order_id=order.id)
+        assert reversed_report["total_posted_grni"] == "0.00"
+        assert reversed_report["outstanding_grni"] == "0.00"
 
 
 def test_reconciliation_is_company_scoped(app):
