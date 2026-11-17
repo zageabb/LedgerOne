@@ -6,6 +6,7 @@ from flask_login import login_required
 from ledgerone.module_registry import module_registry
 from ledgerone.modules.ai.configuration import AIConfiguration
 from ledgerone.services.company import CompanyService
+from ledgerone.services.workflow_roles import WorkflowRoleService
 from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context, require_browser_permission
 from ledgerone.services.numbering import NumberingError, NumberSequenceService
@@ -90,6 +91,11 @@ def index():
                     active=request.form.get("member_active", "1") == "1",
                 )
                 flash("Member access updated.", "success")
+            elif action == "workflow_roles":
+                WorkflowRoleService.assign(
+                    context, request.form.get("membership_id", ""),
+                    (request.form.get("workflow_roles") or "").split(","))
+                flash("Company workflow roles updated.", "success")
             elif action == "member_deactivate":
                 SettingsService.deactivate_member(
                     context,
@@ -161,6 +167,8 @@ def index():
         payment_terms=PaymentTermsService.get(context.organisation_id),
         module_states=SettingsService.module_states(context),
         members=SettingsService.list_members(context),
+        workflow_role_assignments=WorkflowRoleService.assignments(context),
+        suggested_workflow_roles=WorkflowRoleService.SUGGESTED,
         permission_catalog=SettingsService.permission_catalog(),
         api_keys=SettingsService.list_api_keys(context),
         new_api_token=session.pop("new_api_token", None),
