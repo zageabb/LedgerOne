@@ -6,6 +6,18 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## ERP-000 GRNI supplier invoice reconciliation foundation
+Status: FEATURE BRANCH; CI and acceptance pending
+
+- [x] Add supplier bill-to-receipt-line allocation ledger with per-bill/receipt-line uniqueness, positive quantity and value constraints.
+- [x] Read-only company-scoped reconciliation calculates posted Inventory/GRNI accruals, allocated quantities and amounts, and remaining GRNI per GRN line.
+- [x] Do not classify operational GRNs without journals as accounting accruals; explicitly flag missing GRN posting.
+- [x] Add PO-linked GRNI reconciliation API and regression tests.
+- [ ] Implement authorised, atomic matched supplier bill posting with allocations, no double-expensing, VAT, price variance and concurrency protection.
+- [ ] Reverse/credit matched invoice clearing and inventory movements; accounting sign-off and live UDA acceptance.
+
+---
+
 ## ERP-000 receipt accounting preview — next increment
 Status: FEATURE BRANCH; CI and acceptance pending
 
