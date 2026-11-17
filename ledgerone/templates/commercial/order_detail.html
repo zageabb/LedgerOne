@@ -21,7 +21,8 @@
   {% endif %}
 </div>
 <div class="actions" style="margin-bottom:1rem">
-  {% if is_purchase %}<a class="button button-secondary" href="{{ url_for('purchase_orders.matching_workspace', order_id=order.id) }}">Match supplier invoice</a>{% endif %}
+  {% if is_purchase %}<a class="button button-secondary" href="{{ url_for('purchase_orders.matching_workspace', order_id=order.id) }}">Match supplier invoice</a>
+  <a class="button button-secondary" href="{{ url_for('purchase_orders.grni_reconciliation', order_id=order.id) }}">GRNI reconciliation</a>{% endif %}
   <a class="button button-secondary" href="?tab=invoice">{{ 'Supplier bill' if is_purchase else 'Sales invoice' }}</a>
 </div>
 {% if tab == 'lines' %}
