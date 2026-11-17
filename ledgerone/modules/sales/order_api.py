@@ -111,3 +111,24 @@ def convert_order(order_id):
         ), 201
     except (KeyError, ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+@api_bp.post("/multi-line")
+@require_api("sales.write")
+def create_multi_line_order():
+    payload = request.get_json(silent=True) or {}
+    from ledgerone.modules.commercial.order_builder import MultiLineOrderService
+    try:
+        row = MultiLineOrderService.create(
+            g.access_context, kind="sales",
+            party_id=payload["customer_id"],
+            order_number=payload.get("order_number"),
+            order_date=date.fromisoformat(
+                payload.get("order_date") or date.today().isoformat()),
+            expected_date=date.fromisoformat(payload["requested_delivery_date"])
+            if payload.get("requested_delivery_date") else None,
+            control_account_id=payload["receivable_account_id"],
+            lines=payload["lines"], currency=payload.get("currency", "GBP"))
+        return jsonify(_serialise(row)), 201
+    except (KeyError, ValueError, TypeError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
