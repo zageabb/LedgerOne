@@ -67,6 +67,31 @@
                   <div class="field field-full"><label>Status</label><select name="status"><option value="draft" {% if row.status == 'draft' %}selected{% endif %}>Draft</option><option value="confirmed" {% if row.status == 'confirmed' %}selected{% endif %}>Confirmed</option><option value="cancelled" {% if row.status == 'cancelled' %}selected{% endif %}>Cancelled</option></select></div>
                   <div class="field-full"><button class="button button-small button-secondary" type="submit">Update status</button></div>
                 </form>
+                {% if row.status == 'confirmed' %}
+                <hr>
+                <form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="so_ack">
+                  <input type="hidden" name="order_id" value="{{ row.id }}">
+                  <div class="field"><label>Sales order acknowledgement date</label><input type="date" name="document_date" value="{{ today }}"></div>
+                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Record sales order acknowledgement</button></div>
+                </form>
+                {% for line in row.lines %}
+                <form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="delivery_note">
+                  <input type="hidden" name="order_id" value="{{ row.id }}">
+                  <input type="hidden" name="order_line_id" value="{{ line.id }}">
+                  <div class="field field-full"><strong>Delivery note: {{ line.description }}</strong></div>
+                  <div class="field"><label>Delivery quantity (ordered {{ line.quantity }})</label><input name="quantity" type="number" min="0.0001" step="0.0001" required></div>
+                  <div class="field"><label>Delivery date</label><input type="date" name="document_date" value="{{ today }}"></div>
+                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Record delivery note</button></div>
+                </form>
+                {% endfor %}
+                {% for doc in order_documents.get(row.id, []) %}
+                <p class="help"><strong>{{ doc.document_number }}</strong> · {{ doc.document_type|upper }} · {{ doc.document_date }} · {{ doc.status }}</p>
+                {% endfor %}
+                {% endif %}
                 {% if row.status == 'confirmed' %}<hr><form method="post" class="form-grid">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="order_id" value="{{ row.id }}">
                   <div class="field field-full"><label>Invoice number</label><input name="invoice_number" placeholder="Leave blank for automatic"><div class="help">Controlled invoice number is issued when the conversion posts.</div></div>
