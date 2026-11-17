@@ -1,12 +1,12 @@
 """One ledger posting per commercial document event.
 
-Revision ID: 0027_commercial_accounting_events
+Revision ID: 0027_commercial_acc_events
 Revises: 0026_commercial_contacts
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0027_commercial_accounting_events"
+revision = "0027_commercial_acc_events"
 down_revision = "0026_commercial_contacts"
 branch_labels = None
 depends_on = None
