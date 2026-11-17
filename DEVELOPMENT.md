@@ -9,16 +9,16 @@ This file is the persistent development queue for LedgerOne. It is intentionally
 ## ERP-000 — Full purchasing and sales document lifecycle (before ERP-001)
 Status: PLANNED — specification completed, implementation outstanding
 
-- [x] Define commercial document chain: Purchase requisition → PO → supplier email → GRN → matched purchase invoice/bill → payment; Quote → sales order → picking/dispatch → delivery note → sales invoice → receipt.
+- [x] Define commercial document chain: Purchase requisition → PO → supplier email → supplier PO acknowledgement → GRN → matched purchase invoice/bill → payment; Quote → sales order → sales order acknowledgement → picking/dispatch → delivery note → sales invoice → receipt.
 - [x] Review existing quote, SO, PO, bill, invoice and supplier contact foundations; avoid duplicating implemented functionality.
 - [ ] ERP-000.1 — Full gap audit and multi-line linked document data model / screen/API specifications.
 - [ ] ERP-000.2 — Company-specific supplier/customer purpose-coded email contacts and templates.
-- [ ] ERP-000.3 — Multi-line POs, purchase requisitions, configurable approvals and issuance.
+- [ ] ERP-000.3 — Multi-line POs, purchase requisitions, configurable approvals, issuance and supplier PO acknowledgement (accepted quantities/dates/prices, discrepancies, revisions).
 - [ ] ERP-000.4 — GRNs, partial goods receipts, rejections, returns and quantities.
 - [ ] ERP-000.5 — Two-/three-way PO/GRN/supplier-invoice matching and AP.
-- [ ] ERP-000.6 — Multi-line sales order fulfilment, picking, dispatch and delivery notes.
+- [ ] ERP-000.6 — Customer-facing, revision-controlled sales order acknowledgements (PDF/email/acceptance), multi-line fulfilment, picking, dispatch and delivery notes.
 - [ ] ERP-000.7 — Delivery-linked partial/multiple sales invoices, returns and credits.
-- [ ] ERP-000.8 — Approved outbound supplier/customer email provider, PDF sending and audit.
+- [ ] ERP-000.8 — Approved outbound supplier/customer email provider, including PO acknowledgement requests/reminders, sales order acknowledgements, PDF sending, replies and audit.
 - [ ] ERP-000.9 — End-to-end dashboards, reporting, accounting/quantity reconciliation and UDA acceptance.
 
 See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md`. Supplier email codes select purpose-specific contacts (orders/accounts/logistics, etc.), not credentials. No mail is sent until a configured provider and authorised send action exist. ERP-000 precedes legacy ERP migration ERP-001.
