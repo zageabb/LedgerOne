@@ -181,6 +181,7 @@ def create_definition():
             approval_role=payload.get("approval_role"),
             separate_approver=bool(payload.get("separate_approver", True)),
             priority=int(payload.get("priority", 100)),
+            custom_steps=payload.get("steps"),
         )
         return jsonify({"id": row.id, "name": row.name, "rules": row.rules_json, "steps": row.steps_json}), 201
     except (WorkflowError, PermissionError, ValueError) as exc:
