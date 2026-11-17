@@ -6,6 +6,19 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## ERP-000 receipt accounting preview — next increment
+Status: FEATURE BRANCH; CI and acceptance pending
+
+- [x] Calculate GRN stock-value accrual preview from received stock quantities × PO unit price, excluding non-stock lines and tax.
+- [x] Resolve company-specific Inventory Asset and GRNI liability accounts, showing a proposed balanced DR Inventory / CR GRNI journal.
+- [x] Link individual GRN history to a read-only accounting preview screen and company-scoped API; no financial posting or balance mutation.
+- [x] Flag missing/invalid account configurations and unclassified legacy lines; add regression coverage for no journals, values and company boundaries.
+- [ ] Atomic GRN journal creation and immutable source-journal association, with company activation controls, locking and reversal.
+- [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
+- [ ] CI green and live UDA/browser acceptance.
+
+---
+
 ## ERP-000 accounting controls — receipts and dispatch (design, not released)
 Status: ACCOUNT CONFIGURATION IMPLEMENTED ON FEATURE BRANCH; financial journal posting NOT enabled
 
