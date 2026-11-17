@@ -10,6 +10,9 @@ from ledgerone.modules.commercial.models import (
     CommercialAccountingEvent, CommercialDocument, GRNIInvoiceAllocation,
 )
 from ledgerone.modules.purchases.order_models import PurchaseOrder
+from ledgerone.models.core import Setting
+from ledgerone.models.ledger import Journal
+from ledgerone.modules.purchases.models import PurchaseBill
 
 
 class GRNIReconciliationService:
@@ -34,16 +37,45 @@ class GRNIReconciliationService:
             GRNIInvoiceAllocation.organisation_id == context.organisation_id,
             GRNIInvoiceAllocation.receipt_line_id.in_(line_ids or [""]),
         ).all()
+        issues = []
+        config = Setting.query.filter_by(
+            organisation_id=context.organisation_id,
+            scope="erp_inventory_accounting", key="configuration").first()
+        grni_id = (((config.value or {}).get("accounts") or {}).get("grni_clearing")
+                   if config else None)
+        # An allocation only counts as cleared when the *bill's own posting*
+        # debited the configured GRNI account for the allocated accrual value.
+        # Merely having an allocation row, or an unrelated journal, is not enough.
+        by_bill = {}
+        for row in allocations:
+            by_bill.setdefault(row.bill_id, []).append(row)
+        valid_allocations = []
+        for bill_id, rows in by_bill.items():
+            bill = db.session.get(PurchaseBill, bill_id)
+            journal = db.session.get(Journal, rows[0].clearing_journal_id)
+            cleared_on_journal = sum(
+                (Decimal(line.debit) - Decimal(line.credit)
+                 for line in journal.lines if line.account_id == grni_id),
+                Decimal("0")) if journal and grni_id else Decimal("0")
+            requested = sum((Decimal(row.accrual_value) for row in rows), Decimal("0"))
+            if (not bill or bill.organisation_id != context.organisation_id
+                    or bill.supplier_id != order.supplier_id or bill.status != "posted"
+                    or not journal or journal.organisation_id != context.organisation_id
+                    or journal.id != bill.posted_journal_id or journal.status != "posted"
+                    or any(row.clearing_journal_id != journal.id for row in rows)
+                    or not grni_id or cleared_on_journal < requested):
+                issues.append(f"Bill {bill_id} does not have verified GRNI clearing journal evidence")
+                continue
+            valid_allocations.extend(rows)
         allocated_qty = {}
         allocated_value = {}
-        for row in allocations:
+        for row in valid_allocations:
             allocated_qty[row.receipt_line_id] = (
                 allocated_qty.get(row.receipt_line_id, Decimal("0")) + Decimal(row.quantity))
             allocated_value[row.receipt_line_id] = (
                 allocated_value.get(row.receipt_line_id, Decimal("0")) + Decimal(row.accrual_value))
         po_lines = {line.id: line for line in order.lines}
         result = []
-        issues = []
         total_posted = Decimal("0.00")
         total_cleared = Decimal("0.00")
         for grn in sorted(grns, key=lambda row: (row.document_date, row.document_number)):
