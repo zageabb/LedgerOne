@@ -19,6 +19,7 @@ bp = Blueprint("purchase_orders", __name__, url_prefix="/purchases/orders")
 @require_module("purchases")
 def index():
     context = browser_context()
+    match_preview = None
     if request.method == "POST":
         action = request.form.get("action")
         try:
@@ -93,6 +94,24 @@ def index():
                     response_status=request.form.get("response_status", ""),
                     supplier_reference=request.form.get("supplier_reference") or None)
                 flash("Supplier acknowledgement recorded.", "success")
+            elif action == "match_preview":
+                from ledgerone.modules.commercial.purchase_matching import PurchaseMatchService
+                line_ids = request.form.getlist("order_line_id")
+                quantities = request.form.getlist("invoice_quantity")
+                prices = request.form.getlist("invoice_unit_price")
+                if not (len(line_ids) == len(quantities) == len(prices)):
+                    raise ValueError("Invalid matching line submission")
+                proposed = [
+                    {"order_line_id": line_id, "quantity": quantity, "unit_price": price}
+                    for line_id, quantity, price in zip(line_ids, quantities, prices)
+                    if quantity.strip()
+                ]
+                match_preview = PurchaseMatchService.preview(
+                    context, order_id=request.form.get("order_id", ""),
+                    supplier_invoice_reference=request.form.get("supplier_invoice_reference", ""),
+                    lines=proposed,
+                    match_type=request.form.get("match_type", "three_way"),
+                    price_tolerance_percent=request.form.get("price_tolerance_percent", "0"))
             elif action == "convert":
                 bill, _ = PurchaseOrderService.convert_to_bill(
                     context,
@@ -103,7 +122,8 @@ def index():
                     due_date=date.fromisoformat(request.form["due_date"]) if request.form.get("due_date") else None,
                 )
                 flash(f"Purchase order converted to bill {bill.bill_number} and posted.", "success")
-            return redirect(url_for("purchase_orders.index"))
+            if action != "match_preview":
+                return redirect(url_for("purchase_orders.index"))
         except (ValueError, PermissionError) as exc:
             flash(str(exc), "danger")
 
@@ -123,6 +143,7 @@ def index():
     return render_template(
         "purchases/orders.html",
         order_documents=order_documents,
+        match_preview=match_preview,
         orders=PurchaseOrderService.list_orders(context, 150),
         suppliers=PurchasesService.list_suppliers(context),
         payable_accounts=[row for row in accounts if row.account_type == "liability"],
