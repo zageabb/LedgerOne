@@ -13,7 +13,12 @@
 <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
   <a class="button {{ '' if tab == 'lines' else 'button-secondary' }}" href="?tab=lines">Order lines</a>
   <a class="button {{ '' if tab == 'ack' else 'button-secondary' }}" href="?tab=ack">Order acknowledgement</a>
-  <a class="button {{ '' if tab == 'documents' else 'button-secondary' }}" href="?tab=documents">{{ 'GRNs' if is_purchase else 'Delivery notes' }}</a>
+  {% if is_purchase %}
+  <a class="button button-secondary" href="{{ url_for('purchase_orders.grn_workspace', order_id=order.id) }}">GRNs</a>
+  <a class="button {{ '' if tab == 'documents' else 'button-secondary' }}" href="?tab=documents">Receipt history</a>
+  {% else %}
+  <a class="button {{ '' if tab == 'documents' else 'button-secondary' }}" href="?tab=documents">Delivery notes</a>
+  {% endif %}
 </div>
 <div class="actions" style="margin-bottom:1rem">
   {% if is_purchase %}<a class="button button-secondary" href="{{ url_for('purchase_orders.matching_workspace', order_id=order.id) }}">Match supplier invoice</a>{% endif %}
