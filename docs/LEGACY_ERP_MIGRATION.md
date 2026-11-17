@@ -2,6 +2,10 @@
 
 **Status:** Planned. CashLink is the first source adapter. No direct posting into LedgerOne is implemented by this workstream yet.
 
+## Relationship to ERP-000
+
+ERP-000 defines the target operational purchase/sales document chains (PO, GRN, delivery note, invoice and payments) and their audited linkages. ERP-001–006 will assess and map recovered CashLink records into LedgerOne's approved target structures rather than creating a separate accounting workflow. ERP-000 precedes ERP-001 in implementation priority; read-only legacy research may continue independently.
+
 ## Purpose
 
 Move legacy accounting data into a selected LedgerOne company through a repeatable, audited, **read-only discovery → staging → mapping → reconciliation → approval → controlled import** process. The framework should support future CSV, Excel, SQLite and database-export adapters without rebuilding the import workflow.
