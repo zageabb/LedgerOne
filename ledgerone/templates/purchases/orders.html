@@ -71,6 +71,27 @@
   </div>
 </div>
 
+{% if match_preview %}
+<div class="card section">
+  <div class="card-head"><h2>Supplier invoice match — {{ match_preview.purchase_order_number }}</h2></div>
+  <div class="card-body">
+    <p><strong>{{ 'Matched for preview' if match_preview.matched else 'Discrepancies found' }}</strong> · {{ match_preview.match_type|replace('_',' ')|title }} · Supplier reference: {{ match_preview.supplier_invoice_reference }}</p>
+    <p>Proposed net amount: {{ match_preview.invoice_net_total }} · <strong>Preview only — no bill, approval or posting created.</strong></p>
+    {% if match_preview.issues %}
+    <ul>{% for issue in match_preview.issues %}<li>{{ issue|replace('_', ' ') }}</li>{% endfor %}</ul>
+    {% endif %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>PO line ID</th><th>Ordered</th><th>Received</th><th>Invoice qty</th><th>PO price</th><th>Invoice price</th><th>Issues</th></tr></thead>
+      <tbody>{% for line in match_preview.lines %}
+      <tr><td>{{ line.order_line_id }}</td><td>{{ line.ordered_quantity }}</td><td>{{ line.received_quantity }}</td><td>{{ line.proposed_invoice_quantity }}</td><td>{{ line.ordered_unit_price }}</td><td>{{ line.invoice_unit_price }}</td><td>{{ line.issues|join(', ') or 'None' }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card section">
   <div class="card-head"><h2>Purchase order register</h2><span class="badge">{{ orders|length }}</span></div>
   <div class="table-wrap">
@@ -131,6 +152,25 @@
                 </form>
                 {% endif %}
                 {% endfor %}
+                {% endif %}
+                {% if row.status in ['approved', 'sent'] %}
+                <hr>
+                <form method="post" class="form-grid">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="match_preview">
+                  <input type="hidden" name="order_id" value="{{ row.id }}">
+                  <div class="field field-full"><strong>Supplier invoice matching preview</strong><p class="help">Checks your proposed invoice against PO lines and issued GRNs. Nothing is posted.</p></div>
+                  <div class="field"><label>Supplier invoice reference</label><input name="supplier_invoice_reference" maxlength="120" required></div>
+                  <div class="field"><label>Match method</label><select name="match_type"><option value="three_way">3-way: PO / GRN / Invoice</option><option value="two_way">2-way: PO / Invoice</option></select></div>
+                  <div class="field"><label>Price tolerance %</label><input name="price_tolerance_percent" type="number" min="0" max="100" step="0.01" value="0"></div>
+                  {% for line in row.lines %}
+                  <input type="hidden" name="order_line_id" value="{{ line.id }}">
+                  <div class="field field-full"><strong>{{ line.description }} — ordered {{ line.quantity }}</strong></div>
+                  <div class="field"><label>Invoice quantity</label><input name="invoice_quantity" type="number" min="0.0001" step="0.0001" value="{{ line.quantity }}"></div>
+                  <div class="field"><label>Invoice unit price</label><input name="invoice_unit_price" type="number" min="0" step="0.01" value="{{ line.unit_price }}"></div>
+                  {% endfor %}
+                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Preview invoice match</button></div>
+                </form>
                 {% endif %}
                 {% if row.status == 'approved' %}<hr><form method="post" class="form-grid">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="order_id" value="{{ row.id }}">
