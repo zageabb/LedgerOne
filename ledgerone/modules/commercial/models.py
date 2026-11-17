@@ -127,3 +127,42 @@ class CommercialAccountingEvent(db.Model):
 
     document = db.relationship("CommercialDocument")
     journal = db.relationship("Journal")
+
+
+class PurchaseReceiptBillAllocation(db.Model):
+    """Lineage of a supplier bill line against a specific GRN line.
+
+    No writer or clearing journal is exposed yet. Future allocation services
+    must lock the PO / GRN and enforce cumulative quantity limits atomically.
+    This table must never be populated through an unvalidated generic endpoint.
+    """
+    __tablename__ = "purchase_receipt_bill_allocations"
+    __table_args__ = (
+        db.UniqueConstraint("bill_line_id", "receipt_line_id",
+                            name="uq_purchase_receipt_bill_line_pair"),
+        db.CheckConstraint("quantity > 0",
+                           name="ck_purchase_receipt_allocation_positive_quantity"),
+        db.CheckConstraint("receipt_cost >= 0 AND invoice_net >= 0",
+                           name="ck_purchase_receipt_allocation_nonnegative_values"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"),
+                                nullable=False, index=True)
+    purchase_order_line_id = db.Column(db.String(36),
+                                      db.ForeignKey("purchase_order_lines.id"),
+                                      nullable=False, index=True)
+    receipt_line_id = db.Column(db.String(36),
+                                db.ForeignKey("commercial_document_lines.id"),
+                                nullable=False, index=True)
+    bill_line_id = db.Column(db.String(36),
+                             db.ForeignKey("purchase_bill_lines.id"),
+                             nullable=False, index=True)
+    quantity = db.Column(db.Numeric(18, 4), nullable=False)
+    receipt_cost = db.Column(db.Numeric(18, 2), nullable=False)
+    invoice_net = db.Column(db.Numeric(18, 2), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    receipt_line = db.relationship("CommercialDocumentLine")
+    bill_line = db.relationship("PurchaseBillLine")
+    purchase_order_line = db.relationship("PurchaseOrderLine")
