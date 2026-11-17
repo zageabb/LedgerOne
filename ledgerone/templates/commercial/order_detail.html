@@ -67,7 +67,7 @@
   <div class="card-head"><h2>{{ 'Supplier PO acknowledgement' if is_purchase else 'Customer sales order acknowledgement' }}</h2></div>
   <div class="card-body">
     <p class="help">{{ 'Record the supplier confirmation against the original issued PO. Changes must be reviewed separately.' if is_purchase else 'Record a customer-facing sales order acknowledgement. The document is linked to this SO.' }}</p>
-    {% if (order.status in ['approved','sent']) if is_purchase else (order.status == 'confirmed') %}
+    {% if (is_purchase and order.status in ['approved', 'sent']) or (not is_purchase and order.status == 'confirmed') %}
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="create_ack">
