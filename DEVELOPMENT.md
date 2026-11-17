@@ -7,9 +7,9 @@
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
 ## ERP-000 accounting controls — receipts and dispatch (design, not released)
-Status: DESIGN IN PROGRESS — GRN posting and delivery-note inventory journals are NOT implemented
+Status: ACCOUNT CONFIGURATION IMPLEMENTED ON FEATURE BRANCH; financial journal posting NOT enabled
 
-- [ ] Company-specific GRNI clearing liability control account and inventory/receipt account mapping.
+- [x] Company-specific GRNI liability, inventory asset and COGS account roles, validated and editable in Settings; no implicit journal posting.
 - [ ] Opt-in GRN accrual: DR inventory (or appropriate non-inventory receipt account), CR GRNI at net cost, journal dated on receipt, linked to GRN and PO lines, all in one atomic transaction.
 - [ ] Supplier invoice: clear GRNI exactly once for matched receipts; debit input VAT and credit AP. Support partial invoices, price variance, locked periods, reversals and unmatched items without double-expensing.
 - [ ] Company-specific inventory asset and Cost of Goods Sold (COGS) account mappings for Sales Order deliveries.
