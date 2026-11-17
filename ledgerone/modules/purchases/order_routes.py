@@ -282,3 +282,42 @@ def grn_workspace():
         outstanding=outstanding, available=any(item["outstanding"] > 0 for item in outstanding),
         receipts=order_documents(context, selected.id, "grn") if selected else [],
         today=date.today().isoformat())
+
+
+@bp.route("/<order_id>/match", methods=["GET", "POST"])
+@login_required
+@require_module("purchases")
+def matching_workspace(order_id):
+    from flask import abort
+    from ledgerone.extensions import db
+    from ledgerone.modules.purchases.order_models import PurchaseOrder
+    from ledgerone.modules.commercial.purchase_matching import PurchaseMatchService
+    context = browser_context()
+    if not context.can("purchases.read"):
+        raise PermissionError("purchases.read")
+    order = db.session.get(PurchaseOrder, order_id)
+    if not order or order.organisation_id != context.organisation_id:
+        abort(404)
+    match_preview = None
+    if request.method == "POST":
+        try:
+            ids = request.form.getlist("order_line_id[]")
+            quantities = request.form.getlist("invoice_quantity[]")
+            prices = request.form.getlist("invoice_unit_price[]")
+            if len(ids) != len(quantities) or len(ids) != len(prices) or len(set(ids)) != len(ids):
+                raise ValueError("Invalid invoice lines")
+            lines = [
+                {"order_line_id": line_id, "quantity": qty, "unit_price": price}
+                for line_id, qty, price in zip(ids, quantities, prices)
+                if qty and qty.strip() and qty.strip() != "0"
+            ]
+            match_preview = PurchaseMatchService.preview(
+                context, order_id=order.id,
+                supplier_invoice_reference=request.form.get("supplier_invoice_reference", ""),
+                lines=lines, match_type=request.form.get("match_type", "three_way"),
+                price_tolerance_percent=request.form.get("price_tolerance_percent", "0"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "commercial/match_workspace.html", order=order,
+        match_preview=match_preview)
