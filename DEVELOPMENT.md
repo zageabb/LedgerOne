@@ -6,6 +6,21 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## ERP-000 implementation — first vertical slice (partial; full ERP-000 remains open)
+Status: DEVELOPMENT BRANCH — awaiting CI and integration review
+
+- [x] Add company-scoped linked commercial documents and lines for supplier PO acknowledgement, customer SO acknowledgement, GRN and delivery note with migration `0025_commercial_documents`.
+- [x] Service-level non-posting documents and line quantity validation with cumulative limits on issued goods receipts/delivery notes.
+- [x] Supplier acknowledgement response capture and audit events.
+- [x] API to create and inspect acknowledgement/receipt/delivery documents; purchase and sales permissions inherited.
+- [x] New regression tests for partial receipts, over-delivery rejection, revision numbering, cross-company isolation and no implicit journal posting.
+- [ ] UI screens, document PDFs, contacts/email codes, purchase requisitions, multi-line order entry, matching and linked partial invoice posting.
+- [ ] Full CI, live UDA acceptance, independent accounting/fulfilment audit. Do not mark ERP-000 complete.
+
+See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md` for all nine ERP-000 increments.
+
+---
+
 ## DEV-014 — Custom workflows and company user role allocation
 Status: PHASE 1 IMPLEMENTED ON FEATURE BRANCH — CI & LIVE ACCEPTANCE PENDING
 
