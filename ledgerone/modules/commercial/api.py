@@ -106,3 +106,13 @@ def record_po_response(document_id):
         return jsonify(_serialize(document))
     except (ValueError, KeyError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/purchases/grn/<grn_id>/accounting-preview")
+@require_api("purchases.read")
+def grn_accounting_preview(grn_id):
+    from ledgerone.modules.commercial.grn_accounting import GRNAccountingPreviewService
+    try:
+        return jsonify(GRNAccountingPreviewService.preview(g.access_context, grn_id=grn_id))
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
