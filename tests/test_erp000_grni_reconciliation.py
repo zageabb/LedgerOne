@@ -78,14 +78,18 @@ def test_posted_grn_tracks_partially_allocated_quantities(app):
         # Synthetic matched bill fixture: posting and allocation are future
         # functionality. Test read-side evidence validation without enabling
         # the production clearing pathway.
-        clearing = LedgerService.post_journal(
-            ctx, journal_date=DAY, description="Matched invoice GRNI clearing",
-            reference="GRNI-BILL-TEST", source_module="purchases",
-            source_reference="synthetic-clearing-test",
-            lines=[
-                {"account_id": grni.id, "debit": "15", "credit": "0"},
-                {"account_id": ids["2100"], "debit": "0", "credit": "15"},
-            ])
+        from ledgerone.services.control_accounts import _role_scope
+        # This synthetic posting represents an authorised purchases-subledger
+        # bill operation. Never bypass AP control-account ownership globally.
+        with _role_scope("accounts_payable"):
+            clearing = LedgerService.post_journal(
+                ctx, journal_date=DAY, description="Matched invoice GRNI clearing",
+                reference="GRNI-BILL-TEST", source_module="purchases",
+                source_reference="synthetic-clearing-test",
+                lines=[
+                    {"account_id": grni.id, "debit": "15", "credit": "0"},
+                    {"account_id": ids["2100"], "debit": "0", "credit": "15"},
+                ])
         bill = PurchaseBill(
             id=new_id(), organisation_id=ctx.organisation_id,
             supplier_id=order.supplier_id, bill_number="GRNI-ALLOC-BILL",
