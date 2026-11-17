@@ -23,6 +23,9 @@ POSTING_ROLE_RULES = {
     "accounts_payable": {"types": {"liability"}, "control_role": "accounts_payable"},
     "sales_revenue": {"types": {"income"}, "non_control": True},
     "purchase_cost": {"types": {"expense", "asset"}, "non_control": True},
+    "grni_clearing": {"types": {"liability"}, "non_control": True},
+    "inventory_asset": {"types": {"asset"}, "non_control": True},
+    "cost_of_goods_sold": {"types": {"expense"}, "non_control": True},
     "bank": {"types": {"asset"}, "non_control": True},
     "opening_equity": {"types": {"equity"}, "non_control": True},
 }
