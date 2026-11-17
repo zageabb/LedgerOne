@@ -169,6 +169,7 @@ def index():
         members=SettingsService.list_members(context),
         workflow_role_assignments=WorkflowRoleService.assignments(context),
         suggested_workflow_roles=WorkflowRoleService.SUGGESTED,
+        can_manage=context.can("settings.manage"),
         permission_catalog=SettingsService.permission_catalog(),
         api_keys=SettingsService.list_api_keys(context),
         new_api_token=session.pop("new_api_token", None),
