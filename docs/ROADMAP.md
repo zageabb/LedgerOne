@@ -65,6 +65,20 @@ Status: **in progress**
 - configurable numbering sequences
 - contact/address improvements
 
+## ERP-000 — Commercial order-to-cash and procure-to-pay
+
+**Status:** Planned expansion of existing quote/order/invoice features into full operational lifecycles, ahead of ERP-001.
+
+- Purchase requisitions and multi-line POs; supplier acknowledgements and optional authorised PO email
+- GRNs with line-level goods receipt, partial receipts, rejections and returns
+- Supplier invoice matching against PO/GRN, controlled bill creation, credit and payment
+- Sales quotation → sales order → picking/dispatch → delivery note → linked customer invoice/payment
+- Partial delivery, backorders, multiple invoices, credit notes and delivery evidence
+- Purpose-coded supplier/customer email recipients, templates, PDF preview, approved sending and message audit
+- Configurable role/threshold workflow actions, approval enforcement and end-to-end document tracing
+
+See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md`. Current basic order-to-invoice/bill functionality is not equivalent to the entire workflow.
+
 ## Parallel workstream — Legacy ERP Migration (DEV-015)
 
 **Status:** Recovery foundation exists; full LedgerOne financial import is not implemented.
