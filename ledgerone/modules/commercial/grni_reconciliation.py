@@ -31,7 +31,15 @@ class GRNIReconciliationService:
             CommercialAccountingEvent.document_id.in_([x.id for x in grns] or [""]),
             CommercialAccountingEvent.event_type == "grn_inventory_accrual",
         ).all()
-        posted_by_grn = {event.document_id: event for event in events}
+        posted_by_grn = {}
+        for event in events:
+            source_journal = db.session.get(Journal, event.journal_id)
+            reversal = Journal.query.filter_by(
+                organisation_id=context.organisation_id,
+                reversal_of_id=event.journal_id, status="posted").first()
+            if (source_journal and source_journal.organisation_id == context.organisation_id
+                    and source_journal.status == "posted" and not reversal):
+                posted_by_grn[event.document_id] = event
         line_ids = [line.id for doc in grns for line in doc.lines]
         allocations = GRNIInvoiceAllocation.query.filter(
             GRNIInvoiceAllocation.organisation_id == context.organisation_id,
@@ -62,6 +70,8 @@ class GRNIReconciliationService:
                     or bill.supplier_id != order.supplier_id or bill.status != "posted"
                     or not journal or journal.organisation_id != context.organisation_id
                     or journal.id != bill.posted_journal_id or journal.status != "posted"
+                    or Journal.query.filter_by(organisation_id=context.organisation_id,
+                                               reversal_of_id=journal.id, status="posted").first() is not None
                     or any(row.clearing_journal_id != journal.id for row in rows)
                     or not grni_id or cleared_on_journal < requested):
                 issues.append(f"Bill {bill_id} does not have verified GRNI clearing journal evidence")
