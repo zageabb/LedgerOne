@@ -4,6 +4,8 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ledgerone.module_registry import module_registry
+from ledgerone.modules.commercial.models import CommercialDocument
+from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.sales.orders import SalesOrderService
 from ledgerone.modules.sales.services import SalesService
 from ledgerone.security import browser_context, require_module
@@ -42,6 +44,21 @@ def index():
                     status=request.form.get("status", "draft"),
                 )
                 flash("Sales order status updated.", "success")
+            elif action in {"so_ack", "delivery_note"}:
+                doc_type = action
+                document_lines = None
+                if doc_type == "delivery_note":
+                    document_lines = [{
+                        "order_line_id": request.form.get("order_line_id", ""),
+                        "quantity": request.form.get("quantity", ""),
+                    }]
+                document = CommercialDocumentService.create(
+                    context, document_type=doc_type,
+                    order_id=request.form.get("order_id", ""),
+                    document_date=date.fromisoformat(
+                        request.form.get("document_date") or date.today().isoformat()),
+                    lines=document_lines)
+                flash(f"{document.document_number} recorded without posting a journal.", "success")
             elif action == "convert":
                 invoice, _ = SalesOrderService.convert_to_invoice(
                     context,
@@ -61,8 +78,16 @@ def index():
     if tax_enabled and context.can("tax.read"):
         from ledgerone.modules.tax.services import TaxService
         tax_codes = TaxService.list_codes(context, usage="sales")
+    document_records = CommercialDocument.query.filter(
+        CommercialDocument.organisation_id == context.organisation_id,
+        CommercialDocument.document_type.in_(["so_ack","delivery_note"]),
+    ).order_by(CommercialDocument.created_at.desc()).limit(500).all()
+    order_documents = {}
+    for document in document_records:
+        order_documents.setdefault(document.order_id, []).append(document)
     return render_template(
         "sales/orders.html",
+        order_documents=order_documents,
         orders=SalesOrderService.list_orders(context, 150),
         customers=SalesService.list_customers(context),
         receivable_accounts=[row for row in accounts if row.account_type == "asset"],
