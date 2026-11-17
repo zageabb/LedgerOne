@@ -81,6 +81,17 @@
       <thead><tr><th>Document</th><th>Revision</th><th>Date</th><th>Reference</th><th>Status</th><th>Response</th></tr></thead>
       <tbody>{% for ack in acknowledgements %}
       <tr><td><strong>{{ ack.document_number }}</strong></td><td>{{ ack.revision }}</td><td>{{ ack.document_date }}</td><td>{{ ack.external_reference or '—' }}</td><td>{{ ack.status }}</td><td>{{ ack.response_status or 'Awaiting response' }}</td></tr>
+      <tr><td colspan="6">
+        <details>
+          <summary class="button button-small button-secondary">Acknowledged order lines ({{ ack.lines|length }})</summary>
+          <div class="table-wrap"><table style="width:100%">
+            <thead><tr><th>#</th><th>Description</th><th>Quantity</th><th>Unit price</th><th>Confirmed date</th></tr></thead>
+            <tbody>{% for item in ack.lines|sort(attribute='line_number') %}
+              <tr><td>{{ item.line_number }}</td><td>{{ item.description }}</td><td>{{ item.quantity }}</td><td>{{ item.unit_price }}</td><td>{{ item.expected_date or '—' }}</td></tr>
+            {% endfor %}</tbody>
+          </table></div>
+        </details>
+      </td></tr>
       {% if is_purchase and not ack.response_status %}
       <tr><td colspan="6"><form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
