@@ -223,3 +223,25 @@ def test_non_admin_cannot_allocate_roles_and_cross_company_assignment_is_denied(
             user_id=owner.user_id, full_access=True)
         with pytest.raises(ValueError, match="company membership"):
             WorkflowRoleService.assign(other_owner, membership.id, ["finance"])
+
+
+def test_revoked_named_assignee_cannot_approve_even_if_the_action_remains_open(app):
+    with app.app_context():
+        owner = _owner()
+        named = _member(owner.organisation_id, "named-revoked@example.test")
+        rule = WorkflowService.create_definition(
+            owner, name="Named finance checker", entity_type="journal",
+            custom_steps=[{"type": "approve", "user_id": named.user_id}])
+        workflow = WorkflowService.start(
+            owner, entity_type="journal", entity_id="named-revoked",
+            title="Journal to approve", amount="500", definition_id=rule.id)
+        action = UserAction.query.filter_by(
+            workflow_instance_id=workflow.id, action_type="approve").one()
+        assert action in WorkflowService.open_actions(named)
+        membership = Membership.query.filter_by(
+            organisation_id=owner.organisation_id, user_id=named.user_id).one()
+        membership.is_active = False
+        db.session.commit()
+        with pytest.raises(PermissionError, match="assigned"):
+            WorkflowService.complete_action(named, action.id, decision="approve")
+        assert action.status == "open"
