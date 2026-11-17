@@ -16,6 +16,8 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Internal-only atomic GRN accrual posting service and unique document/journal event link table, with DB retry protection and explicit disabled-by-default activation gate (PR pending CI).
 - [ ] Certified GRNI bill clearing and externally supported activation, reversals and operational posting remain outstanding.
 - [x] Read-only supplier invoice matching now distinguishes physically received quantities from posted GRNI accrual coverage and flags unaccrued stock; no bill reservation or clearing posting.
+- [x] Schema foundation: `purchase_receipt_bill_allocations` records PO line, GRN line, bill line, quantities and values; migration `0028_bill_receipt_alloc`. No allocation writes or financial posting exposed.
+- [x] Read-only receipt/invoice allocation summary service and security/empty-state test coverage (feature increment; CI pending).
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
 - [ ] CI green and live UDA/browser acceptance.
 
