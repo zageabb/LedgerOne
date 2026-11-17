@@ -81,6 +81,13 @@ class MultiLineOrderService:
             if (not account or account.organisation_id != context.organisation_id
                     or not account.is_active or account.account_type != required_line_type):
                 raise ValueError(f"Invalid accounting account on line {position}")
+            treatment = (supplied.get("item_treatment") or ("expense" if is_purchase else "service")).strip().lower()
+            permitted = {"stock", "expense"} if is_purchase else {"stock", "service"}
+            if treatment not in permitted:
+                raise ValueError(f"Invalid item accounting treatment on line {position}")
+            dimensions = dict(supplied.get("dimensions") or {})
+            # A validated top-level field owns this reserved accounting attribute.
+            dimensions["item_treatment"] = treatment
             tax_code = TaxService.code_for_use(
                 context, supplied.get("tax_code_id"), kind)
             net = (qty * price).quantize(Decimal("0.01"))
@@ -92,7 +99,7 @@ class MultiLineOrderService:
                 "net_amount": net, "tax_amount": tax,
                 "tax_code_id": tax_code.id if tax_code else None,
                 "account_id": account.id,
-                "dimensions": dict(supplied.get("dimensions") or {}),
+                "dimensions": dimensions,
             })
         if subtotal <= 0:
             raise ValueError("Order amount must be greater than zero")
