@@ -6,7 +6,7 @@ A matching preview is not proof that a concurrent posting remains valid.
 from decimal import Decimal, InvalidOperation
 
 from ledgerone.extensions import db
-from ledgerone.modules.commercial.models import CommercialDocument
+from ledgerone.modules.commercial.models import CommercialAccountingEvent, CommercialDocument
 from ledgerone.modules.purchases.models import PurchaseBill
 from ledgerone.modules.purchases.order_models import PurchaseOrder
 
@@ -67,16 +67,36 @@ class PurchaseMatchService:
             organisation_id=context.organisation_id, document_type="grn",
             order_id=order.id, status="issued").all()
         received = {}
+        accrued_quantity = {}
+        accrued_cost = {}
+        # A physical GRN does not establish a ledger accrual: only a linked,
+        # immutable receipt event can be eligible for later GRNI clearance.
+        receipt_ids = [document.id for document in receipts]
+        events = (CommercialAccountingEvent.query.filter(
+            CommercialAccountingEvent.organisation_id == context.organisation_id,
+            CommercialAccountingEvent.document_id.in_(receipt_ids),
+            CommercialAccountingEvent.event_type == "grn_inventory_accrual",
+        ).all() if receipt_ids else [])
+        linked_ids = {event.document_id for event in events}
         for document in receipts:
             for line in document.lines:
                 received[line.order_line_id] = (
                     received.get(line.order_line_id, Decimal("0")) + line.quantity
                 )
+                if document.id in linked_ids:
+                    accrued_quantity[line.order_line_id] = (
+                        accrued_quantity.get(line.order_line_id, Decimal("0")) + line.quantity
+                    )
+                    accrued_cost[line.order_line_id] = (
+                        accrued_cost.get(line.order_line_id, Decimal("0")) +
+                        (Decimal(line.quantity) * Decimal(line.unit_price)).quantize(Decimal("0.01"))
+                    )
 
         order_lines = {line.id: line for line in order.lines}
         seen = set()
         evaluated = []
         issues = []
+        grni_issues = []
         total_net = Decimal("0.00")
         for index, supplied in enumerate(lines, 1):
             if not isinstance(supplied, dict):
@@ -99,6 +119,15 @@ class PurchaseMatchService:
             permitted_difference = (ordered_price * tolerance / Decimal("100"))
             if abs(price - ordered_price) > permitted_difference:
                 line_issues.append("unit_price_variance")
+            treatment = (original.dimensions or {}).get("item_treatment")
+            stock = treatment == "stock"
+            posted_quantity = accrued_quantity.get(line_id, Decimal("0"))
+            posted_cost = accrued_cost.get(line_id, Decimal("0.00"))
+            # A preview is *not* a reservation. Prior bill allocations,
+            # returns and price variance treatment must be enforced atomically
+            # before this data can support any actual clearing journal.
+            if stock and quantity > posted_quantity:
+                grni_issues.append(f"line_{index}:grni_receipt_accrual_missing")
             expected_net = (quantity * price).quantize(Decimal("0.01"))
             total_net += expected_net
             if line_issues:
@@ -112,6 +141,13 @@ class PurchaseMatchService:
                 "invoice_unit_price": str(price),
                 "net_amount": str(expected_net),
                 "issues": line_issues,
+                "grni": {
+                    "applicable": stock,
+                    "posted_receipt_quantity": str(posted_quantity) if stock else None,
+                    "posted_receipt_cost": str(posted_cost) if stock else None,
+                    "accrual_coverage_sufficient": quantity <= posted_quantity if stock else None,
+                    "clearing_posting_authorised": False,
+                },
             })
         if existing:
             issues.insert(0, "duplicate_supplier_invoice_reference")
@@ -125,6 +161,9 @@ class PurchaseMatchService:
             "price_tolerance_percent": str(tolerance),
             "matched": not issues,
             "issues": issues,
+            "grni_issues": grni_issues,
+            "grni_accrual_coverage_sufficient": not grni_issues,
+            "grni_clearing_posting_authorised": False,
             "invoice_net_total": str(total_net),
             "lines": evaluated,
             "preview_only": True,

@@ -12,6 +12,7 @@ from ledgerone.modules.commercial.order_builder import MultiLineOrderService
 from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.commercial.grn_posting import GRNPostingService
 from ledgerone.modules.commercial.grn_accounting import GRNAccountingPreviewService
+from ledgerone.modules.commercial.purchase_matching import PurchaseMatchService
 from ledgerone.modules.purchases.orders import PurchaseOrderService
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.services.context import AccessContext
@@ -74,6 +75,16 @@ def test_atomic_posting_link_and_retry_protection_when_internally_certified(app)
         value["grni_bill_clearing_certified"] = True
         settings.value = value
         db.session.commit()
+        match_args = dict(
+            order_id=receipt.order_id, supplier_invoice_reference="GRNI-COVER-001",
+            lines=[{"order_line_id": receipt.lines[0].order_line_id,
+                    "quantity": "2", "unit_price": "11"}],
+        )
+        unposted_match = PurchaseMatchService.preview(ctx, **match_args)
+        assert unposted_match["matched"] is True
+        assert unposted_match["grni_accrual_coverage_sufficient"] is False
+        assert "line_1:grni_receipt_accrual_missing" in unposted_match["grni_issues"]
+        assert unposted_match["lines"][0]["grni"]["posted_receipt_quantity"] == "0"
         before = Journal.query.count()
         event = GRNPostingService.post(ctx, grn_id=receipt.id)
         assert event.posted_value == Decimal("22.00")
@@ -91,6 +102,13 @@ def test_atomic_posting_link_and_retry_protection_when_internally_certified(app)
         assert preview["accounting_event_id"] == event.id
         assert preview["posted_value"] == "22.00"
         assert preview["stock_cost_value"] == "22.00"
+        linked_match = PurchaseMatchService.preview(ctx, **match_args)
+        assert linked_match["matched"] is True
+        assert linked_match["grni_accrual_coverage_sufficient"] is True
+        assert linked_match["grni_clearing_posting_authorised"] is False
+        assert linked_match["grni_issues"] == []
+        assert linked_match["lines"][0]["grni"]["posted_receipt_quantity"] == "2.0000"
+        assert linked_match["lines"][0]["grni"]["posted_receipt_cost"] == "22.00"
         with pytest.raises(ValueError, match="already linked"):
             GRNPostingService.post(ctx, grn_id=receipt.id)
         assert Journal.query.count() == before + 1

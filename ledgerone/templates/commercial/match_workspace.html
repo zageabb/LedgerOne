@@ -36,11 +36,16 @@
     <p><strong>{{ 'Matched in preview' if match_preview.matched else 'Discrepancies identified' }}</strong> · Proposed net total: {{ match_preview.invoice_net_total }}</p>
     {% for issue in match_preview.issues %}<p class="help">{{ issue|replace('_',' ') }}</p>{% endfor %}
     <div class="table-wrap"><table style="width:100%">
-      <thead><tr><th>PO line ID</th><th>Ordered</th><th>Received</th><th>Proposed</th><th>PO price</th><th>Invoice price</th><th>Issues</th></tr></thead>
+      <thead><tr><th>PO line ID</th><th>Ordered</th><th>Received</th><th>Proposed</th><th>GRNI accrued qty</th><th>GRNI accrued cost</th><th>PO price</th><th>Invoice price</th><th>Issues</th></tr></thead>
       <tbody>{% for line in match_preview.lines %}
-      <tr><td>{{ line.order_line_id }}</td><td>{{ line.ordered_quantity }}</td><td>{{ line.received_quantity }}</td><td>{{ line.proposed_invoice_quantity }}</td><td>{{ line.ordered_unit_price }}</td><td>{{ line.invoice_unit_price }}</td><td>{{ line.issues|join(', ') or 'None' }}</td></tr>
+      <tr><td>{{ line.order_line_id }}</td><td>{{ line.ordered_quantity }}</td><td>{{ line.received_quantity }}</td><td>{{ line.proposed_invoice_quantity }}</td><td>{{ line.grni.posted_receipt_quantity if line.grni.applicable else 'N/A' }}</td><td>{{ line.grni.posted_receipt_cost if line.grni.applicable else 'N/A' }}</td><td>{{ line.ordered_unit_price }}</td><td>{{ line.invoice_unit_price }}</td><td>{{ line.issues|join(', ') or 'None' }}</td></tr>
       {% endfor %}</tbody>
     </table></div>
+    <h3>4. GRNI ledger coverage (read-only)</h3>
+    {% if match_preview.grni_issues %}
+    <p class="help"><strong>Accrual coverage incomplete:</strong> Goods may be received without a posted GRNI journal. Invoice clearing must not be activated for these lines.</p>
+    {% for issue in match_preview.grni_issues %}<p class="help">{{ issue|replace('_',' ') }}</p>{% endfor %}
+    {% else %}<p class="help">All proposed stock quantities have linked receipt accrual coverage, or no stock lines are included. This is not authorisation to clear GRNI.</p>{% endif %}
     <p class="help"><strong>Preview only:</strong> This does not create, reserve or approve a bill. Posting-side three-way checks are a separate development increment.</p>
   </div>
 </section>
