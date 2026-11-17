@@ -116,3 +116,13 @@ def grn_accounting_preview(grn_id):
         return jsonify(GRNAccountingPreviewService.preview(g.access_context, grn_id=grn_id))
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/purchases/orders/<order_id>/grni-reconciliation")
+@require_api("purchases.read")
+def order_grni_reconciliation(order_id):
+    from ledgerone.modules.commercial.grni_reconciliation import GRNIReconciliationService
+    try:
+        return jsonify(GRNIReconciliationService.preview(g.access_context, order_id=order_id))
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400

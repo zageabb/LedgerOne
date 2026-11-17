@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}GRNI reconciliation · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>GRNI reconciliation — {{ report.order_number }}</h1>
+    <p>Review posted receipt accruals, matched supplier-invoice clearances and outstanding GRNI by receipt line.</p></div>
+  <a class="button button-secondary" href="{{ url_for('purchase_orders.order_detail', order_id=report.order_id) }}">Back to purchase order</a>
+</div>
+<section class="card section">
+  <div class="card-head"><h2>Account reconciliation</h2></div>
+  <div class="card-body">
+    <div class="form-grid">
+      <div class="field"><label>GRNI posted</label><strong>{{ report.currency }} {{ report.total_posted_grni }}</strong></div>
+      <div class="field"><label>Invoice GRNI cleared</label><strong>{{ report.currency }} {{ report.total_cleared_grni }}</strong></div>
+      <div class="field"><label>Outstanding GRNI</label><strong>{{ report.currency }} {{ report.outstanding_grni }}</strong></div>
+    </div>
+    <p class="help">Read-only. Received stock without a posted GRN accrual does not count as a ledger balance. Invoice allocations only count when the supplier bill's journal debits the configured GRNI account.</p>
+    {% if report.issues %}<ul>{% for issue in report.issues %}<li>{{ issue }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+</section>
+<section class="card section">
+  <div class="card-head"><h2>Receipt lines and invoice allocations</h2></div>
+  <div class="card-body table-wrap">
+    <table style="min-width:900px;width:100%">
+      <thead><tr><th>GRN</th><th>Item</th><th>Type</th><th class="number">Received</th>
+      <th class="number">Allocated</th><th class="number">Available</th>
+      <th class="number">Posted GRNI</th><th class="number">Cleared</th><th class="number">Outstanding</th></tr></thead>
+      <tbody>{% for line in report.lines %}
+      <tr><td>{{ line.grn_number }}</td><td>{{ line.description }}</td><td>{{ line.treatment }}</td>
+      <td class="number">{{ line.received_quantity }}</td><td class="number">{{ line.allocated_quantity }}</td>
+      <td class="number">{{ line.available_quantity }}</td>
+      <td class="number">{{ line.posted_accrual }}</td><td class="number">{{ line.cleared_accrual }}</td>
+      <td class="number">{{ line.outstanding_grni }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

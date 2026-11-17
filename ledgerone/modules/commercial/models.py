@@ -127,3 +127,36 @@ class CommercialAccountingEvent(db.Model):
 
     document = db.relationship("CommercialDocument")
     journal = db.relationship("Journal")
+
+
+class GRNIInvoiceAllocation(db.Model):
+    """A posted supplier-bill line's allocation to one received stock line.
+
+    Allocation rows will only be created by a future atomic bill-clearing
+    service, not by a preview or a generic supplier bill.
+    """
+    __tablename__ = "grni_invoice_allocations"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "bill_id", "receipt_line_id",
+                            name="uq_grni_bill_receipt_line"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"),
+                                nullable=False, index=True)
+    bill_id = db.Column(db.String(36), db.ForeignKey("purchase_bills.id"),
+                        nullable=False, index=True)
+    clearing_journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"),
+                                    nullable=False, index=True)
+    receipt_line_id = db.Column(db.String(36),
+                                db.ForeignKey("commercial_document_lines.id"),
+                                nullable=False, index=True)
+    order_line_id = db.Column(db.String(36), nullable=False, index=True)
+    quantity = db.Column(db.Numeric(18, 4), nullable=False)
+    accrual_value = db.Column(db.Numeric(18, 2), nullable=False)
+    invoice_net_value = db.Column(db.Numeric(18, 2), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    bill = db.relationship("PurchaseBill")
+    clearing_journal = db.relationship("Journal")
+    receipt_line = db.relationship("CommercialDocumentLine")

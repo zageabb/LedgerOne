@@ -335,3 +335,17 @@ def grn_accounting_preview(grn_id):
     except ValueError:
         abort(404)
     return render_template("commercial/grn_accounting_preview.html", preview=preview)
+
+
+@bp.get("/<order_id>/grni-reconciliation")
+@login_required
+@require_module("purchases")
+def grni_reconciliation(order_id):
+    from flask import abort
+    from ledgerone.modules.commercial.grni_reconciliation import GRNIReconciliationService
+    context = browser_context()
+    try:
+        report = GRNIReconciliationService.preview(context, order_id=order_id)
+    except ValueError:
+        abort(404)
+    return render_template("commercial/grni_reconciliation.html", report=report)
