@@ -6,7 +6,7 @@ Receipt and bill-clearing activation will require an atomic posting service.
 from decimal import Decimal, ROUND_HALF_UP
 
 from ledgerone.extensions import db
-from ledgerone.modules.commercial.models import CommercialDocument
+from ledgerone.modules.commercial.models import CommercialAccountingEvent, CommercialDocument
 from ledgerone.modules.purchases.order_models import PurchaseOrder
 from ledgerone.services.account_roles import PostingAccountService, PostingAccountError
 
@@ -90,6 +90,14 @@ class GRNAccountingPreviewService:
                  "account_name": accounts["grni_clearing"].name,
                  "debit": "0.00", "credit": str(amount)},
             ]
+        # Posting remains disabled. Existing internally certified journal links
+        # must still be visible to readers of the accounting preview.
+        linked = CommercialAccountingEvent.query.filter_by(
+            organisation_id=context.organisation_id,
+            document_id=receipt.id,
+            event_type="grn_inventory_accrual",
+        ).first()
+        posted = linked is not None
         return {
             "grn_id": receipt.id, "grn_number": receipt.document_number,
             "purchase_order_id": order.id, "purchase_order_number": order.order_number,
@@ -98,7 +106,14 @@ class GRNAccountingPreviewService:
             "stock_cost_value": str(amount),
             "breakdown": breakdown, "lines": lines,
             "issues": issues, "ready_for_future_posting": not issues,
-            "posting_enabled": False, "posted": False,
+            "posting_enabled": False, "posted": posted,
+            "journal_id": linked.journal_id if posted else None,
+            "posted_value": str(linked.posted_value) if posted else None,
+            "accounting_event_id": linked.id if posted else None,
             "preview_only": True,
-            "note": "No journal is posted. Supplier invoice GRNI clearing must be implemented before activation.",
+            "note": (
+                "GRN accrual journal is already linked; no posting action is available here."
+                if posted else
+                "No journal is posted. Supplier invoice GRNI clearing must be implemented before activation."
+            ),
         }
