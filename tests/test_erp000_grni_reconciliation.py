@@ -1,0 +1,96 @@
+"""GRNI receipt-to-bill allocation preview preserves posted vs unposted distinction."""
+from datetime import date
+from decimal import Decimal
+
+import pytest
+
+from ledgerone.extensions import db
+from ledgerone.models.core import Organisation, new_id
+from ledgerone.models.ledger import Account
+from ledgerone.modules.commercial.models import CommercialAccountingEvent, GRNIInvoiceAllocation
+from ledgerone.modules.commercial.grni_reconciliation import GRNIReconciliationService
+from ledgerone.modules.commercial.order_builder import MultiLineOrderService
+from ledgerone.modules.commercial.services import CommercialDocumentService
+from ledgerone.modules.purchases.orders import PurchaseOrderService
+from ledgerone.modules.purchases.services import PurchasesService
+from ledgerone.services.context import AccessContext
+
+DAY = date(2026, 11, 17)
+
+
+def _make():
+    org = Organisation.query.one()
+    ctx = AccessContext.system(org.id)
+    ids = {a.code: a.id for a in Account.query.filter_by(organisation_id=org.id)}
+    supplier = PurchasesService.create_supplier(ctx, name="GRNI reconciliation supplier")
+    order = MultiLineOrderService.create(
+        ctx, kind="purchase", party_id=supplier.id, order_number="PO-GRNI-ALLOC",
+        order_date=DAY, expected_date=None, control_account_id=ids["2100"],
+        lines=[{"description": "Stock", "quantity": "4", "unit_price": "15",
+                "account_id": ids["5000"], "item_treatment": "stock"}])
+    PurchaseOrderService.set_status(ctx, order.id, status="approved")
+    grn = CommercialDocumentService.create(
+        ctx, document_type="grn", order_id=order.id, document_date=DAY,
+        lines=[{"order_line_id": order.lines[0].id, "quantity": "3"}])
+    return ctx, order, grn, ids
+
+
+def test_unposted_grn_does_not_count_as_ledger_accrual(app):
+    with app.app_context():
+        ctx, order, grn, _ = _make()
+        data = GRNIReconciliationService.preview(ctx, order_id=order.id)
+        assert data["total_posted_grni"] == "0.00"
+        assert data["outstanding_grni"] == "0.00"
+        assert data["lines"][0]["accrual_posted"] is False
+        assert "without a posted GRNI journal" in data["issues"][0]
+        assert data["preview_only"]
+
+
+def test_posted_grn_tracks_partially_allocated_quantities(app):
+    with app.app_context():
+        ctx, order, grn, ids = _make()
+        from ledgerone.services.ledger import LedgerService
+        journal = LedgerService.post_journal(
+            ctx, journal_date=DAY, description="Test GRNI accrual",
+            reference="GRNI-TEST", source_module="purchases",
+            source_reference=grn.id,
+            lines=[
+                {"account_id": ids["5000"], "debit": "45", "credit": "0"},
+                {"account_id": ids["2100"], "debit": "0", "credit": "45"},
+            ])
+        event = CommercialAccountingEvent(
+            id=new_id(), organisation_id=ctx.organisation_id,
+            document_id=grn.id, event_type="grn_inventory_accrual",
+            journal_id=journal.id, posted_value=Decimal("45.00"),
+            metadata_json={})
+        db.session.add(event)
+        db.session.commit()
+        data = GRNIReconciliationService.preview(ctx, order_id=order.id)
+        assert data["outstanding_grni"] == "45.00"
+        assert data["lines"][0]["available_quantity"] == "3.0000"
+        # Model allocations are written only as synthetic test evidence.
+        # Production invoice clearing is not yet active.
+        from ledgerone.modules.purchases.models import PurchaseBill
+        bill = PurchasesService.create_bill(
+            ctx, supplier_id=order.supplier_id, bill_number="GRNI-ALLOC-BILL",
+            bill_date=DAY, due_date=DAY, description="Test bill",
+            amount="15", payable_account_id=ids["2100"],
+            expense_account_id=ids["5000"])
+        db.session.add(GRNIInvoiceAllocation(
+            id=new_id(), organisation_id=ctx.organisation_id,
+            bill_id=bill.id, receipt_line_id=grn.lines[0].id,
+            order_line_id=order.lines[0].id, quantity=Decimal("1"),
+            accrual_value=Decimal("15.00"), invoice_net_value=Decimal("15.00")))
+        db.session.commit()
+        data = GRNIReconciliationService.preview(ctx, order_id=order.id)
+        assert data["total_cleared_grni"] == "15.00"
+        assert data["outstanding_grni"] == "30.00"
+        assert data["lines"][0]["available_quantity"] == "2.0000"
+
+
+def test_reconciliation_is_company_scoped(app):
+    with app.app_context():
+        ctx, order, grn, ids = _make()
+        foreign = AccessContext.system("foreign-company")
+        with pytest.raises(ValueError, match="Purchase order not found"):
+            GRNIReconciliationService.preview(foreign, order_id=order.id)
