@@ -321,3 +321,17 @@ def matching_workspace(order_id):
     return render_template(
         "commercial/match_workspace.html", order=order,
         match_preview=match_preview)
+
+
+@bp.get("/grn/<grn_id>/accounting-preview")
+@login_required
+@require_module("purchases")
+def grn_accounting_preview(grn_id):
+    from ledgerone.modules.commercial.grn_accounting import GRNAccountingPreviewService
+    from flask import abort
+    context = browser_context()
+    try:
+        preview = GRNAccountingPreviewService.preview(context, grn_id=grn_id)
+    except ValueError:
+        abort(404)
+    return render_template("commercial/grn_accounting_preview.html", preview=preview)
