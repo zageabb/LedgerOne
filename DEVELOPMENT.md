@@ -14,6 +14,7 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Link individual GRN history to a read-only accounting preview screen and company-scoped API; no financial posting or balance mutation.
 - [x] Flag missing/invalid account configurations and unclassified legacy lines; add regression coverage for no journals, values and company boundaries.
 - [x] Internal-only atomic GRN accrual posting service and unique document/journal event link table, with DB retry protection and explicit disabled-by-default activation gate (PR pending CI).
+- [x] Read-only matching detects prior PO-linked supplier bills and blocks claims that quantities are available for another bill when line-level allocations are absent.
 - [ ] Certified GRNI bill clearing and externally supported activation, reversals and operational posting remain outstanding.
 - [x] Read-only supplier invoice matching now distinguishes physically received quantities from posted GRNI accrual coverage and flags unaccrued stock; no bill reservation or clearing posting.
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
