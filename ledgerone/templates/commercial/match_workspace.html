@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Supplier invoice matching · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Invoice matching — {{ order.order_number }}</h1>
+    <p>Check a supplier invoice against purchase order lines and issued goods receipts.</p></div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchase_orders.order_detail', order_id=order.id) }}">Back to PO</a></div>
+</div>
+<section class="card section">
+  <div class="card-head"><h2>1. Match header</h2></div>
+  <div class="card-body">
+    <form method="post" id="match-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="field"><label>Supplier invoice reference</label><input name="supplier_invoice_reference" required maxlength="120"></div>
+        <div class="field"><label>Matching method</label><select name="match_type"><option value="three_way">3-way (PO / GRN / Invoice)</option><option value="two_way">2-way (PO / Invoice)</option></select></div>
+        <div class="field"><label>Price tolerance %</label><input name="price_tolerance_percent" type="number" min="0" max="100" step="0.01" value="0" required></div>
+      </div>
+      <h3>2. Invoice lines</h3>
+      <div class="table-wrap"><table style="width:100%;min-width:780px">
+        <thead><tr><th>PO line</th><th>Description</th><th>Ordered qty</th><th>PO unit price</th><th>Invoice qty</th><th>Invoice unit price</th></tr></thead>
+        <tbody>{% for line in order.lines|sort(attribute='line_number') %}
+        <tr><td>{{ line.line_number }}</td><td>{{ line.description }}</td><td>{{ line.quantity }}</td><td>{{ line.unit_price }}</td>
+        <td><input type="hidden" name="order_line_id[]" value="{{ line.id }}"><input type="number" name="invoice_quantity[]" min="0" step="0.0001" value="{{ line.quantity }}" style="width:110px" required></td>
+        <td><input type="number" name="invoice_unit_price[]" min="0" step="0.01" value="{{ line.unit_price }}" style="width:110px" required></td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      <div style="margin-top:1rem"><button class="button" type="submit">Preview match</button></div>
+    </form>
+  </div>
+</section>
+{% if match_preview %}
+<section class="card section">
+  <div class="card-head"><h2>3. Preview results</h2></div>
+  <div class="card-body">
+    <p><strong>{{ 'Matched in preview' if match_preview.matched else 'Discrepancies identified' }}</strong> · Proposed net total: {{ match_preview.invoice_net_total }}</p>
+    {% for issue in match_preview.issues %}<p class="help">{{ issue|replace('_',' ') }}</p>{% endfor %}
+    <div class="table-wrap"><table style="width:100%">
+      <thead><tr><th>PO line ID</th><th>Ordered</th><th>Received</th><th>Proposed</th><th>PO price</th><th>Invoice price</th><th>Issues</th></tr></thead>
+      <tbody>{% for line in match_preview.lines %}
+      <tr><td>{{ line.order_line_id }}</td><td>{{ line.ordered_quantity }}</td><td>{{ line.received_quantity }}</td><td>{{ line.proposed_invoice_quantity }}</td><td>{{ line.ordered_unit_price }}</td><td>{{ line.invoice_unit_price }}</td><td>{{ line.issues|join(', ') or 'None' }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    <p class="help"><strong>Preview only:</strong> This does not create, reserve or approve a bill. Posting-side three-way checks are a separate development increment.</p>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

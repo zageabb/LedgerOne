@@ -1,194 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Purchase Orders · LedgerOne{% endblock %}
+{% block title %}Purchase orders · LedgerOne{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <h1>{{ 'Orders to suppliers' if ui_mode == 'home' else 'Purchase orders' }}</h1>
-    <p>{{ 'Plan what you are buying before it becomes an expense or bill.' if ui_mode == 'home' else 'Create non-posting purchase orders, approve them and convert approved orders through the standard purchase-bill posting service.' }}</p>
-  </div>
-  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchases.index') }}">Back to purchases</a></div>
-</div>
-
-<div class="grid grid-2">
-  <div class="card">
-    <div class="card-head"><h2>Create purchase order</h2></div>
-    <div class="card-body">
-      <form method="post" class="form-grid">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="create">
-        <div class="field"><label>Supplier</label><select name="supplier_id" required><option value="">Select</option>{% for row in suppliers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>PO number</label><input name="order_number" placeholder="Leave blank for automatic"><div class="help">Leave blank for the next controlled document number.</div></div>
-        <div class="field"><label>Order date</label><input type="date" name="order_date" value="{{ today }}" required></div>
-        <div class="field"><label>Expected date</label><input type="date" name="expected_date" value="{{ default_expected }}"></div>
-        <div class="field"><label>{{ 'Amount before VAT' if tax_enabled else 'Amount' }}</label><input name="amount" inputmode="decimal" placeholder="0.00" required></div>
-        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3"></div>
-        {% if tax_enabled %}<div class="field field-full"><label>VAT / tax code</label><select name="tax_code_id"><option value="">No VAT / tax</option>{% for row in tax_codes %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }} ({{ '%.2f'|format(row.rate_percent) }}%)</option>{% endfor %}</select></div>{% endif %}
-        <div class="field field-full"><label>Description</label><input name="description" placeholder="Goods / services ordered" required></div>
-        <div class="field"><label>{{ 'Money you owe account' if ui_mode == 'home' else 'Payables account after conversion' }}</label><select name="payable_account_id" required>{% for row in payable_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>{{ 'Expense category' if ui_mode == 'home' else 'Expense account after conversion' }}</label><select name="expense_account_id" required>{% for row in expense_accounts %}<option value="{{ row.id }}">{{ row.code }} · {{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field-full"><button class="button" type="submit">Create purchase order</button></div>
-      </form>
-      <p class="help">Creating, sending or approving a purchase order does not create a journal. Accounting starts only when an approved PO is converted to a bill.</p>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head"><h2>{{ 'How it works' if ui_mode == 'home' else 'Purchase order lifecycle' }}</h2></div>
-    <div class="card-body">
-      <p><strong>Draft → Sent → Approved → Converted</strong></p>
-      <p class="muted">A purchase order can also be cancelled. Only approved orders can be converted into a supplier bill.</p>
-      <p class="muted">Conversion reuses the supplier, amount, VAT code and ledger accounts stored on the PO and posts through the normal purchase service.</p>
-    </div>
+  <div><h1>Purchase orders</h1><p>Manage order headers and lines on dedicated screens. Acknowledgements and fulfilment documents remain linked to each order.</p></div>
+  <div class="actions">
+    <a class="button" href="{{ url_for('purchase_orders.new_order') }}">+ New purchase order</a>
+    <a class="button button-secondary" href="{{ url_for('purchase_orders.grn_workspace') }}">Goods receipts (GRN)</a>
+    <a class="button button-secondary" href="{{ url_for('purchases.index') }}">Back</a>
   </div>
 </div>
-
-<div class="card section">
-  <div class="card-head"><h2>Multi-line purchase order</h2></div>
-  <div class="card-body">
-    <details>
-      <summary class="button button-secondary">Create order with multiple lines</summary>
-      <form method="post" class="form-grid" style="margin-top:1rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="create_multi">
-        <div class="field"><label>Supplier</label><select name="supplier_id" required><option value="">Select</option>{% for row in suppliers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Order number</label><input name="order_number" placeholder="Leave blank for automatic"></div>
-        <div class="field"><label>Order date</label><input type="date" name="order_date" value="{{ today }}" required></div>
-        <div class="field"><label>Expected date</label><input type="date" name="expected_date"></div>
-        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3" required></div>
-        <div class="field"><label>Payables account</label><select name="payable_account_id" required>{% for a in payable_accounts %}<option value="{{ a.id }}">{{ a.code }} · {{ a.name }}</option>{% endfor %}</select></div>
-        <div class="field field-full"><p class="help">Enter one or more lines; blank descriptions are ignored. Monetary totals are calculated automatically. This creates a draft and does not post accounting entries.</p></div>
-        {% for i in range(1,6) %}
-        <div class="field field-full"><strong>Line {{ i }}</strong></div>
-        <div class="field"><label>Description</label><input name="line_{{ i }}_description" maxlength="500"></div>
-        <div class="field"><label>Quantity</label><input type="number" name="line_{{ i }}_quantity" min="0.0001" step="0.0001"></div>
-        <div class="field"><label>Unit price</label><input type="number" name="line_{{ i }}_price" min="0" step="0.0001"></div>
-        <div class="field"><label>Expense account</label><select name="line_{{ i }}_account"><option value="">Select</option>{% for a in expense_accounts %}<option value="{{ a.id }}">{{ a.code }} · {{ a.name }}</option>{% endfor %}</select></div>
-        {% if tax_enabled %}<div class="field"><label>Tax code</label><select name="line_{{ i }}_tax"><option value="">No tax</option>{% for t in tax_codes %}<option value="{{ t.id }}">{{ t.code }} · {{ t.name }}</option>{% endfor %}</select></div>{% endif %}
-        {% endfor %}
-        <div class="field-full"><button class="button" type="submit">Create multi-line order</button></div>
-      </form>
-    </details>
-  </div>
-</div>
-
-{% if match_preview %}
-<div class="card section">
-  <div class="card-head"><h2>Supplier invoice match — {{ match_preview.purchase_order_number }}</h2></div>
-  <div class="card-body">
-    <p><strong>{{ 'Matched for preview' if match_preview.matched else 'Discrepancies found' }}</strong> · {{ match_preview.match_type|replace('_',' ')|title }} · Supplier reference: {{ match_preview.supplier_invoice_reference }}</p>
-    <p>Proposed net amount: {{ match_preview.invoice_net_total }} · <strong>Preview only — no bill, approval or posting created.</strong></p>
-    {% if match_preview.issues %}
-    <ul>{% for issue in match_preview.issues %}<li>{{ issue|replace('_', ' ') }}</li>{% endfor %}</ul>
-    {% endif %}
-    <div class="table-wrap">
-    <table>
-      <thead><tr><th>PO line ID</th><th>Ordered</th><th>Received</th><th>Invoice qty</th><th>PO price</th><th>Invoice price</th><th>Issues</th></tr></thead>
-      <tbody>{% for line in match_preview.lines %}
-      <tr><td>{{ line.order_line_id }}</td><td>{{ line.ordered_quantity }}</td><td>{{ line.received_quantity }}</td><td>{{ line.proposed_invoice_quantity }}</td><td>{{ line.ordered_unit_price }}</td><td>{{ line.invoice_unit_price }}</td><td>{{ line.issues|join(', ') or 'None' }}</td></tr>
+<section class="card section">
+  <div class="card-head"><h2>Order register</h2></div>
+  <div class="card-body table-wrap">
+    {% if orders %}
+    <table style="width:100%;min-width:760px">
+      <thead><tr><th>Order</th><th>Supplier</th><th>Date</th><th>Expected</th><th>Status</th><th class="number">Total</th><th>Actions</th></tr></thead>
+      <tbody>{% for order in orders %}
+      <tr><td><a href="{{ url_for('purchase_orders.order_detail', order_id=order.id) }}"><strong>{{ order.order_number }}</strong></a></td>
+      <td>{{ order.supplier.name }}</td>
+      <td>{{ order.order_date.strftime('%d %b %Y') }}</td>
+      <td>{{ order.expected_date.strftime('%d %b %Y') if order.expected_date else '—' }}</td>
+      <td><span class="badge">{{ order.status|title }}</span></td>
+      <td class="number">{{ order.currency }} {{ '%.2f'|format(order.total) }}</td>
+      <td>
+        <a class="button button-small button-secondary" href="{{ url_for('purchase_orders.order_detail', order_id=order.id, tab='lines') }}">View order</a>
+        <a class="button button-small button-secondary" href="{{ url_for('purchase_orders.order_detail', order_id=order.id, tab='ack') }}">Acknowledgements</a>
+        <a class="button button-small button-secondary" href="{{ url_for('purchase_orders.grn_workspace', order_id=order.id) }}">GRN</a>
+        {% if order.status not in ['converted', 'cancelled'] %}
+        <details style="display:inline-block;vertical-align:top">
+          <summary class="button button-small button-secondary">Status</summary>
+          <form method="post" style="padding:.5rem;min-width:180px">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="status">
+            <input type="hidden" name="order_id" value="{{ order.id }}">
+            <select name="status" aria-label="Order status">
+              <option value="draft">Draft</option><option value="sent">Sent</option><option value="approved">Approved</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <button type="submit" class="button button-small">Update</button>
+          </form>
+        </details>
+        {% endif %}
+      </td></tr>
       {% endfor %}</tbody>
     </table>
-    </div>
+    {% else %}<div class="empty">No orders yet. Use New purchase order to create one.</div>{% endif %}
   </div>
-</div>
-{% endif %}
-
-<div class="card section">
-  <div class="card-head"><h2>Purchase order register</h2><span class="badge">{{ orders|length }}</span></div>
-  <div class="table-wrap">
-    {% if orders %}
-    <table>
-      <thead><tr><th>PO</th><th>Supplier</th><th>Date</th><th>Expected</th><th>Status</th><th class="number">Total</th><th>Actions</th></tr></thead>
-      <tbody>
-      {% for row in orders %}
-        <tr>
-          <td><strong>{{ row.order_number }}</strong></td>
-          <td>{{ row.supplier.name }}</td>
-          <td>{{ row.order_date.strftime('%d %b %Y') }}</td>
-          <td>{{ row.expected_date.strftime('%d %b %Y') if row.expected_date else '—' }}</td>
-          <td><span class="badge {{ 'badge-success' if row.status in ['approved','converted'] else '' }}">{{ row.status|title }}</span></td>
-          <td class="number">{{ row.currency }} {{ '%.2f'|format(row.total) }}</td>
-          <td>
-            {% if row.status != 'converted' %}
-            <details>
-              <summary class="button button-small button-secondary">Manage</summary>
-              <div style="min-width:300px;margin-top:.5rem">
-                <form method="post" class="form-grid">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="status"><input type="hidden" name="order_id" value="{{ row.id }}">
-                  <div class="field field-full"><label>Status</label><select name="status"><option value="draft" {% if row.status == 'draft' %}selected{% endif %}>Draft</option><option value="sent" {% if row.status == 'sent' %}selected{% endif %}>Sent</option><option value="approved" {% if row.status == 'approved' %}selected{% endif %}>Approved</option><option value="cancelled" {% if row.status == 'cancelled' %}selected{% endif %}>Cancelled</option></select></div>
-                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Update status</button></div>
-                </form>
-                {% if row.status in ['approved','sent'] %}
-                <hr>
-                <form method="post" class="form-grid">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="action" value="po_ack">
-                  <input type="hidden" name="order_id" value="{{ row.id }}">
-                  <div class="field"><label>Supplier acknowledgement date</label><input type="date" name="document_date" value="{{ today }}"></div>
-                  <div class="field"><label>Supplier acknowledgement reference</label><input name="external_reference" maxlength="120"></div>
-                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Record PO acknowledgement</button></div>
-                </form>
-                {% for line in row.lines %}
-                <form method="post" class="form-grid">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="action" value="grn">
-                  <input type="hidden" name="order_id" value="{{ row.id }}">
-                  <input type="hidden" name="order_line_id" value="{{ line.id }}">
-                  <div class="field field-full"><strong>Goods receipt: {{ line.description }}</strong></div>
-                  <div class="field"><label>Received quantity (ordered {{ line.quantity }})</label><input name="quantity" type="number" min="0.0001" step="0.0001" required></div>
-                  <div class="field"><label>Receipt date</label><input type="date" name="document_date" value="{{ today }}"></div>
-                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Record GRN</button></div>
-                </form>
-                {% endfor %}
-                {% for doc in order_documents.get(row.id, []) %}
-                <p class="help"><strong>{{ doc.document_number }}</strong> · {{ doc.document_type|upper }} · {{ doc.document_date }}{% if doc.response_status %} · {{ doc.response_status }}{% endif %}</p>
-                {% if doc.document_type == 'po_ack' and not doc.response_status %}
-                <form method="post" class="form-grid">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="action" value="po_ack_response">
-                  <input type="hidden" name="document_id" value="{{ doc.id }}">
-                  <div class="field"><label>Supplier reply</label><select name="response_status"><option value="accepted">Accepted</option><option value="partially_accepted">Partially accepted</option><option value="changes_requested">Changes requested</option><option value="rejected">Rejected</option></select></div>
-                  <div class="field"><label>Supplier reference</label><input name="supplier_reference" maxlength="120"></div>
-                  <div class="field-full"><button type="submit" class="button button-small">Save supplier response</button></div>
-                </form>
-                {% endif %}
-                {% endfor %}
-                {% endif %}
-                {% if row.status in ['approved', 'sent'] %}
-                <hr>
-                <form method="post" class="form-grid">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="action" value="match_preview">
-                  <input type="hidden" name="order_id" value="{{ row.id }}">
-                  <div class="field field-full"><strong>Supplier invoice matching preview</strong><p class="help">Checks your proposed invoice against PO lines and issued GRNs. Nothing is posted.</p></div>
-                  <div class="field"><label>Supplier invoice reference</label><input name="supplier_invoice_reference" maxlength="120" required></div>
-                  <div class="field"><label>Match method</label><select name="match_type"><option value="three_way">3-way: PO / GRN / Invoice</option><option value="two_way">2-way: PO / Invoice</option></select></div>
-                  <div class="field"><label>Price tolerance %</label><input name="price_tolerance_percent" type="number" min="0" max="100" step="0.01" value="0"></div>
-                  {% for line in row.lines %}
-                  <input type="hidden" name="order_line_id" value="{{ line.id }}">
-                  <div class="field field-full"><strong>{{ line.description }} — ordered {{ line.quantity }}</strong></div>
-                  <div class="field"><label>Invoice quantity</label><input name="invoice_quantity" type="number" min="0.0001" step="0.0001" value="{{ line.quantity }}"></div>
-                  <div class="field"><label>Invoice unit price</label><input name="invoice_unit_price" type="number" min="0" step="0.01" value="{{ line.unit_price }}"></div>
-                  {% endfor %}
-                  <div class="field-full"><button class="button button-small button-secondary" type="submit">Preview invoice match</button></div>
-                </form>
-                {% endif %}
-                {% if row.status == 'approved' %}<hr><form method="post" class="form-grid">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="convert"><input type="hidden" name="order_id" value="{{ row.id }}">
-                  <div class="field field-full"><label>LedgerOne bill number (optional)</label><input name="bill_number" placeholder="Leave blank for automatic"><div class="help">The controlled number is allocated when the purchase order converts to a posted bill.</div></div>
-                  <div class="field"><label>Supplier invoice reference</label><input name="supplier_invoice_reference" maxlength="120" placeholder="Number printed on supplier invoice"></div>
-                  <div class="field"><label>Bill date</label><input type="date" name="bill_date" value="{{ today }}" required></div>
-                  <div class="field"><label>Due date</label><input type="date" name="due_date" value="{{ default_due }}"></div>
-                  <div class="field-full"><button class="button button-small" type="submit">Convert to bill</button></div>
-                </form>{% endif %}
-              </div>
-            </details>
-            {% else %}<a class="button button-small button-secondary" href="{{ url_for('documents.index', entity_type='purchase_bill', entity_id=row.converted_bill_id) }}">Bill docs</a>{% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty">No purchase orders yet.</div>{% endif %}
-  </div>
-</div>
+</section>
 {% endblock %}

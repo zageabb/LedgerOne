@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Goods receipts · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Goods receipt notes (GRN)</h1><p>Select an approved PO, review its remaining quantities and record a multi-line receipt.</p></div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchase_orders.index') }}">Purchase orders</a></div>
+</div>
+<section class="card section">
+  <div class="card-head"><h2>1. Select purchase order</h2></div>
+  <div class="card-body">
+    <form method="get" class="form-grid">
+      <div class="field field-full"><label>Purchase order</label>
+        <select name="order_id" required>
+          <option value="">Choose an approved or sent PO</option>
+          {% for item in orders if item.status in ['approved', 'sent'] %}
+          <option value="{{ item.id }}" {% if selected and selected.id == item.id %}selected{% endif %}>{{ item.order_number }} · {{ item.supplier.name }} · {{ item.currency }} {{ '%.2f'|format(item.total) }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field-full"><button class="button button-secondary" type="submit">Load outstanding PO lines</button></div>
+    </form>
+  </div>
+</section>
+{% if selected %}
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="order_id" value="{{ selected.id }}">
+  <section class="card section">
+    <div class="card-head"><h2>2. GRN header</h2></div>
+    <div class="card-body form-grid">
+      <div class="field"><label>PO</label><strong>{{ selected.order_number }}</strong></div>
+      <div class="field"><label>Supplier</label><strong>{{ selected.supplier.name }}</strong></div>
+      <div class="field"><label>Receipt date</label><input type="date" name="document_date" value="{{ today }}" required></div>
+      <div class="field"><label>Supplier delivery note / reference</label><input name="external_reference" maxlength="120"></div>
+    </div>
+  </section>
+  <section class="card section">
+    <div class="card-head"><h2>3. Receipt details</h2></div>
+    <div class="card-body">
+      <p class="help">Enter received quantities for multiple lines. Leave 0 for lines not received. All non-zero entries are recorded in one GRN.</p>
+      <div class="table-wrap"><table style="width:100%;min-width:750px">
+        <thead><tr><th>Line</th><th>Item / description</th><th class="number">Ordered</th><th class="number">Previously received</th><th class="number">Outstanding</th><th>Receive now</th></tr></thead>
+        <tbody>
+          {% for item in outstanding %}
+          <tr>
+            <td>{{ item.line.line_number }}</td><td><strong>{{ item.line.description }}</strong></td>
+            <td class="number">{{ item.line.quantity }}</td><td class="number">{{ item.received }}</td>
+            <td class="number">{{ item.outstanding }}</td>
+            <td><input type="hidden" name="order_line_id[]" value="{{ item.line.id }}">
+              <input name="receive_quantity[]" aria-label="Receive {{ item.line.description }}" type="number"
+                min="0" max="{{ item.outstanding }}" step="0.0001" value="0"
+                {% if item.outstanding == 0 %}readonly{% endif %} required style="min-width:100px;width:100%"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      <div class="actions" style="margin-top:1rem">
+        <button class="button" type="submit" {% if not outstanding or not available %}disabled{% endif %}>Post goods receipt note</button>
+      </div>
+      <p class="help">Posting a GRN records receipt quantities only; it does not post an accounting journal or supplier invoice.</p>
+    </div>
+  </section>
+</form>
+<section class="card section">
+  <div class="card-head"><h2>Previous GRNs for {{ selected.order_number }}</h2></div>
+  <div class="card-body table-wrap">
+    {% if receipts %}
+    <table><thead><tr><th>GRN</th><th>Date</th><th>Supplier reference</th><th>Lines</th></tr></thead>
+      <tbody>{% for receipt in receipts %}
+      <tr><td><strong>{{ receipt.document_number }}</strong></td><td>{{ receipt.document_date }}</td>
+      <td>{{ receipt.external_reference or '—' }}</td><td>{{ receipt.lines|length }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<p class="help">No receipts recorded for this PO.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

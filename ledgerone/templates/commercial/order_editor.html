@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}New {{ 'purchase' if is_purchase else 'sales' }} order · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>New {{ 'purchase' if is_purchase else 'sales' }} order</h1>
+    <p>Header information and item details are entered separately. The order is saved as a draft without a ledger posting.</p></div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchase_orders.index' if is_purchase else 'sales_orders.index') }}">Back to order register</a></div>
+</div>
+<form method="post" id="erp-order-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <section class="card section">
+    <div class="card-head"><h2>1. Order header</h2></div>
+    <div class="card-body form-grid">
+      <div class="field"><label>{{ 'Supplier' if is_purchase else 'Customer' }}</label>
+        <select name="party_id" required><option value="">Choose {{ 'supplier' if is_purchase else 'customer' }}</option>
+          {% for party in parties %}<option value="{{ party.id }}">{{ party.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label>Order number</label><input name="order_number" maxlength="120" placeholder="Automatic if blank"></div>
+      <div class="field"><label>Order date</label><input name="order_date" type="date" value="{{ today }}" required></div>
+      <div class="field"><label>{{ 'Expected receipt' if is_purchase else 'Requested delivery' }}</label>
+        <input name="expected_date" type="date"></div>
+      <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3" required></div>
+      <div class="field"><label>{{ 'Payables account' if is_purchase else 'Receivables account' }}</label>
+        <select name="control_account_id" required><option value="">Select account</option>
+        {% for account in control_accounts %}<option value="{{ account.id }}">{{ account.code }} · {{ account.name }}</option>{% endfor %}
+        </select></div>
+    </div>
+  </section>
+  <section class="card section">
+    <div class="card-head"><h2>2. Order detail — line items</h2></div>
+    <div class="card-body">
+      <p class="help">Enter as many lines as required. Totals below are indicative before VAT; the server calculates and validates the final amounts.</p>
+      <div class="table-wrap">
+        <table id="erp-lines" style="min-width:860px;width:100%">
+          <thead><tr><th style="width:3rem">#</th><th>Description</th><th>Quantity</th><th>Unit price</th>
+          <th>{{ 'Expense' if is_purchase else 'Revenue' }} account</th><th>VAT / tax</th><th class="number">Net</th><th></th></tr></thead>
+          <tbody id="erp-line-body"></tbody>
+        </table>
+      </div>
+      <div class="actions" style="margin-top:1rem;display:flex;gap:.75rem;align-items:center">
+        <button class="button button-secondary" type="button" id="erp-add-line">+ Add line</button>
+        <span class="help">Up to 200 lines per order.</span>
+      </div>
+    </div>
+  </section>
+  <section class="card section">
+    <div class="card-head"><h2>3. Review and save</h2></div>
+    <div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div><strong>Estimated net amount: <span id="erp-net-total">0.00</span></strong>
+          <p class="help">Draft only · No invoice or accounting journal will be posted</p></div>
+        <button class="button" type="submit">Save draft {{ 'PO' if is_purchase else 'SO' }}</button>
+      </div>
+    </div>
+  </section>
+</form>
+<template id="erp-line-template">
+  <tr>
+    <td class="erp-row-number"></td>
+    <td><input name="line_description[]" maxlength="500" placeholder="Item or service" aria-label="Item description" required></td>
+    <td><input name="line_quantity[]" type="number" min="0.0001" step="0.0001" value="1" aria-label="Quantity" required style="min-width:85px;width:100%"></td>
+    <td><input name="line_price[]" type="number" min="0" step="0.0001" value="0.00" aria-label="Unit price" required style="min-width:95px;width:100%"></td>
+    <td><select name="line_account[]" aria-label="Posting account" required style="min-width:150px"><option value="">Select</option>
+      {% for account in line_accounts %}<option value="{{ account.id }}">{{ account.code }} · {{ account.name }}</option>{% endfor %}
+    </select></td>
+    <td><select name="line_tax[]" aria-label="Tax code" style="min-width:110px"><option value="">No tax</option>
+      {% for tax in tax_codes %}<option value="{{ tax.id }}">{{ tax.code }} · {{ tax.name }}</option>{% endfor %}
+    </select></td>
+    <td class="erp-net number">0.00</td>
+    <td><button class="button button-small button-secondary erp-remove" type="button" aria-label="Remove line">×</button></td>
+  </tr>
+</template>
+<script>
+(function () {
+  const body = document.getElementById('erp-line-body');
+  const prototype = document.getElementById('erp-line-template');
+  const output = document.getElementById('erp-net-total');
+  const add = document.getElementById('erp-add-line');
+  function recalculate() {
+    let total = 0;
+    [...body.rows].forEach((row, i) => {
+      row.querySelector('.erp-row-number').textContent = String(i + 1);
+      const q = Number(row.querySelector('[name="line_quantity[]"]').value) || 0;
+      const p = Number(row.querySelector('[name="line_price[]"]').value) || 0;
+      const net = Math.round((q * p + Number.EPSILON) * 100) / 100;
+      total += net;
+      row.querySelector('.erp-net').textContent = net.toFixed(2);
+    });
+    output.textContent = total.toFixed(2);
+    add.disabled = body.rows.length >= 200;
+  }
+  function appendLine() {
+    if (body.rows.length >= 200) return;
+    body.appendChild(prototype.content.cloneNode(true));
+    recalculate();
+  }
+  add.addEventListener('click', appendLine);
+  body.addEventListener('input', recalculate);
+  body.addEventListener('click', function (event) {
+    if (event.target.closest('.erp-remove')) {
+      if (body.rows.length > 1) event.target.closest('tr').remove();
+      else {
+        const row = body.rows[0];
+        row.querySelector('[name="line_description[]"]').value = '';
+        row.querySelector('[name="line_price[]"]').value = '0.00';
+      }
+      recalculate();
+    }
+  });
+  appendLine();
+})();
+</script>
+{% endblock %}

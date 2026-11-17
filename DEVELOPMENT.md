@@ -6,6 +6,20 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## ERP-000 UX workspace increment — separate PO/SO header/detail, acknowledgements, multi-line GRN
+Status: FEATURE BRANCH — CI and UDA/browser acceptance pending
+
+- [x] Replace crowded order register editor with dedicated `/purchases/orders/new` and `/sales/orders/new` screens.
+- [x] Separate order headers from line-item table; add/remove rows dynamically (up to 200 lines, server-validated).
+- [x] PO/SO order detail view includes order lines, acknowledgements and fulfilment tabs; expandable acknowledgement line details.
+- [x] Dedicated `/purchases/orders/grn` screen selects a PO and posts multiple received quantities in one GRN, showing ordered/received/outstanding quantities.
+- [x] Move supplier invoice 2-/3-way preview to a dedicated PO-linked matching screen; preserve existing single-line bill/invoice conversion link.
+- [x] Add unit/integration checks for dynamic row parsing, outstanding GRN quantities, no implicit journal and route registration.
+- [ ] Full CI, UI/browser acceptance, live UDA deployment.
+- [ ] GRN concurrency protection, serial/lot handling, rejection quantities, returns and atomic invoice matching/posting remain outside this UX increment.
+
+---
+
 ## ERP-000 implementation — first vertical slice (partial; full ERP-000 remains open)
 Status: Foundations merged (PR #30 and #31); further ERP-000 delivery and independent acceptance outstanding
 
