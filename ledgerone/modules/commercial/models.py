@@ -98,3 +98,32 @@ class CommercialMessageDraft(db.Model):
     idempotency_key = db.Column(db.String(120), nullable=False)
     created_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class CommercialAccountingEvent(db.Model):
+    """Uniquely associates a commercial event with its accounting journal.
+
+    The database uniqueness constraints are the final retry guard. A committed
+    GRN may never silently create a second inventory accrual.
+    """
+    __tablename__ = "commercial_accounting_events"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "document_id", "event_type",
+                            name="uq_commercial_accounting_one_event"),
+        db.UniqueConstraint("journal_id", name="uq_commercial_accounting_journal"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"),
+                                nullable=False, index=True)
+    document_id = db.Column(db.String(36), db.ForeignKey("commercial_documents.id"),
+                            nullable=False, index=True)
+    event_type = db.Column(db.String(40), nullable=False)
+    journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"),
+                           nullable=False)
+    posted_value = db.Column(db.Numeric(18, 2), nullable=False)
+    metadata_json = db.Column(db.JSON(), nullable=False, default=dict)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    document = db.relationship("CommercialDocument")
+    journal = db.relationship("Journal")
