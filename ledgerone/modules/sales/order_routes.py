@@ -37,6 +37,33 @@ def index():
                     tax_code_id=request.form.get("tax_code_id") or None,
                 )
                 flash("Sales order created. No ledger posting has been made.", "success")
+            elif action == "create_multi":
+                from ledgerone.modules.commercial.order_builder import MultiLineOrderService
+                lines = []
+                for index in range(1, 6):
+                    description = (request.form.get(f"line_{index}_description") or "").strip()
+                    if description:
+                        lines.append({
+                            "description": description,
+                            "quantity": request.form.get(f"line_{index}_quantity"),
+                            "unit_price": request.form.get(f"line_{index}_price"),
+                            "account_id": request.form.get(f"line_{index}_account"),
+                            "tax_code_id": request.form.get(f"line_{index}_tax") or None,
+                        })
+                order = MultiLineOrderService.create(
+                    context, kind="sales",
+                    party_id=request.form.get("customer_id", ""),
+                    order_number=request.form.get("order_number") or None,
+                    order_date=date.fromisoformat(
+                        request.form.get("order_date") or date.today().isoformat()),
+                    expected_date=date.fromisoformat(
+                        request.form.get("requested_delivery_date"))
+                    if request.form.get("requested_delivery_date") else None,
+                    control_account_id=request.form.get(
+                        "receivable_account_id", ""),
+                    currency=request.form.get("currency", "GBP"),
+                    lines=lines)
+                flash(f"Multi-line order {order.order_number} created.", "success")
             elif action == "status":
                 SalesOrderService.set_status(
                     context,
