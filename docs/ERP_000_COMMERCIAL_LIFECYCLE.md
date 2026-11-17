@@ -25,6 +25,18 @@ Not proven present as complete operational lifecycles:
 
 Do not mark these as complete merely because an order can be converted to a bill or invoice.
 
+## Receipt and dispatch accounting (accounting-control design)
+
+**Current live behaviour:** GRNs and delivery notes are operational quantity records only; they do not yet create general-ledger entries. Do not interpret a recorded delivery as a posted cost transaction.
+
+- **GRN stock receipt (net value):** DR Inventory Asset / CR Goods Received Not Invoiced (GRNI) clearing liability. Both accounts are company-specific and validated. Receipt value is based on quantity × approved acquisition cost and excludes recoverable VAT.
+- **Matched supplier invoice:** DR GRNI clearing liability (received, matched cost), DR recoverable Input VAT, CR Accounts Payable. Approved purchase-price variances use a separate configured variance account where needed. Avoid a second debit to purchase cost. Partial receipts and bills clear only their matched quantities.
+- **Sales-order stock delivery:** DR Cost of Goods Sold (COGS) / CR Inventory Asset using **stock cost**, not the sales price. Post only when delivery has the relevant inventory-control event, with correct ownership/title-transfer policy. The subsequent sales invoice separately records DR Accounts Receivable / CR Sales Revenue and Output VAT.
+- **Non-stock and services:** fulfilment may not warrant any inventory-cost entry. Use item-level accounting treatment and the company's accrual/revenue policies rather than posting a generic journal for every delivery note.
+- **Required configuration:** Company-specific GRNI liability, Inventory Asset and COGS posting roles, appropriate receipt/variance accounts and explicit activation rules. Do not silently invent account mappings or enable posting before setup.
+- **Blocking dependencies:** Stock ledger/valuation (FIFO or weighted average as selected), item classification, cost layers, approved prices, reversals and returns, transactional journal links, idempotency, locked-period checks and reconciliation.
+- **Audit and acceptance:** Every posted receipt/dispatch must link to a single immutable accounting journal; no duplicate postings on retries; no financial impact from merely viewing/printing a delivery note. Existing historical documents remain unposted until separately reconciled.
+
 ## ERP-000A — Master data, contacts and document foundations
 
 1. Company-local supplier/customer details, registered/trading names, multiple addresses (registered, billing, delivery), contacts and communication preferences.
