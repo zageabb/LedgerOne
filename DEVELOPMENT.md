@@ -13,7 +13,8 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Resolve company-specific Inventory Asset and GRNI liability accounts, showing a proposed balanced DR Inventory / CR GRNI journal.
 - [x] Link individual GRN history to a read-only accounting preview screen and company-scoped API; no financial posting or balance mutation.
 - [x] Flag missing/invalid account configurations and unclassified legacy lines; add regression coverage for no journals, values and company boundaries.
-- [ ] Atomic GRN journal creation and immutable source-journal association, with company activation controls, locking and reversal.
+- [x] Internal-only atomic GRN accrual posting service and unique document/journal event link table, with DB retry protection and explicit disabled-by-default activation gate (PR pending CI).
+- [ ] Certified GRNI bill clearing and externally supported activation, reversals and operational posting remain outstanding.
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
 - [ ] CI green and live UDA/browser acceptance.
 
