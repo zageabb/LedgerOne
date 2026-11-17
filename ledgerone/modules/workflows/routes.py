@@ -124,6 +124,21 @@ def definitions():
                     approval_role=request.form.get("threshold_role") or None)
                 flash("Company approval threshold updated.", "success")
                 return redirect(url_for("workflows.definitions"))
+            custom_steps = None
+            if request.form.get("routing_mode") == "custom":
+                custom_steps = []
+                for index in range(1, 5):
+                    kind = request.form.get(f"stage_{index}_type") or ""
+                    if not kind:
+                        continue
+                    target_type = request.form.get(f"stage_{index}_target_type") or ""
+                    value = (request.form.get(f"stage_{index}_target") or "").strip()
+                    custom_steps.append({
+                        "type": kind,
+                        "label": request.form.get(f"stage_{index}_label") or f"Stage {index}",
+                        "role": value if target_type == "role" else None,
+                        "user_id": value if target_type == "user" else None,
+                    })
             WorkflowService.create_definition(
                 context,
                 name=request.form.get("name", ""),
@@ -137,6 +152,7 @@ def definitions():
                 approval_role=request.form.get("approval_role") or None,
                 separate_approver=request.form.get("separate_approver") == "1",
                 priority=int(request.form.get("priority") or 100),
+                custom_steps=custom_steps,
             )
             flash("Workflow rule created.", "success")
             return redirect(url_for("workflows.definitions"))
@@ -146,6 +162,7 @@ def definitions():
         "workflows/definitions.html",
         definitions=WorkflowService.list_definitions(context),
         can_manage=context.can("workflows.manage"),
+        member_choices=WorkflowService.active_company_members(context),
     )
 
 
