@@ -21,6 +21,42 @@ See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md` for all nine ERP-000 increments.
 
 ---
 
+## ERP-000 — Full purchasing and sales document lifecycle (before ERP-001)
+Status: PLANNED — specification completed, implementation outstanding
+
+- [x] Define commercial document chain: Purchase requisition → PO → supplier email → supplier PO acknowledgement → GRN → matched purchase invoice/bill → payment; Quote → sales order → sales order acknowledgement → picking/dispatch → delivery note → sales invoice → receipt.
+- [x] Review existing quote, SO, PO, bill, invoice and supplier contact foundations; avoid duplicating implemented functionality.
+- [ ] ERP-000.1 — Full gap audit and multi-line linked document data model / screen/API specifications.
+- [ ] ERP-000.2 — Company-specific supplier/customer purpose-coded email contacts and templates.
+- [ ] ERP-000.3 — Multi-line POs, purchase requisitions, configurable approvals, issuance and supplier PO acknowledgement (accepted quantities/dates/prices, discrepancies, revisions).
+- [ ] ERP-000.4 — GRNs, partial goods receipts, rejections, returns and quantities.
+- [ ] ERP-000.5 — Two-/three-way PO/GRN/supplier-invoice matching and AP.
+- [ ] ERP-000.6 — Customer-facing, revision-controlled sales order acknowledgements (PDF/email/acceptance), multi-line fulfilment, picking, dispatch and delivery notes.
+- [ ] ERP-000.7 — Delivery-linked partial/multiple sales invoices, returns and credits.
+- [ ] ERP-000.8 — Approved outbound supplier/customer email provider, including PO acknowledgement requests/reminders, sales order acknowledgements, PDF sending, replies and audit.
+- [ ] ERP-000.9 — End-to-end dashboards, reporting, accounting/quantity reconciliation and UDA acceptance.
+
+See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md`. Supplier email codes select purpose-specific contacts (orders/accounts/logistics, etc.), not credentials. No mail is sent until a configured provider and authorised send action exist. ERP-000 precedes legacy ERP migration ERP-001.
+
+---
+
+## DEV-015 — Legacy ERP migration (CashLink first; reusable import adapters)
+Status: PLANNED — first implementation increment is a read-only assessment
+
+- [x] Existing CashLink UCSD volume reader, raw-record SQLite preservation and account CSV export retained.
+- [x] Migration design, phases, reconciliation gates and work items documented in `docs/LEGACY_ERP_MIGRATION.md`.
+- [ ] ERP-001 — Read-only CashLink source assessment, decode confidence, transactions, source lineage, exceptions and totals.
+- [ ] ERP-002 — Reusable staging schema and source-adapter interface.
+- [ ] ERP-003 — Company-specific account/contact mapping, dry-run reconciliation and exception sign-off.
+- [ ] ERP-004 — Maker/checker-approved, auditable, idempotent migration batches with rollback planning.
+- [ ] ERP-005 — Job Cost decode and mapping to Projects/Jobs.
+- [ ] ERP-006 — General CSV, Excel and SQLite/database-export adapters.
+- [ ] CI + actual legacy fixture validation; independent accounting and live UDA acceptance.
+
+Do not treat successful raw recovery as completed financial transaction import. No production writes until mappings and reconciliations have been reviewed.
+
+---
+
 ## DEV-014 — Custom workflows and company user role allocation
 Status: PHASE 1 IMPLEMENTED ON FEATURE BRANCH — CI & LIVE ACCEPTANCE PENDING
 
