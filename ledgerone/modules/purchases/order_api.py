@@ -133,3 +133,19 @@ def create_multi_line_order():
     except (KeyError, ValueError, TypeError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
 
+
+
+@api_bp.post("/<order_id>/invoice-match-preview")
+@require_api("purchases.read")
+def invoice_match_preview(order_id):
+    from ledgerone.modules.commercial.purchase_matching import PurchaseMatchService
+    payload = request.get_json(silent=True) or {}
+    try:
+        preview = PurchaseMatchService.preview(
+            g.access_context, order_id=order_id,
+            supplier_invoice_reference=payload.get("supplier_invoice_reference"),
+            lines=payload.get("lines"), match_type=payload.get("match_type", "three_way"),
+            price_tolerance_percent=payload.get("price_tolerance_percent", "0"))
+        return jsonify(preview)
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
