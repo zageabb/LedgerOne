@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}GRN accounting preview · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>GRN {{ preview.grn_number }} — accounting preview</h1>
+    <p>Purchase order {{ preview.purchase_order_number }} · {{ preview.date }} · {{ preview.currency }}</p>
+  </div>
+  <a class="button button-secondary" href="{{ url_for('purchase_orders.grn_workspace', order_id=preview.purchase_order_id) }}">Back to GRNs</a>
+</div>
+<section class="card section">
+  <div class="card-head"><h2>Receipt valuation</h2></div>
+  <div class="card-body">
+    <p class="help"><strong>Preview only.</strong> No journal has been posted. GRNI supplier invoice clearing must be implemented and validated before activation.</p>
+    <div class="table-wrap"><table style="width:100%">
+      <thead><tr><th>Description</th><th>Treatment</th><th>Quantity</th><th>PO unit cost</th><th class="number">Accrual value</th></tr></thead>
+      <tbody>{% for item in preview.breakdown %}
+      <tr><td>{{ item.description }}</td><td>{{ item.treatment }}</td><td>{{ item.quantity }}</td>
+      <td>{{ item.unit_cost or '—' }}</td><td class="number">{{ item.receipt_value }}</td></tr>
+      {% endfor %}</tbody>
+      <tfoot><tr><td colspan="4"><strong>Stock value</strong></td><td class="number"><strong>{{ preview.currency }} {{ preview.stock_cost_value }}</strong></td></tr></tfoot>
+    </table></div>
+  </div>
+</section>
+<section class="card section">
+  <div class="card-head"><h2>Proposed journal — not posted</h2></div>
+  <div class="card-body">
+    {% if preview.issues %}
+    <p class="help">Posting prerequisites:</p>
+    <ul>{% for issue in preview.issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if preview.lines %}
+    <div class="table-wrap"><table style="width:100%">
+      <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+      <tbody>{% for line in preview.lines %}
+      <tr><td>{{ line.account_code }} · {{ line.account_name }}</td>
+      <td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="help">Configure the GRNI clearing and Inventory accounts in Settings to preview the journal lines.</p>{% endif %}
+    <p class="help">Inventory costs shown use the recorded purchase-order unit prices and exclude VAT. Stock valuation and later supplier-invoice price variances still require implementation.</p>
+  </div>
+</section>
+{% endblock %}
