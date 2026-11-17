@@ -119,6 +119,15 @@ class WorkflowService:
     """Generic review/approval engine used by scheduled transactions and future modules."""
 
     @staticmethod
+    def active_company_members(context: AccessContext):
+        if not context.organisation_id:
+            raise WorkflowError("An organisation is required")
+        return (Membership.query.join(User)
+                .filter(Membership.organisation_id == context.organisation_id,
+                        Membership.is_active.is_(True), User.is_active.is_(True))
+                .order_by(User.name.asc()).all())
+
+    @staticmethod
     def list_definitions(context: AccessContext):
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
