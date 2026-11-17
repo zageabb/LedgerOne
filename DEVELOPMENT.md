@@ -14,6 +14,7 @@ Status: ACCOUNT CONFIGURATION IMPLEMENTED ON FEATURE BRANCH; financial journal p
 - [ ] Supplier invoice: clear GRNI exactly once for matched receipts; debit input VAT and credit AP. Support partial invoices, price variance, locked periods, reversals and unmatched items without double-expensing.
 - [ ] Company-specific inventory asset and Cost of Goods Sold (COGS) account mappings for Sales Order deliveries.
 - [ ] Distinguish stock, non-stock and services. Stock delivery note posts DR COGS / CR inventory **at recorded stock cost**, never sales price. Non-stock/service fulfilment has no automatic inventory journal.
+- [x] Explicit stock/non-stock item accounting treatment per PO/SO line (order creation UI and API), without enabling inventory financial posting.
 - [ ] Costing source and stock valuation (moving average/FIFO or approved policy), batch/serial handling, quantity availability and returns must exist before enabling value-posting on sales deliveries.
 - [ ] Atomic one-to-one posted-journal linkage, concurrency and idempotency guards for both GRNs and delivery notes; no retroactive automatic posting for historical documents.
 - [ ] Approval, cut-off and delivery/incoterm policy, reverse/return flows, and integration tests for journals, valuation, partial fulfilment and reconciliation.

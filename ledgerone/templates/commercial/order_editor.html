@@ -29,11 +29,11 @@
   <section class="card section">
     <div class="card-head"><h2>2. Order detail — line items</h2></div>
     <div class="card-body">
-      <p class="help">Enter as many lines as required. Totals below are indicative before VAT; the server calculates and validates the final amounts.</p>
+      <p class="help">Enter as many lines as required. Item treatment identifies stock versus non-stock/services for future GRNI and COGS posting. Selecting Stock does not currently post an inventory journal.</p>
       <div class="table-wrap">
         <table id="erp-lines" style="min-width:860px;width:100%">
           <thead><tr><th style="width:3rem">#</th><th>Description</th><th>Quantity</th><th>Unit price</th>
-          <th>{{ 'Expense' if is_purchase else 'Revenue' }} account</th><th>VAT / tax</th><th class="number">Net</th><th></th></tr></thead>
+          <th>Item treatment</th><th>{{ 'Expense' if is_purchase else 'Revenue' }} account</th><th>VAT / tax</th><th class="number">Net</th><th></th></tr></thead>
           <tbody id="erp-line-body"></tbody>
         </table>
       </div>
@@ -60,6 +60,10 @@
     <td><input name="line_description[]" maxlength="500" placeholder="Item or service" aria-label="Item description" required></td>
     <td><input name="line_quantity[]" type="number" min="0.0001" step="0.0001" value="1" aria-label="Quantity" required style="min-width:85px;width:100%"></td>
     <td><input name="line_price[]" type="number" min="0" step="0.0001" value="0.00" aria-label="Unit price" required style="min-width:95px;width:100%"></td>
+    <td><select name="line_treatment[]" aria-label="Item accounting treatment" style="min-width:130px">
+      {% if is_purchase %}<option value="expense">Non-stock / cost</option>{% else %}<option value="service">Non-stock / service</option>{% endif %}
+      <option value="stock">Inventory / stock</option>
+    </select></td>
     <td><select name="line_account[]" aria-label="Posting account" required style="min-width:150px"><option value="">Select</option>
       {% for account in line_accounts %}<option value="{{ account.id }}">{{ account.code }} · {{ account.name }}</option>{% endfor %}
     </select></td>

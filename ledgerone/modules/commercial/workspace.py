@@ -41,8 +41,11 @@ def submitted_order_lines(form):
     prices = form.getlist("line_price[]")
     accounts = form.getlist("line_account[]")
     taxes = form.getlist("line_tax[]")
+    treatments = form.getlist("line_treatment[]")
     if not (len(descriptions) == len(quantities) == len(prices) == len(accounts) == len(taxes)):
         raise ValueError("Every order row must contain description, quantity, price, account and tax fields")
+    if treatments and len(treatments) != len(descriptions):
+        raise ValueError("Every order row needs an item accounting treatment")
     if len(descriptions) > 200:
         raise ValueError("Maximum 200 order lines")
     rows = []
@@ -57,6 +60,7 @@ def submitted_order_lines(form):
             "description": description.strip(), "quantity": quantity,
             "unit_price": price, "account_id": account,
             "tax_code_id": tax or None,
+            "item_treatment": treatments[i-1] if treatments else None,
         })
     if not rows:
         raise ValueError("Add at least one complete order line")
