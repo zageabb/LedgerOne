@@ -131,13 +131,13 @@ def definitions():
                     kind = request.form.get(f"stage_{index}_type") or ""
                     if not kind:
                         continue
-                    target_type = request.form.get(f"stage_{index}_target_type") or ""
-                    value = (request.form.get(f"stage_{index}_target") or "").strip()
+                    role = (request.form.get(f"stage_{index}_role") or "").strip()
+                    user_id = (request.form.get(f"stage_{index}_user_id") or "").strip()
                     custom_steps.append({
                         "type": kind,
                         "label": request.form.get(f"stage_{index}_label") or f"Stage {index}",
-                        "role": value if target_type == "role" else None,
-                        "user_id": value if target_type == "user" else None,
+                        "role": role or None,
+                        "user_id": user_id or None,
                     })
             WorkflowService.create_definition(
                 context,
