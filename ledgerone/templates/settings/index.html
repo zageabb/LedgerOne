@@ -74,6 +74,36 @@
 </div>
 
 <div class="card section">
+  <div class="card-head"><div><h2>Inventory and GRNI posting accounts</h2>
+    <p class="muted">Configure the accounting accounts used by future stock receipt and delivery posting. Saving these does not activate GRN or delivery-note financial journals.</p></div></div>
+  <div class="card-body">
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="inventory_accounts">
+      {% for role, label, type_name in [
+        ('grni_clearing', 'Goods received not invoiced (GRNI) — liability', 'liability'),
+        ('inventory_asset', 'Inventory / stock — asset', 'asset'),
+        ('cost_of_goods_sold', 'Cost of goods sold (COGS) — expense', 'expense')
+      ] %}
+      <div class="field">
+        <label>{{ label }}</label>
+        <select name="{{ role }}" {% if not can_manage %}disabled{% endif %}>
+          <option value="">Not configured</option>
+          {% for account in inventory_account_choices if account.account_type == type_name and account.is_active and not account.is_control_account %}
+          <option value="{{ account.id }}" {% if inventory_accounts.accounts[role] == account.id %}selected{% endif %}>{{ account.code }} · {{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+      <div class="field-full">
+        <p class="help">Receipt and delivery financial posting: <strong>Not enabled</strong>. Stock-cost valuation, GRNI invoice clearing, idempotent journal linking and returns must be completed and tested first.</p>
+        {% if can_manage %}<button class="button" type="submit">Save accounting accounts</button>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card section">
   <div class="card-head">
     <div>
       <h2>LedgerOne AI</h2>

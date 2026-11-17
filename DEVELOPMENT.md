@@ -6,6 +6,20 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## ERP-000 accounting controls — receipts and dispatch (design, not released)
+Status: ACCOUNT CONFIGURATION IMPLEMENTED ON FEATURE BRANCH; financial journal posting NOT enabled
+
+- [x] Company-specific GRNI liability, inventory asset and COGS account roles, validated and editable in Settings; no implicit journal posting.
+- [ ] Opt-in GRN accrual: DR inventory (or appropriate non-inventory receipt account), CR GRNI at net cost, journal dated on receipt, linked to GRN and PO lines, all in one atomic transaction.
+- [ ] Supplier invoice: clear GRNI exactly once for matched receipts; debit input VAT and credit AP. Support partial invoices, price variance, locked periods, reversals and unmatched items without double-expensing.
+- [ ] Company-specific inventory asset and Cost of Goods Sold (COGS) account mappings for Sales Order deliveries.
+- [ ] Distinguish stock, non-stock and services. Stock delivery note posts DR COGS / CR inventory **at recorded stock cost**, never sales price. Non-stock/service fulfilment has no automatic inventory journal.
+- [ ] Costing source and stock valuation (moving average/FIFO or approved policy), batch/serial handling, quantity availability and returns must exist before enabling value-posting on sales deliveries.
+- [ ] Atomic one-to-one posted-journal linkage, concurrency and idempotency guards for both GRNs and delivery notes; no retroactive automatic posting for historical documents.
+- [ ] Approval, cut-off and delivery/incoterm policy, reverse/return flows, and integration tests for journals, valuation, partial fulfilment and reconciliation.
+
+---
+
 ## ERP-000 UX workspace increment — separate PO/SO header/detail, acknowledgements, multi-line GRN
 Status: FEATURE BRANCH — CI and UDA/browser acceptance pending
 

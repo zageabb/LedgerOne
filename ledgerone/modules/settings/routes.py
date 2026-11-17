@@ -11,6 +11,8 @@ from ledgerone.modules.settings.services import SettingsService
 from ledgerone.security import browser_context, require_browser_permission
 from ledgerone.services.numbering import NumberingError, NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
+from ledgerone.services.inventory_accounting import InventoryAccountingConfiguration
+from ledgerone.models.ledger import Account
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
 
@@ -91,6 +93,13 @@ def index():
                     active=request.form.get("member_active", "1") == "1",
                 )
                 flash("Member access updated.", "success")
+            elif action == "inventory_accounts":
+                InventoryAccountingConfiguration.configure(
+                    context,
+                    grni_clearing=request.form.get("grni_clearing") or "",
+                    inventory_asset=request.form.get("inventory_asset") or "",
+                    cost_of_goods_sold=request.form.get("cost_of_goods_sold") or "")
+                flash("Inventory account mappings saved. GRN and delivery journals are not yet enabled.", "success")
             elif action == "workflow_roles":
                 WorkflowRoleService.assign(
                     context, request.form.get("membership_id", ""),
@@ -165,6 +174,8 @@ def index():
         "settings/index.html",
         organisation=SettingsService.organisation(context),
         payment_terms=PaymentTermsService.get(context.organisation_id),
+        inventory_accounts=InventoryAccountingConfiguration.get(context),
+        inventory_account_choices=Account.query.filter_by(organisation_id=context.organisation_id, is_active=True).order_by(Account.code.asc()).all(),
         module_states=SettingsService.module_states(context),
         members=SettingsService.list_members(context),
         workflow_role_assignments=WorkflowRoleService.assignments(context),
