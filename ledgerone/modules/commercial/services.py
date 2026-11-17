@@ -11,19 +11,26 @@ from decimal import Decimal, InvalidOperation
 from ledgerone.extensions import db
 from ledgerone.models.core import new_id
 from ledgerone.modules.commercial.models import CommercialDocument, CommercialDocumentLine
-from ledgerone.modules.purchases.order_models import PurchaseOrder
-from ledgerone.modules.sales.order_models import SalesOrder
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
 
 
 _DOCUMENTS = {
-    "po_ack": ("purchases.write", PurchaseOrder, {"approved", "sent"}, "POA"),
-    "grn": ("purchases.write", PurchaseOrder, {"approved", "sent"}, "GRN"),
-    "so_ack": ("sales.write", SalesOrder, {"confirmed"}, "SOA"),
-    "delivery_note": ("sales.write", SalesOrder, {"confirmed"}, "DN"),
+    "po_ack": ("purchases.write", "purchase", {"approved", "sent"}, "POA"),
+    "grn": ("purchases.write", "purchase", {"approved", "sent"}, "GRN"),
+    "so_ack": ("sales.write", "sales", {"confirmed"}, "SOA"),
+    "delivery_note": ("sales.write", "sales", {"confirmed"}, "DN"),
 }
 _FULFILMENT = {"grn", "delivery_note"}
+
+
+def _order_model(kind):
+    if kind == "purchase":
+        from ledgerone.modules.purchases.order_models import PurchaseOrder
+        return PurchaseOrder
+    from ledgerone.modules.sales.order_models import SalesOrder
+    return SalesOrder
+
 
 
 def _qty(value):
@@ -45,7 +52,7 @@ class CommercialDocumentService:
         read_permission = permission.replace(".write", ".read")
         if not context.can(read_permission):
             raise PermissionError(read_permission)
-        order = db.session.get(order_model, order_id)
+        order = db.session.get(_order_model(order_model), order_id)
         if not order or order.organisation_id != context.organisation_id:
             raise ValueError("Order not found")
         return (CommercialDocument.query.filter_by(
@@ -61,7 +68,7 @@ class CommercialDocumentService:
         permission, order_model, acceptable, prefix = _DOCUMENTS[document_type]
         if not context.can(permission):
             raise PermissionError(permission)
-        order = db.session.get(order_model, order_id)
+        order = db.session.get(_order_model(order_model), order_id)
         if not order or order.organisation_id != context.organisation_id:
             raise ValueError("Order not found")
         if order.status not in acceptable:
