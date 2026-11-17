@@ -143,6 +143,7 @@ class WorkflowService:
         approval_role: str | None = None,
         separate_approver: bool = True,
         priority: int = 100,
+        custom_steps: list[dict] | None = None,
     ):
         if not context.can("workflows.manage"):
             raise PermissionError("workflows.manage")
@@ -171,6 +172,38 @@ class WorkflowService:
                     "role": (approval_role or "").strip() or None,
                 }
             )
+        if custom_steps is not None:
+            if not isinstance(custom_steps, list) or not 1 <= len(custom_steps) <= 8:
+                raise WorkflowError("Custom workflow needs between 1 and 8 stages")
+            validated = []
+            for index, item in enumerate(custom_steps, 1):
+                if not isinstance(item, dict):
+                    raise WorkflowError(f"Stage {index} must be an object")
+                kind = item.get("type")
+                if kind not in {"review", "approve"}:
+                    raise WorkflowError(f"Stage {index} must be review or approve")
+                role = (item.get("role") or "").strip() or None
+                user_id = (item.get("user_id") or "").strip() or None
+                if role and (len(role) > 40 or not role.replace("_", "").replace("-", "").isalnum()):
+                    raise WorkflowError(f"Invalid role on stage {index}")
+                if role and user_id:
+                    raise WorkflowError(f"Stage {index}: choose a user or role, not both")
+                if user_id:
+                    member = Membership.query.filter_by(
+                        organisation_id=context.organisation_id, user_id=user_id,
+                        is_active=True).first()
+                    person = db.session.get(User, user_id)
+                    if not member or not person or not person.is_active:
+                        raise WorkflowError(f"Stage {index}: approver is not an active company member")
+                if kind == "approve" and not (role or user_id):
+                    raise WorkflowError(f"Stage {index}: select a named user or company role")
+                label = (item.get("label") or f"Stage {index}").strip()
+                if len(label) > 120:
+                    raise WorkflowError(f"Stage {index} label exceeds 120 characters")
+                validated.append({"type": kind, "label": label,
+                                  "role": role, "user_id": user_id})
+            steps = validated
+
         rules = {
             "transaction_types": [transaction_type] if transaction_type else [],
             "min_amount": str(minimum) if minimum is not None else None,
@@ -413,6 +446,7 @@ class WorkflowService:
                 action_type=action_type,
                 label=step.get("label"),
                 role=step.get("role"),
+            assigned_user_id=step.get("user_id"),
             )
         else:
             WorkflowService._make_ready(instance, create_post_action=create_post_action)
@@ -578,6 +612,7 @@ class WorkflowService:
                     action_type=action_type,
                     label=step.get("label"),
                     role=step.get("role"),
+                assigned_user_id=step.get("user_id"),
                 )
             else:
                 create_post = bool((instance.metadata_json or {}).get("create_post_action"))
