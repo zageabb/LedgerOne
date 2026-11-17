@@ -65,6 +65,19 @@ Status: **in progress**
 - configurable numbering sequences
 - contact/address improvements
 
+## Parallel workstream — Legacy ERP Migration (DEV-015)
+
+**Status:** Recovery foundation exists; full LedgerOne financial import is not implemented.
+
+- ERP-001: read-only CashLink source inventory, transaction decoding, traceable staging and exception reports
+- ERP-002: canonical staging schema and reusable adapter contract
+- ERP-003: selected-company mapping and dry-run reconciliation of nominal ledger, AR/AP and VAT
+- ERP-004: maker/checker approved, audited, retry-safe import batches and verified opening balances
+- ERP-005: CashLink Job Cost migration alongside v0.5 Projects/Jobs
+- ERP-006: future CSV/Excel/SQLite/database-export adapters
+
+See `docs/LEGACY_ERP_MIGRATION.md`. No live posting until independent acceptance.
+
 ## v0.4 — Bank and document automation
 
 - CSV/OFX/QIF bank import adapters
