@@ -511,6 +511,10 @@ class WorkflowService:
     def _can_access_action(context: AccessContext, action: UserAction) -> bool:
         # A role-bound approval always requires the actual checker membership.
         # Preserve privileged review/revision access for non-approval actions.
+        if action.action_type == "approve" and not _membership_roles(context):
+            # Named users must retain an active company membership; a previously
+            # assigned action is not authority to approve after revocation.
+            return False
         if action.action_type != "approve" and (context.full_access or "*" in context.permissions):
             return True
         if action.assigned_user_id and action.assigned_user_id != context.user_id:
