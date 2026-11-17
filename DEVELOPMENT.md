@@ -16,7 +16,8 @@ Status: Foundations merged (PR #30 and #31); further ERP-000 delivery and indepe
 - [x] New regression tests for partial receipts, over-delivery rejection, revision numbering, cross-company isolation and no implicit journal posting.
 - [x] Company-local purpose-coded contacts and auditable, unsent email draft outbox merged in PR #31; browser GRN, delivery-note and acknowledgement actions added.
 - [x] Multi-line order creation service, API and browser forms implemented in PR #32 (CI/merge gate pending).
-- [ ] Purchase requisitions, PDF generation, provider-backed email sending, approval triggers, 2-/3-way invoice matching, linked partial invoicing, stock/returns, end-to-end screens and reporting.
+- [x] Read-only 2-/3-way purchase invoice matching preview: PO line quantities, issued GRNs, unit-price tolerance, supplier reference duplicate warnings (PR pending CI).
+- [ ] Purchase requisitions, PDF generation, provider-backed email sending, approval triggers, **enforced** 2-/3-way match at posting, matching reservations/line-level invoiced quantities, linked partial invoicing, stock/returns, end-to-end screens and reporting.
 - [ ] PR #32 final CI and merge; live UDA acceptance; independent accounting/fulfilment audit. Do not mark ERP-000 complete.
 
 See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md` for all nine ERP-000 increments.
