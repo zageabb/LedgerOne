@@ -358,7 +358,8 @@ class SalesService:
                        tax_point=None,
                        receivable_account_id: str, revenue_account_id: str,
                        currency: str = "GBP", tax_code_id: str | None = None,
-                       metadata: dict | None = None, commit: bool = True):
+                       metadata: dict | None = None, commit: bool = True,
+                       approved_workflow_id: str | None = None):
         if not context.can("sales.write"):
             raise PermissionError("sales.write")
         amount = _money(amount)
@@ -394,6 +395,23 @@ class SalesService:
         total = amount + tax_amount
         if tax_amount and (not tax_code or not tax_code.sales_tax_account_id):
             raise ValueError("Selected tax code has no output VAT account")
+
+        from ledgerone.services.trading_approval import require_trading_approval
+        require_trading_approval(
+            context, policy_key="sales_invoice", approved_workflow_id=approved_workflow_id,
+            total=total, fields={
+                "customer_id": customer.id,
+                "invoice_number": (invoice_number or "").strip(),
+                "invoice_date": invoice_date.isoformat(),
+                "tax_point": effective_tax_point.isoformat(),
+                "due_date": due_date.isoformat(),
+                "description": (description or "").strip() or "Sales",
+                "amount": str(amount), "tax_amount": str(tax_amount),
+                "total": str(total), "currency": currency.upper(),
+                "receivable_account_id": receivable_account_id,
+                "revenue_account_id": revenue_account_id,
+                "tax_code_id": tax_code.id if tax_code else None,
+            })
 
         invoice_id = new_id()
         try:
