@@ -4,6 +4,8 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ledgerone.module_registry import module_registry
+from ledgerone.modules.commercial.models import CommercialDocument
+from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.purchases.orders import PurchaseOrderService
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.security import browser_context, require_module
@@ -42,6 +44,28 @@ def index():
                     status=request.form.get("status", "draft"),
                 )
                 flash("Purchase order status updated.", "success")
+            elif action in {"po_ack", "grn"}:
+                doc_type = action
+                order_id = request.form.get("order_id", "")
+                document_lines = None
+                if doc_type == "grn":
+                    document_lines = [{
+                        "order_line_id": request.form.get("order_line_id", ""),
+                        "quantity": request.form.get("quantity", ""),
+                    }]
+                document = CommercialDocumentService.create(
+                    context, document_type=doc_type, order_id=order_id,
+                    document_date=date.fromisoformat(
+                        request.form.get("document_date") or date.today().isoformat()),
+                    lines=document_lines,
+                    external_reference=request.form.get("external_reference") or None)
+                flash(f"{document.document_number} recorded without posting a journal.", "success")
+            elif action == "po_ack_response":
+                CommercialDocumentService.respond_to_po_ack(
+                    context, request.form.get("document_id", ""),
+                    response_status=request.form.get("response_status", ""),
+                    supplier_reference=request.form.get("supplier_reference") or None)
+                flash("Supplier acknowledgement recorded.", "success")
             elif action == "convert":
                 bill, _ = PurchaseOrderService.convert_to_bill(
                     context,
@@ -62,8 +86,16 @@ def index():
     if tax_enabled and context.can("tax.read"):
         from ledgerone.modules.tax.services import TaxService
         tax_codes = TaxService.list_codes(context, usage="purchase")
+    document_records = CommercialDocument.query.filter(
+        CommercialDocument.organisation_id == context.organisation_id,
+        CommercialDocument.document_type.in_(["po_ack","grn"]),
+    ).order_by(CommercialDocument.created_at.desc()).limit(500).all()
+    order_documents = {}
+    for document in document_records:
+        order_documents.setdefault(document.order_id, []).append(document)
     return render_template(
         "purchases/orders.html",
+        order_documents=order_documents,
         orders=PurchaseOrderService.list_orders(context, 150),
         suppliers=PurchasesService.list_suppliers(context),
         payable_accounts=[row for row in accounts if row.account_type == "liability"],
