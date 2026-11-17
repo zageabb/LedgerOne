@@ -34,6 +34,9 @@
   <div class="card-head"><h2>3. Preview results</h2></div>
   <div class="card-body">
     <p><strong>{{ 'Matched in preview' if match_preview.matched else 'Discrepancies identified' }}</strong> · Proposed net total: {{ match_preview.invoice_net_total }}</p>
+    {% if match_preview.existing_linked_bill_count %}
+    <p class="help"><strong>Previously invoiced purchase order:</strong> {{ match_preview.existing_linked_bill_count }} linked bill(s) found. Line-level bill allocations are not yet available, so the preview cannot establish remaining invoiceable quantities or approve GRNI clearing.</p>
+    {% endif %}
     {% for issue in match_preview.issues %}<p class="help">{{ issue|replace('_',' ') }}</p>{% endfor %}
     <div class="table-wrap"><table style="width:100%">
       <thead><tr><th>PO line ID</th><th>Ordered</th><th>Received</th><th>Proposed</th><th>GRNI accrued qty</th><th>GRNI accrued cost</th><th>PO price</th><th>Invoice price</th><th>Issues</th></tr></thead>
