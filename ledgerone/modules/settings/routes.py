@@ -12,7 +12,7 @@ from ledgerone.security import browser_context, require_browser_permission
 from ledgerone.services.numbering import NumberingError, NumberSequenceService
 from ledgerone.services.payment_terms import PaymentTermsService
 from ledgerone.services.inventory_accounting import InventoryAccountingConfiguration
-from ledgerone.services.ledger import LedgerService
+from ledgerone.models.ledger import Account
 
 bp = Blueprint("settings", __name__, url_prefix="/settings")
 
@@ -175,7 +175,7 @@ def index():
         organisation=SettingsService.organisation(context),
         payment_terms=PaymentTermsService.get(context.organisation_id),
         inventory_accounts=InventoryAccountingConfiguration.get(context),
-        inventory_account_choices=LedgerService.list_accounts(context),
+        inventory_account_choices=Account.query.filter_by(organisation_id=context.organisation_id, is_active=True).order_by(Account.code.asc()).all(),
         module_states=SettingsService.module_states(context),
         members=SettingsService.list_members(context),
         workflow_role_assignments=WorkflowRoleService.assignments(context),
