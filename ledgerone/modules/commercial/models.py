@@ -55,3 +55,46 @@ class CommercialDocumentLine(db.Model):
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
     document = db.relationship("CommercialDocument", back_populates="lines")
+
+
+class CommercialContactRoute(db.Model):
+    """A named purpose (ORDERS, ACCOUNTS, LOGISTICS) for a company party."""
+    __tablename__ = "commercial_contact_routes"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "party_type", "party_id", "purpose", "email",
+                            name="uq_commercial_contact_route"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"),
+                                nullable=False, index=True)
+    party_type = db.Column(db.String(12), nullable=False)
+    party_id = db.Column(db.String(36), nullable=False, index=True)
+    purpose = db.Column(db.String(40), nullable=False, index=True)
+    email = db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(160))
+    is_active = db.Column(db.Boolean(), nullable=False, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class CommercialMessageDraft(db.Model):
+    """A document-linked outgoing draft; no external sending implied."""
+    __tablename__ = "commercial_message_drafts"
+    __table_args__ = (
+        db.UniqueConstraint("organisation_id", "idempotency_key",
+                            name="uq_commercial_message_draft_idempotency"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    organisation_id = db.Column(db.String(36), db.ForeignKey("organisations.id"),
+                                nullable=False, index=True)
+    document_id = db.Column(db.String(36), db.ForeignKey("commercial_documents.id"),
+                            nullable=False, index=True)
+    purpose = db.Column(db.String(40), nullable=False)
+    recipients_json = db.Column(db.JSON(), nullable=False)
+    subject = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text(), nullable=False)
+    status = db.Column(db.String(24), nullable=False, default="draft")
+    idempotency_key = db.Column(db.String(120), nullable=False)
+    created_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
