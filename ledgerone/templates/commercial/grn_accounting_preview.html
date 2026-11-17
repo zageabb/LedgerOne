@@ -10,7 +10,11 @@
 <section class="card section">
   <div class="card-head"><h2>Receipt valuation</h2></div>
   <div class="card-body">
+    {% if preview.posted %}
+    <p class="help"><strong>Accrual journal linked.</strong> Journal ID: <code>{{ preview.journal_id }}</code> · Posted stock value: {{ preview.currency }} {{ preview.posted_value }}. Posting from this screen remains disabled.</p>
+    {% else %}
     <p class="help"><strong>Preview only.</strong> No journal has been posted. GRNI supplier invoice clearing must be implemented and validated before activation.</p>
+    {% endif %}
     <div class="table-wrap"><table style="width:100%">
       <thead><tr><th>Description</th><th>Treatment</th><th>Quantity</th><th>PO unit cost</th><th class="number">Accrual value</th></tr></thead>
       <tbody>{% for item in preview.breakdown %}
@@ -22,7 +26,7 @@
   </div>
 </section>
 <section class="card section">
-  <div class="card-head"><h2>Proposed journal — not posted</h2></div>
+  <div class="card-head"><h2>{{ "Accrual journal lines — linked" if preview.posted else "Proposed journal — not posted" }}</h2></div>
   <div class="card-body">
     {% if preview.issues %}
     <p class="help">Posting prerequisites:</p>
