@@ -17,7 +17,7 @@ class InventoryAccountingConfiguration:
 
     @staticmethod
     def get(context):
-        if not context.can("settings.read"):
+        if not (context.can("settings.read") or context.can("settings.manage")):
             raise PermissionError("settings.read")
         setting = Setting.query.filter_by(
             organisation_id=context.organisation_id,
