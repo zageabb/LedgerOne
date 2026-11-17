@@ -43,6 +43,35 @@
 </div>
 
 <div class="card section">
+  <div class="card-head"><h2>Multi-line sales order</h2></div>
+  <div class="card-body">
+    <details>
+      <summary class="button button-secondary">Create order with multiple lines</summary>
+      <form method="post" class="form-grid" style="margin-top:1rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create_multi">
+        <div class="field"><label>Customer</label><select name="customer_id" required><option value="">Select</option>{% for row in customers %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Order number</label><input name="order_number" placeholder="Leave blank for automatic"></div>
+        <div class="field"><label>Order date</label><input type="date" name="order_date" value="{{ today }}" required></div>
+        <div class="field"><label>Requested delivery</label><input type="date" name="requested_delivery_date"></div>
+        <div class="field"><label>Currency</label><input name="currency" value="{{ current_organisation.base_currency }}" maxlength="3" required></div>
+        <div class="field"><label>Receivables account</label><select name="receivable_account_id" required>{% for a in receivable_accounts %}<option value="{{ a.id }}">{{ a.code }} · {{ a.name }}</option>{% endfor %}</select></div>
+        <div class="field field-full"><p class="help">Enter one or more lines; blank descriptions are ignored. Monetary totals are calculated automatically. This creates a draft and does not post accounting entries.</p></div>
+        {% for i in range(1,6) %}
+        <div class="field field-full"><strong>Line {{ i }}</strong></div>
+        <div class="field"><label>Description</label><input name="line_{{ i }}_description" maxlength="500"></div>
+        <div class="field"><label>Quantity</label><input type="number" name="line_{{ i }}_quantity" min="0.0001" step="0.0001"></div>
+        <div class="field"><label>Unit price</label><input type="number" name="line_{{ i }}_price" min="0" step="0.0001"></div>
+        <div class="field"><label>Revenue account</label><select name="line_{{ i }}_account"><option value="">Select</option>{% for a in revenue_accounts %}<option value="{{ a.id }}">{{ a.code }} · {{ a.name }}</option>{% endfor %}</select></div>
+        {% if tax_enabled %}<div class="field"><label>Tax code</label><select name="line_{{ i }}_tax"><option value="">No tax</option>{% for t in tax_codes %}<option value="{{ t.id }}">{{ t.code }} · {{ t.name }}</option>{% endfor %}</select></div>{% endif %}
+        {% endfor %}
+        <div class="field-full"><button class="button" type="submit">Create multi-line order</button></div>
+      </form>
+    </details>
+  </div>
+</div>
+
+<div class="card section">
   <div class="card-head"><h2>Sales order register</h2><span class="badge">{{ orders|length }}</span></div>
   <div class="table-wrap">
     {% if orders %}
