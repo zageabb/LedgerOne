@@ -4,7 +4,7 @@
 
 ## Outcome
 
-Provide a complete, controlled multi-company document lifecycle from supplier/customer setup to purchase orders, sales orders, goods receipt notes, delivery notes, supplier invoices, customer invoices, credits, returns and payments. Persist document-to-document lineage and part quantities. Reuse existing LedgerOne sales quotes/orders, purchase orders, invoice/bill models, numbering, company security, approval policies, accounting journals and audit services.
+Provide a complete, controlled multi-company document lifecycle from supplier/customer setup to purchase orders, sales orders, goods receipt notes, delivery notes, supplier invoices, customer invoices, purchase-order acknowledgements, sales-order acknowledgements, credits, returns and payments. Persist document-to-document lineage and part quantities. Reuse existing LedgerOne sales quotes/orders, purchase orders, invoice/bill models, numbering, company security, approval policies, accounting journals and audit services.
 
 ### Evidence from current source
 
@@ -20,6 +20,7 @@ Not proven present as complete operational lifecycles:
 - Picking/dispatch and delivery notes with shipment quantities and proof of delivery.
 - Multi-line partial invoicing of individual received/delivered quantities with non-overbilling guards.
 - Supplier/customer contact-purpose email codes, message templates, approved email sending and delivery audit.
+- Issued/received purchase-order acknowledgements and customer-facing sales-order acknowledgements, with revisions, exception handling and delivery evidence.
 - Unified order-document status, revision history and end-to-end exceptions.
 
 Do not mark these as complete merely because an order can be converted to a bill or invoice.
@@ -39,13 +40,14 @@ Do not mark these as complete merely because an order can be converted to a bill
 
 1. Purchase requisitions (PR) with project/cost centre, budget and approval.
 2. Purchase orders (PO): multi-line products/services, tax, currency within supported accounting scope, delivery location/date, supplier quotation reference and terms.
-3. Draft → approval required (according to value/category/role) → approved → issued → acknowledged → partially received → received/closed/cancelled.
+3. Draft → approval required (according to value/category/role) → approved → issued → awaiting supplier acknowledgement → acknowledged/partially acknowledged/disputed → partially received → received/closed/cancelled. Issuing and receiving an acknowledgement are distinct events.
 4. Send PO PDF to appropriate supplier `ORDERS` email code; audit message, template, recipients, attachment hash, authorisation, provider result.
-5. GRN: receive against PO lines, date, warehouse/site, quantity accepted/rejected/damaged, lot/serial (where applicable), receiver and evidence; permit partial receipts, multiple GRNs, returns and corrections with safeguards.
-6. 2-way match (PO vs invoice) and 3-way match (PO vs GRN vs invoice) with tolerance rules, price/quantity/VAT variance, authorised exception approval and duplicate invoice detection.
-7. Supplier invoice intake (document upload/email/OCR optional later), capture supplier invoice *external reference* separately from controlled LedgerOne internal bill number.
-8. Bill creation from matched PO/GRN lines with outstanding-quantity checks; integrate AP, VAT, approvals, credits and payment allocation.
-9. Receipt accounting / accrual or goods-received-not-invoiced (GRNI) must be explicitly designed and reconciled before being activated.
+5. Supplier PO acknowledgement: record the supplier's acknowledgement reference, received date/channel, supplier contact, accepted/rejected quantities per PO line, confirmed price, lead time and delivery dates. Support attachments/emails, partial acknowledgement, proposed changes and no-response reminders. Compare against the issued PO revision; differences must be highlighted and approved before any revised PO is issued, preserving both versions.
+6. GRN: receive against PO lines, date, warehouse/site, quantity accepted/rejected/damaged, lot/serial (where applicable), receiver and evidence; permit partial receipts, multiple GRNs, returns and corrections with safeguards.
+7. 2-way match (PO vs invoice) and 3-way match (PO vs GRN vs invoice) with tolerance rules, price/quantity/VAT variance, authorised exception approval and duplicate invoice detection.
+8. Supplier invoice intake (document upload/email/OCR optional later), capture supplier invoice *external reference* separately from controlled LedgerOne internal bill number.
+9. Bill creation from matched PO/GRN lines with outstanding-quantity checks; integrate AP, VAT, approvals, credits and payment allocation.
+10. Receipt accounting / accrual or goods-received-not-invoiced (GRNI) must be explicitly designed and reconciled before being activated.
 
 **Acceptance:** A PO can be split across GRNs and bills without overstating received/invoiced quantities; blocks duplicate receipt, overbill and uncontrolled override.
 
@@ -53,12 +55,13 @@ Do not mark these as complete merely because an order can be converted to a bill
 
 1. Quotations: versioning, approved pricing, validity, PDF and optional customer email.
 2. Sales orders: multi-line items/services, confirmed delivery address, delivery terms, requested date, project and customer reference.
-3. Statuses: draft → approved/confirmed → reserved/allocated (when stock enabled) → picked → partially dispatched → dispatched/partially delivered → delivered → partially invoiced/invoiced → closed.
-4. Picking/packing: allocated and shipped quantities; no negative or excess shipment; optional inventory integration.
-5. Delivery notes: unique numbering, shipment lines, date, ship-to address, carrier/tracking, signed proof of delivery and PDF/email to configured customer contact.
-6. Backorders, partial deliveries, multiple delivery notes, rejected goods, returns and replacement shipments.
-7. Create one or more invoices for delivered quantities (or authorised deposits/progress billing) with complete links to the sales order and delivery note; avoid duplicate invoicing.
-8. Integrate VAT, payment terms, customer payments, credit notes, debt collection and audit trail.
+3. Sales order acknowledgement (SOA): generate a uniquely numbered, revision-controlled customer-facing PDF/email confirming accepted lines, quantities, unit prices, taxes, terms, shipping address and expected delivery dates. Track draft → approved → issued/sent → delivery confirmed/failed; preserve who acknowledged the order and the issued snapshot. Support partially accepted orders, customer-requested amendments, revised acknowledgements and a linked customer acknowledgement/acceptance response where required.
+4. Statuses: draft → approved/confirmed → reserved/allocated (when stock enabled) → picked → partially dispatched → dispatched/partially delivered → delivered → partially invoiced/invoiced → closed.
+5. Picking/packing: allocated and shipped quantities; no negative or excess shipment; optional inventory integration.
+6. Delivery notes: unique numbering, shipment lines, date, ship-to address, carrier/tracking, signed proof of delivery and PDF/email to configured customer contact.
+7. Backorders, partial deliveries, multiple delivery notes, rejected goods, returns and replacement shipments.
+8. Create one or more invoices for delivered quantities (or authorised deposits/progress billing) with complete links to the sales order and delivery note; avoid duplicate invoicing.
+9. Integrate VAT, payment terms, customer payments, credit notes, debt collection and audit trail.
 
 **Acceptance:** Delivered and invoiced quantities reconcile to ordered quantities, with explicit exceptions and traceable partial shipments.
 
@@ -66,10 +69,10 @@ Do not mark these as complete merely because an order can be converted to a bill
 
 1. Company-scoped outbound provider abstraction (SMTP / approved email API) with encrypted secrets; separate from login identity.
 2. Purpose-coded recipients resolved from supplier/customer contact directory; support To/CC/BCC, approved manual recipient change and fallback when code unavailable.
-3. Templates by document type and company, merge fields, email signatures, locale, subject/body, attachments and PDF preview.
+3. Templates by document type and company, including PO, supplier acknowledgement request/reminder and sales order acknowledgement, with merge fields, email signatures, locale, subject/body, attachments and PDF preview.
 4. Draft message → preview → approval (if required) → explicit send; no automatic email simply because a PO/invoice is saved.
 5. Reliable dispatch via queued delivery, idempotency key, retry/backoff and explicit failed/unknown statuses; audit operator, recipient, message-id and sent document revision.
-6. Record supplier PO acknowledgements and replies when a supported inbound-mail connection is deliberately enabled. Never claim sending or receiving without a configured provider and verified result.
+6. Record supplier PO acknowledgements and replies when a supported inbound-mail connection is deliberately enabled; permit manual acknowledgement entry and attachment evidence without an inbound-mail connector. Record customer acceptance of sales order acknowledgements by the same controlled channels. Never claim sending or receiving without a configured provider and verified result.
 7. Exclude personal or sensitive data from logs; honour permission/retention policies, delivery failures and manual resend safeguards.
 
 **Acceptance:** Sending uses the correct purpose-coded supplier contact, requires authorised operator or approved automated rule, prevents duplicate sends on retry, retains full audit trail.
@@ -77,7 +80,7 @@ Do not mark these as complete merely because an order can be converted to a bill
 ## ERP-000E — Common workflow, screens, reports and exceptions
 
 - Unified navigation: Purchasing / Sales / Fulfilment / Invoices / Communications.
-- Dashboards and work queues for pending approval, orders to issue, overdue acknowledgements, overdue deliveries, GRNs to process, received-not-invoiced, delivery-not-invoiced, invoices unpaid, failed emails.
+- Dashboards and work queues for pending approval, orders to issue, supplier PO acknowledgements outstanding/disputed, sales order acknowledgements pending issue or failed to send, overdue deliveries, GRNs to process, received-not-invoiced, delivery-not-invoiced, invoices unpaid, failed emails.
 - Document chain viewer, e.g. PR → PO → GRN → supplier bill → payment, and Quote → SO → Delivery note → invoice → receipt.
 - Company-specific custom workflow triggers: document type, amount bands, supplier/customer, project, product class, exception category, approver group/individual. Preserve independent checker and immutable approved content.
 - Reports: order commitments, outstanding PO/SO, received-vs-invoiced reconciliation, GRNI, fulfilment performance, partial delivery, vendor lead time, rejected stock, financial audit history.
@@ -89,12 +92,12 @@ Do not mark these as complete merely because an order can be converted to a bill
 | --- | --- | --- |
 | ERP-000.1 | Gap audit, lifecycle data model, line-level traceability, API and UX specification | No data loss, backward-compatible migrations |
 | ERP-000.2 | Supplier/customer contact purpose codes, document settings and templates | Company-bound recipients, safe preview |
-| ERP-000.3 | Multi-line PO + PR, approvals, PDF issuance | Approval before issue, document revision and numbering |
+| ERP-000.3 | Multi-line PO + PR, approvals, PDF issuance and supplier PO acknowledgement tracking | Approval before issue; supplier response tied to issued PO revision and discrepancy handling |
 | ERP-000.4 | GRN and line-level partial receipt, return/rejection | Reconcile received/accepted/rejected PO quantities |
 | ERP-000.5 | PO/GRN/Invoice matching and supplier bills | 2-/3-way match, duplicate/variance exceptions |
-| ERP-000.6 | SO multi-line fulfilment, picking and delivery notes | Partial dispatch and quantity reconciliation |
+| ERP-000.6 | SO multi-line fulfilment, customer sales order acknowledgements, picking and delivery notes | Revision-controlled SOA PDF/email; customer acceptance and partial dispatch traceability |
 | ERP-000.7 | Delivery-linked sales invoicing and credit/returns | No double invoice; tax/payment flows tested |
-| ERP-000.8 | Provider-backed supplier/customer email communication | Explicit approval, idempotency, failure/audit |
+| ERP-000.8 | Provider-backed supplier/customer email communication including PO acknowledgement requests and sales order acknowledgement sending | Explicit approval, idempotency, failure/audit |
 | ERP-000.9 | End-to-end UI, reports, integration and UDA acceptance | Full CI, accounting reconciliation and independent sign-off |
 
 ## Dependency and sequencing
@@ -112,6 +115,8 @@ Do not mark these as complete merely because an order can be converted to a bill
 - One company cannot view/change another's operational records, contacts, messages or orders.
 - Multiple documents and lines are related by stable IDs and immutable source references.
 - Every stage has authorised actions, audit history, meaningful statuses, correction and cancellation handling.
+- PO acknowledgement supplier confirmations are matched to the correct issued PO version; changed dates/prices/quantities are visible and controlled.
+- Customer sales order acknowledgements retain numbered PDF/email revisions, send status, recipient evidence and acceptance/rejection history.
 - Quantity/value invariants tested with partial receipts, partial deliveries, returns, VAT and duplicate attempts.
 - No direct posting bypass of configured approval rules; no direct email dispatch bypass of authorisation.
 - CI green before merging, clean migration validation, and UDA live acceptance separately verified.
