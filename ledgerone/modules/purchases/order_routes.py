@@ -219,7 +219,7 @@ def order_detail(order_id):
             flash(str(exc), "danger")
     return render_template(
         "commercial/order_detail.html", order=order, is_purchase=True,
-        tab=request.args.get("tab", "lines") if request.args.get("tab", "lines") in {"lines","ack","documents"} else "lines",
+        tab=request.args.get("tab", "lines") if request.args.get("tab", "lines") in {"lines","ack","documents","invoice"} else "lines",
         acknowledgements=order_documents(context, order.id, "po_ack"),
         fulfilments=order_documents(context, order.id, "grn"),
         today=date.today().isoformat())
