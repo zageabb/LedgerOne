@@ -146,6 +146,8 @@ class GRNIInvoiceAllocation(db.Model):
                                 nullable=False, index=True)
     bill_id = db.Column(db.String(36), db.ForeignKey("purchase_bills.id"),
                         nullable=False, index=True)
+    clearing_journal_id = db.Column(db.String(36), db.ForeignKey("journals.id"),
+                                    nullable=False, index=True)
     receipt_line_id = db.Column(db.String(36),
                                 db.ForeignKey("commercial_document_lines.id"),
                                 nullable=False, index=True)
@@ -156,4 +158,5 @@ class GRNIInvoiceAllocation(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     bill = db.relationship("PurchaseBill")
+    clearing_journal = db.relationship("Journal")
     receipt_line = db.relationship("CommercialDocumentLine")
