@@ -67,7 +67,7 @@
     <table><thead><tr><th>GRN</th><th>Date</th><th>Supplier reference</th><th>Lines</th></tr></thead>
       <tbody>{% for receipt in receipts %}
       <tr><td><strong>{{ receipt.document_number }}</strong></td><td>{{ receipt.document_date }}</td>
-      <td>{{ receipt.external_reference or '—' }}</td><td>{{ receipt.lines|length }}</td></tr>{% endfor %}</tbody>
+      <td>{{ receipt.external_reference or '—' }}</td><td>{{ receipt.lines|length }} · <a href="{{ url_for('purchase_orders.grn_accounting_preview', grn_id=receipt.id) }}">Journal preview</a></td></tr>{% endfor %}</tbody>
     </table>
     {% else %}<p class="help">No receipts recorded for this PO.</p>{% endif %}
   </div>
