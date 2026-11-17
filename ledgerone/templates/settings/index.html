@@ -170,6 +170,23 @@
               <div class="field-full"><button class="button" type="submit">Save access</button></div>
             </form>
           </details>
+          {% if row.is_active and can_manage %}
+          <details style="margin-top:.5rem">
+            <summary class="button button-small button-secondary">Workflow roles</summary>
+            <form method="post" class="form-grid" style="min-width:330px;margin-top:.5rem">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="workflow_roles">
+              <input type="hidden" name="membership_id" value="{{ row.id }}">
+              <div class="field field-full">
+                <label>Assigned workflow roles (comma-separated)</label>
+                <input name="workflow_roles" value="{{ (workflow_role_assignments.get(row.user_id) or [])|join(', ') }}"
+                       placeholder="finance, purchasing, payment_approver">
+                <p class="help">Suggested roles: {{ suggested_workflow_roles|join(', ') }}. These are routing groups; workflow approval permissions must be granted separately. Each company has its own assignments.</p>
+              </div>
+              <div class="field-full"><button type="submit" class="button button-small">Save workflow roles</button></div>
+            </form>
+          </details>
+          {% endif %}
           {% if row.is_active %}<form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="member_deactivate"><input type="hidden" name="membership_id" value="{{ row.id }}"><button class="button button-small button-danger" type="submit">Deactivate</button></form>{% endif %}
         </td>
       </tr>

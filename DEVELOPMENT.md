@@ -6,6 +6,25 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## DEV-014 — Custom workflows and company user role allocation
+Status: PHASE 1 IMPLEMENTED ON FEATURE BRANCH — CI & LIVE ACCEPTANCE PENDING
+
+- [x] Workflow designer: company-scoped category, value range and priority; up to four sequential review/approve stages via UI (eight via API).
+- [x] Named individual or company workflow role as each stage assignee.
+- [x] Multi-role assignment for each user per company in Settings → Team access.
+- [x] Route only to active company members; workflow roles do not grant approval permissions.
+- [x] Reject cross-company named-user assignments and malformed routing rules.
+- [x] Regression tests for routing, value bands, security, multiple roles and inactive users.
+- [x] Alembic migration `0024_workflow_roles`.
+- [ ] Full CI and migration/schema drift green, then merge.
+- [ ] Live UDA/browser user/role/approval acceptance and independent accounting review.
+- [ ] Phase 2 visual editor, groups with multi-person quorum, delegation and escalation.
+- [ ] Phase 3 automatic event integration (supplier creation, payments, etc.) and direct-posting guards.
+
+See `docs/CUSTOM_WORKFLOWS.md`. Choosing an entity category alone does not activate new domain event triggers.
+
+---
+
 ## DEV-013 — Sales invoice and purchase bill direct-posting approval gates
 Status: IMPLEMENTED ON FEATURE BRANCH — CI and independent acceptance pending
 

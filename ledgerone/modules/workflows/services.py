@@ -15,6 +15,7 @@ from ledgerone.modules.workflows.models import (
     UserAction,
     WorkflowDefinition,
     WorkflowInstance,
+    WorkflowRoleAssignment,
 )
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
@@ -56,15 +57,31 @@ def _advance(value: date, frequency: str) -> date:
     raise WorkflowError(f"Unsupported frequency: {frequency}")
 
 
-def _membership_role(context: AccessContext) -> str | None:
+def _membership_roles(context: AccessContext) -> set[str]:
     if not context.user_id or not context.organisation_id:
-        return None
-    row = Membership.query.filter_by(
-        organisation_id=context.organisation_id,
-        user_id=context.user_id,
+        return set()
+    member = Membership.query.filter_by(
+        organisation_id=context.organisation_id, user_id=context.user_id,
         is_active=True,
     ).first()
-    return row.role if row else None
+    person = db.session.get(User, context.user_id)
+    if not member or not person or not person.is_active:
+        return set()
+    extra_roles = WorkflowRoleAssignment.query.filter_by(
+        organisation_id=context.organisation_id, user_id=context.user_id,
+    ).all()
+    return {member.role, *(entry.role for entry in extra_roles)}
+
+
+def _membership_role(context: AccessContext) -> str | None:
+    # Legacy callers still expect the primary access role.
+    if not context.user_id or not context.organisation_id:
+        return None
+    member = Membership.query.filter_by(
+        organisation_id=context.organisation_id, user_id=context.user_id,
+        is_active=True,
+    ).first()
+    return member.role if member else None
 
 
 def _originator_mode(user_id: str | None) -> str:
@@ -119,6 +136,15 @@ class WorkflowService:
     """Generic review/approval engine used by scheduled transactions and future modules."""
 
     @staticmethod
+    def active_company_members(context: AccessContext):
+        if not context.organisation_id:
+            raise WorkflowError("An organisation is required")
+        return (Membership.query.join(User)
+                .filter(Membership.organisation_id == context.organisation_id,
+                        Membership.is_active.is_(True), User.is_active.is_(True))
+                .order_by(User.name.asc()).all())
+
+    @staticmethod
     def list_definitions(context: AccessContext):
         if not context.organisation_id:
             raise WorkflowError("An organisation is required")
@@ -143,6 +169,7 @@ class WorkflowService:
         approval_role: str | None = None,
         separate_approver: bool = True,
         priority: int = 100,
+        custom_steps: list[dict] | None = None,
     ):
         if not context.can("workflows.manage"):
             raise PermissionError("workflows.manage")
@@ -171,6 +198,38 @@ class WorkflowService:
                     "role": (approval_role or "").strip() or None,
                 }
             )
+        if custom_steps is not None:
+            if not isinstance(custom_steps, list) or not 1 <= len(custom_steps) <= 8:
+                raise WorkflowError("Custom workflow needs between 1 and 8 stages")
+            validated = []
+            for index, item in enumerate(custom_steps, 1):
+                if not isinstance(item, dict):
+                    raise WorkflowError(f"Stage {index} must be an object")
+                kind = item.get("type")
+                if kind not in {"review", "approve"}:
+                    raise WorkflowError(f"Stage {index} must be review or approve")
+                role = (item.get("role") or "").strip() or None
+                user_id = (item.get("user_id") or "").strip() or None
+                if role and (len(role) > 40 or not role.replace("_", "").replace("-", "").isalnum()):
+                    raise WorkflowError(f"Invalid role on stage {index}")
+                if role and user_id:
+                    raise WorkflowError(f"Stage {index}: choose a user or role, not both")
+                if user_id:
+                    member = Membership.query.filter_by(
+                        organisation_id=context.organisation_id, user_id=user_id,
+                        is_active=True).first()
+                    person = db.session.get(User, user_id)
+                    if not member or not person or not person.is_active:
+                        raise WorkflowError(f"Stage {index}: approver is not an active company member")
+                if kind == "approve" and not (role or user_id):
+                    raise WorkflowError(f"Stage {index}: select a named user or company role")
+                label = (item.get("label") or f"Stage {index}").strip()
+                if len(label) > 120:
+                    raise WorkflowError(f"Stage {index} label exceeds 120 characters")
+                validated.append({"type": kind, "label": label,
+                                  "role": role, "user_id": user_id})
+            steps = validated
+
         rules = {
             "transaction_types": [transaction_type] if transaction_type else [],
             "min_amount": str(minimum) if minimum is not None else None,
@@ -413,6 +472,7 @@ class WorkflowService:
                 action_type=action_type,
                 label=step.get("label"),
                 role=step.get("role"),
+                assigned_user_id=step.get("user_id"),
             )
         else:
             WorkflowService._make_ready(instance, create_post_action=create_post_action)
@@ -451,12 +511,16 @@ class WorkflowService:
     def _can_access_action(context: AccessContext, action: UserAction) -> bool:
         # A role-bound approval always requires the actual checker membership.
         # Preserve privileged review/revision access for non-approval actions.
+        if action.action_type == "approve" and not _membership_roles(context):
+            # Named users must retain an active company membership; a previously
+            # assigned action is not authority to approve after revocation.
+            return False
         if action.action_type != "approve" and (context.full_access or "*" in context.permissions):
             return True
         if action.assigned_user_id and action.assigned_user_id != context.user_id:
             return False
-        role = _membership_role(context)
-        if action.assigned_role and action.assigned_role != role:
+        roles = _membership_roles(context)
+        if action.assigned_role and action.assigned_role not in roles:
             return False
         return True
 
@@ -471,19 +535,17 @@ class WorkflowService:
                 UserAction.status == "open",
             )
         )
-        role = _membership_role(context)
-        # Assigned-user and assigned-role requirements are both enforced.
-        # Never expose other people's actions just because a user is an owner.
+        roles = _membership_roles(context)
         filters = [and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))]
         if context.user_id:
             filters.append(and_(UserAction.assigned_user_id == context.user_id,
                                 UserAction.assigned_role.is_(None)))
-            if role:
+            if roles:
                 filters.append(and_(UserAction.assigned_user_id == context.user_id,
-                                    UserAction.assigned_role == role))
-        if role:
+                                    UserAction.assigned_role.in_(roles)))
+        if roles:
             filters.append(and_(UserAction.assigned_user_id.is_(None),
-                                UserAction.assigned_role == role))
+                                UserAction.assigned_role.in_(roles)))
         if context.full_access or "*" in context.permissions:
             query = query.filter(or_(UserAction.action_type != "approve", *filters))
         else:
@@ -578,6 +640,7 @@ class WorkflowService:
                     action_type=action_type,
                     label=step.get("label"),
                     role=step.get("role"),
+                    assigned_user_id=step.get("user_id"),
                 )
             else:
                 create_post = bool((instance.metadata_json or {}).get("create_post_action"))
