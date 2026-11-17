@@ -11,6 +11,7 @@ from ledgerone.modules.commercial.models import CommercialAccountingEvent
 from ledgerone.modules.commercial.order_builder import MultiLineOrderService
 from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.commercial.grn_posting import GRNPostingService
+from ledgerone.modules.commercial.grn_accounting import GRNAccountingPreviewService
 from ledgerone.modules.purchases.orders import PurchaseOrderService
 from ledgerone.modules.purchases.services import PurchasesService
 from ledgerone.services.context import AccessContext
@@ -50,6 +51,10 @@ def test_receipt_posting_is_disabled_in_user_settings(app):
     with app.app_context():
         ctx, receipt, grni, stock = _configured_receipt()
         before = Journal.query.count()
+        preview = GRNAccountingPreviewService.preview(ctx, grn_id=receipt.id)
+        assert preview["posted"] is False
+        assert preview["journal_id"] is None
+        assert preview["accounting_event_id"] is None
         with pytest.raises(ValueError, match="disabled until supplier invoice GRNI clearing"):
             GRNPostingService.post(ctx, grn_id=receipt.id)
         assert Journal.query.count() == before
@@ -78,6 +83,14 @@ def test_atomic_posting_link_and_retry_protection_when_internally_certified(app)
         assert event.journal.total_credit == Decimal("22.00")
         assert {line.account_id for line in event.journal.lines} == {grni.id, stock.id}
         assert GRNPostingService.linked_event(ctx, receipt.id).id == event.id
+        preview = GRNAccountingPreviewService.preview(ctx, grn_id=receipt.id)
+        assert preview["posted"] is True
+        assert preview["preview_only"] is True
+        assert preview["posting_enabled"] is False
+        assert preview["journal_id"] == event.journal_id
+        assert preview["accounting_event_id"] == event.id
+        assert preview["posted_value"] == "22.00"
+        assert preview["stock_cost_value"] == "22.00"
         with pytest.raises(ValueError, match="already linked"):
             GRNPostingService.post(ctx, grn_id=receipt.id)
         assert Journal.query.count() == before + 1
