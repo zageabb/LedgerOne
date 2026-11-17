@@ -154,3 +154,131 @@ def index():
         default_expected=(date.today() + timedelta(days=14)).isoformat(),
         default_due="",
     )
+
+
+@bp.route("/new", methods=["GET", "POST"])
+@login_required
+@require_module("purchases")
+def new_order():
+    from ledgerone.modules.commercial.order_builder import MultiLineOrderService
+    from ledgerone.modules.commercial.workspace import order_form_data, submitted_order_lines
+    context = browser_context()
+    if not context.can("purchases.write"):
+        raise PermissionError("purchases.write")
+    if request.method == "POST":
+        try:
+            order = MultiLineOrderService.create(
+                context, kind="purchase", party_id=request.form.get("party_id", ""),
+                order_number=request.form.get("order_number") or None,
+                order_date=date.fromisoformat(request.form.get("order_date") or ""),
+                expected_date=date.fromisoformat(request.form["expected_date"])
+                if request.form.get("expected_date") else None,
+                control_account_id=request.form.get("control_account_id", ""),
+                currency=request.form.get("currency", "GBP"),
+                lines=submitted_order_lines(request.form))
+            flash(f"Purchase order {order.order_number} created as draft.", "success")
+            return redirect(url_for("purchase_orders.order_detail", order_id=order.id))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template("commercial/order_editor.html", today=date.today().isoformat(),
+                           **order_form_data(context, "purchase"))
+
+
+@bp.route("/<order_id>/detail", methods=["GET", "POST"])
+@login_required
+@require_module("purchases")
+def order_detail(order_id):
+    from ledgerone.modules.purchases.order_models import PurchaseOrder
+    from ledgerone.modules.commercial.workspace import order_documents
+    from ledgerone.extensions import db
+    context = browser_context()
+    if not context.can("purchases.read"):
+        raise PermissionError("purchases.read")
+    order = db.session.get(PurchaseOrder, order_id)
+    if not order or order.organisation_id != context.organisation_id:
+        from flask import abort
+        abort(404)
+    if request.method == "POST":
+        try:
+            if request.form.get("action") == "create_ack":
+                document = CommercialDocumentService.create(
+                    context, document_type="po_ack", order_id=order.id,
+                    document_date=date.fromisoformat(request.form.get("document_date") or ""),
+                    external_reference=request.form.get("external_reference") or None)
+                flash(f"PO acknowledgement {document.document_number} created.", "success")
+            elif request.form.get("action") == "ack_response":
+                CommercialDocumentService.respond_to_po_ack(
+                    context, request.form.get("document_id", ""),
+                    response_status=request.form.get("response_status", ""),
+                    supplier_reference=request.form.get("supplier_reference") or None)
+                flash("Supplier response saved.", "success")
+            else:
+                raise ValueError("Unknown acknowledgement action")
+            return redirect(url_for("purchase_orders.order_detail", order_id=order.id, tab="ack"))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "commercial/order_detail.html", order=order, is_purchase=True,
+        tab=request.args.get("tab", "lines") if request.args.get("tab", "lines") in {"lines","ack","documents"} else "lines",
+        acknowledgements=order_documents(context, order.id, "po_ack"),
+        fulfilments=order_documents(context, order.id, "grn"),
+        today=date.today().isoformat())
+
+
+@bp.route("/grn", methods=["GET", "POST"])
+@login_required
+@require_module("purchases")
+def grn_workspace():
+    from decimal import Decimal, InvalidOperation
+    from flask import abort
+    from ledgerone.extensions import db
+    from ledgerone.modules.purchases.order_models import PurchaseOrder
+    from ledgerone.modules.commercial.workspace import outstanding_quantities, order_documents
+    context = browser_context()
+    if not context.can("purchases.read"):
+        raise PermissionError("purchases.read")
+    selected_id = request.form.get("order_id") if request.method == "POST" else request.args.get("order_id")
+    orders = PurchaseOrderService.list_orders(context, 500)
+    selected = db.session.get(PurchaseOrder, selected_id) if selected_id else None
+    if selected and selected.organisation_id != context.organisation_id:
+        abort(404)
+    if request.method == "POST":
+        try:
+            if not context.can("purchases.write"):
+                raise PermissionError("purchases.write")
+            if not selected:
+                raise ValueError("Select a purchase order")
+            ids = request.form.getlist("order_line_id[]")
+            quantities = request.form.getlist("receive_quantity[]")
+            if len(ids) != len(quantities) or not ids or len(ids) > 200 or len(set(ids)) != len(ids):
+                raise ValueError("Invalid receipt line submission")
+            eligible = {item["line"].id for item in outstanding_quantities(context, selected)}
+            if set(ids) != eligible:
+                raise ValueError("Receipt lines must match the current purchase order")
+            lines = []
+            for line_id, value in zip(ids, quantities):
+                try:
+                    quantity = Decimal(value)
+                except (InvalidOperation, TypeError):
+                    raise ValueError("Invalid receipt quantity")
+                if not quantity.is_finite() or quantity < 0:
+                    raise ValueError("Receipt quantities must be zero or positive")
+                if quantity > 0:
+                    lines.append({"order_line_id": line_id, "quantity": str(quantity)})
+            if not lines:
+                raise ValueError("Enter a received quantity on at least one line")
+            document = CommercialDocumentService.create(
+                context, document_type="grn", order_id=selected.id,
+                document_date=date.fromisoformat(request.form.get("document_date") or ""),
+                external_reference=request.form.get("external_reference") or None,
+                lines=lines)
+            flash(f"{document.document_number} recorded for {len(lines)} lines.", "success")
+            return redirect(url_for("purchase_orders.grn_workspace", order_id=selected.id))
+        except (ValueError, PermissionError) as exc:
+            flash(str(exc), "danger")
+    outstanding = outstanding_quantities(context, selected) if selected else []
+    return render_template(
+        "commercial/grn_workspace.html", orders=orders, selected=selected,
+        outstanding=outstanding, available=any(item["outstanding"] > 0 for item in outstanding),
+        receipts=order_documents(context, selected.id, "grn") if selected else [],
+        today=date.today().isoformat())
