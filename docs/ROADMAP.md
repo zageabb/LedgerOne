@@ -65,6 +65,33 @@ Status: **in progress**
 - configurable numbering sequences
 - contact/address improvements
 
+## ERP-000 — Commercial order-to-cash and procure-to-pay
+
+**Status:** Planned expansion of existing quote/order/invoice features into full operational lifecycles, ahead of ERP-001.
+
+- Purchase requisitions and multi-line POs; supplier PO acknowledgement capture, line/date/price variances and authorised PO emails
+- GRNs with line-level goods receipt, partial receipts, rejections and returns
+- Supplier invoice matching against PO/GRN, controlled bill creation, credit and payment
+- Sales quotation → sales order → revision-controlled customer sales order acknowledgement (PDF/email) → picking/dispatch → delivery note → linked customer invoice/payment
+- Partial delivery, backorders, multiple invoices, credit notes and delivery evidence
+- Purpose-coded supplier/customer email recipients, templates, PDF preview, approved sending and message audit
+- Configurable role/threshold workflow actions, approval enforcement and end-to-end document tracing
+
+See `docs/ERP_000_COMMERCIAL_LIFECYCLE.md`. Current basic order-to-invoice/bill functionality is not equivalent to the entire workflow.
+
+## Parallel workstream — Legacy ERP Migration (DEV-015)
+
+**Status:** Recovery foundation exists; full LedgerOne financial import is not implemented.
+
+- ERP-001: read-only CashLink source inventory, transaction decoding, traceable staging and exception reports
+- ERP-002: canonical staging schema and reusable adapter contract
+- ERP-003: selected-company mapping and dry-run reconciliation of nominal ledger, AR/AP and VAT
+- ERP-004: maker/checker approved, audited, retry-safe import batches and verified opening balances
+- ERP-005: CashLink Job Cost migration alongside v0.5 Projects/Jobs
+- ERP-006: future CSV/Excel/SQLite/database-export adapters
+
+See `docs/LEGACY_ERP_MIGRATION.md`. No live posting until independent acceptance.
+
 ## v0.4 — Bank and document automation
 
 - CSV/OFX/QIF bank import adapters
