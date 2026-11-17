@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ 'PO' if is_purchase else 'SO' }} {{ order.order_number }} · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Purchase order' if is_purchase else 'Sales order' }} {{ order.order_number }}</h1>
+    <p>{{ order.supplier.name if is_purchase else order.customer.name }} · {{ order.status|title }} · {{ order.currency }} {{ '%.2f'|format(order.total) }}</p>
+  </div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchase_orders.index' if is_purchase else 'sales_orders.index') }}">Order register</a>
+    {% if is_purchase %}<a class="button button-secondary" href="{{ url_for('purchase_orders.grn_workspace', order_id=order.id) }}">Goods receipts</a>{% endif %}
+  </div>
+</div>
+<div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+  <a class="button {{ '' if tab == 'lines' else 'button-secondary' }}" href="?tab=lines">Order lines</a>
+  <a class="button {{ '' if tab == 'ack' else 'button-secondary' }}" href="?tab=ack">Order acknowledgement</a>
+  <a class="button {{ '' if tab == 'documents' else 'button-secondary' }}" href="?tab=documents">{{ 'GRNs' if is_purchase else 'Delivery notes' }}</a>
+</div>
+{% if tab == 'lines' %}
+<section class="card section">
+  <div class="card-head"><h2>Order header</h2></div>
+  <div class="card-body form-grid">
+    <div class="field"><label>Order number</label><strong>{{ order.order_number }}</strong></div>
+    <div class="field"><label>Order date</label><strong>{{ order.order_date }}</strong></div>
+    <div class="field"><label>{{ 'Expected receipt' if is_purchase else 'Requested delivery' }}</label><strong>{{ (order.expected_date if is_purchase else order.requested_delivery_date) or '—' }}</strong></div>
+    <div class="field"><label>Status</label><strong>{{ order.status|title }}</strong></div>
+  </div>
+</section>
+<section class="card section">
+  <div class="card-head"><h2>Order lines</h2></div>
+  <div class="card-body table-wrap">
+    <table style="min-width:720px;width:100%">
+      <thead><tr><th>#</th><th>Description</th><th class="number">Quantity</th><th class="number">Unit price</th><th class="number">Net</th><th class="number">Tax</th></tr></thead>
+      <tbody>{% for line in order.lines|sort(attribute='line_number') %}
+      <tr><td>{{ line.line_number }}</td><td>{{ line.description }}</td><td class="number">{{ line.quantity }}</td><td class="number">{{ line.unit_price }}</td><td class="number">{{ line.net_amount }}</td><td class="number">{{ line.tax_amount }}</td></tr>
+      {% endfor %}</tbody>
+      <tfoot><tr><td colspan="4"><strong>Order total</strong></td><td colspan="2" class="number"><strong>{{ order.currency }} {{ order.total }}</strong></td></tr></tfoot>
+    </table>
+  </div>
+</section>
+{% elif tab == 'ack' %}
+<section class="card section">
+  <div class="card-head"><h2>{{ 'Supplier PO acknowledgement' if is_purchase else 'Customer sales order acknowledgement' }}</h2></div>
+  <div class="card-body">
+    <p class="help">{{ 'Record the supplier confirmation against the original issued PO. Changes must be reviewed separately.' if is_purchase else 'Record a customer-facing sales order acknowledgement. The document is linked to this SO.' }}</p>
+    {% if (order.status in ['approved','sent']) if is_purchase else (order.status == 'confirmed') %}
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create_ack">
+      <div class="field"><label>Acknowledgement date</label><input type="date" name="document_date" value="{{ today }}" required></div>
+      <div class="field"><label>External reference (optional)</label><input name="external_reference" maxlength="120"></div>
+      <div class="field-full"><button class="button" type="submit">Create {{ 'PO' if is_purchase else 'SO' }} acknowledgement</button></div>
+    </form>
+    {% else %}<p class="help">The order must be {{ 'approved/sent' if is_purchase else 'confirmed' }} before acknowledgement.</p>{% endif %}
+    {% if acknowledgements %}
+    <div class="table-wrap"><table style="width:100%">
+      <thead><tr><th>Document</th><th>Revision</th><th>Date</th><th>Reference</th><th>Status</th><th>Response</th></tr></thead>
+      <tbody>{% for ack in acknowledgements %}
+      <tr><td><strong>{{ ack.document_number }}</strong></td><td>{{ ack.revision }}</td><td>{{ ack.document_date }}</td><td>{{ ack.external_reference or '—' }}</td><td>{{ ack.status }}</td><td>{{ ack.response_status or 'Awaiting response' }}</td></tr>
+      {% if is_purchase and not ack.response_status %}
+      <tr><td colspan="6"><form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="ack_response">
+        <input type="hidden" name="document_id" value="{{ ack.id }}">
+        <div class="field"><label>Supplier reply</label><select name="response_status">
+          <option value="accepted">Accepted</option><option value="partially_accepted">Partially accepted</option>
+          <option value="changes_requested">Changes requested</option><option value="rejected">Rejected</option>
+        </select></div>
+        <div class="field"><label>Supplier reference</label><input name="supplier_reference" maxlength="120"></div>
+        <div class="field-full"><button class="button button-small button-secondary" type="submit">Record supplier reply</button></div>
+      </form></td></tr>
+      {% endif %}
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="help">No acknowledgements recorded.</p>{% endif %}
+  </div>
+</section>
+{% else %}
+<section class="card section">
+  <div class="card-head"><h2>{{ 'Goods receipt notes' if is_purchase else 'Delivery notes' }}</h2></div>
+  <div class="card-body">
+    {% if is_purchase %}<p><a class="button" href="{{ url_for('purchase_orders.grn_workspace', order_id=order.id) }}">Create multi-line GRN</a></p>{% endif %}
+    {% if fulfilments %}
+    <div class="table-wrap"><table style="width:100%">
+      <thead><tr><th>Document</th><th>Date</th><th>Reference</th><th>Items</th></tr></thead>
+      <tbody>{% for document in fulfilments %}
+      <tr><td>{{ document.document_number }}</td><td>{{ document.document_date }}</td><td>{{ document.external_reference or '—' }}</td><td>{{ document.lines|length }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="help">No documents recorded yet.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
