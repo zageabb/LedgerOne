@@ -15,6 +15,7 @@ from ledgerone.modules.workflows.models import (
     UserAction,
     WorkflowDefinition,
     WorkflowInstance,
+    WorkflowRoleAssignment,
 )
 from ledgerone.services.audit import record_audit_event
 from ledgerone.services.context import AccessContext
@@ -56,15 +57,31 @@ def _advance(value: date, frequency: str) -> date:
     raise WorkflowError(f"Unsupported frequency: {frequency}")
 
 
-def _membership_role(context: AccessContext) -> str | None:
+def _membership_roles(context: AccessContext) -> set[str]:
     if not context.user_id or not context.organisation_id:
-        return None
-    row = Membership.query.filter_by(
-        organisation_id=context.organisation_id,
-        user_id=context.user_id,
+        return set()
+    member = Membership.query.filter_by(
+        organisation_id=context.organisation_id, user_id=context.user_id,
         is_active=True,
     ).first()
-    return row.role if row else None
+    person = db.session.get(User, context.user_id)
+    if not member or not person or not person.is_active:
+        return set()
+    extra_roles = WorkflowRoleAssignment.query.filter_by(
+        organisation_id=context.organisation_id, user_id=context.user_id,
+    ).all()
+    return {member.role, *(entry.role for entry in extra_roles)}
+
+
+def _membership_role(context: AccessContext) -> str | None:
+    # Legacy callers still expect the primary access role.
+    if not context.user_id or not context.organisation_id:
+        return None
+    member = Membership.query.filter_by(
+        organisation_id=context.organisation_id, user_id=context.user_id,
+        is_active=True,
+    ).first()
+    return member.role if member else None
 
 
 def _originator_mode(user_id: str | None) -> str:
@@ -498,8 +515,8 @@ class WorkflowService:
             return True
         if action.assigned_user_id and action.assigned_user_id != context.user_id:
             return False
-        role = _membership_role(context)
-        if action.assigned_role and action.assigned_role != role:
+        roles = _membership_roles(context)
+        if action.assigned_role and action.assigned_role not in roles:
             return False
         return True
 
@@ -514,19 +531,17 @@ class WorkflowService:
                 UserAction.status == "open",
             )
         )
-        role = _membership_role(context)
-        # Assigned-user and assigned-role requirements are both enforced.
-        # Never expose other people's actions just because a user is an owner.
+        roles = _membership_roles(context)
         filters = [and_(UserAction.assigned_user_id.is_(None), UserAction.assigned_role.is_(None))]
         if context.user_id:
             filters.append(and_(UserAction.assigned_user_id == context.user_id,
                                 UserAction.assigned_role.is_(None)))
-            if role:
+            if roles:
                 filters.append(and_(UserAction.assigned_user_id == context.user_id,
-                                    UserAction.assigned_role == role))
-        if role:
+                                    UserAction.assigned_role.in_(roles)))
+        if roles:
             filters.append(and_(UserAction.assigned_user_id.is_(None),
-                                UserAction.assigned_role == role))
+                                UserAction.assigned_role.in_(roles)))
         if context.full_access or "*" in context.permissions:
             query = query.filter(or_(UserAction.action_type != "approve", *filters))
         else:
