@@ -46,6 +46,11 @@
             <option value="purchase_bill">Purchase bill</option>
             <option value="expense_claim">Expense claim</option>
             <option value="journal">Journal</option>
+            <option value="supplier_creation">Supplier creation</option>
+            <option value="customer_creation">Customer creation</option>
+            <option value="payment">Payments</option>
+            <option value="bank_posting">Bank posting</option>
+            <option value="period_reopen">Period reopen</option>
           </select>
         </div>
         <div class="field">
@@ -66,6 +71,24 @@
           <label><input type="checkbox" name="approval_required" value="1"> Require approval</label>
           <p class="help">Approvals always require a different signed-in user from the creator.</p>
         </div>
+        <div class="field field-full">
+          <label><input type="checkbox" name="routing_mode" value="custom"> Use custom sequential stages</label>
+          <p class="help">When enabled, these stages replace the basic review and approval checkboxes. Each approval must go to a named user or company role.</p>
+        </div>
+        {% for i in range(1, 5) %}
+        <div class="field field-full"><strong>Stage {{ i }}</strong></div>
+        <div class="field"><label>Action</label><select name="stage_{{ i }}_type">
+          <option value="">Unused</option><option value="review">Review</option><option value="approve">Approve</option>
+        </select></div>
+        <div class="field"><label>Stage label</label><input name="stage_{{ i }}_label" maxlength="120" placeholder="e.g. Finance approval"></div>
+        <div class="field"><label>Company role</label><input name="stage_{{ i }}_role" maxlength="40" placeholder="e.g. manager"></div>
+        <div class="field"><label>Or named user</label><select name="stage_{{ i }}_user_id">
+          <option value="">Select a company member</option>
+          {% for membership in member_choices %}
+          <option value="{{ membership.user_id }}">{{ membership.user.name }} ({{ membership.user.email }})</option>
+          {% endfor %}
+        </select></div>
+        {% endfor %}
         <div class="field field-full"><button class="button" type="submit">Create rule</button></div>
       </form>
       <p class="help">Rules are evaluated in priority order. Posting is always a separate explicit action for scheduled transactions.</p>
