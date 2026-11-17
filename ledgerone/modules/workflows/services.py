@@ -455,7 +455,7 @@ class WorkflowService:
                 action_type=action_type,
                 label=step.get("label"),
                 role=step.get("role"),
-            assigned_user_id=step.get("user_id"),
+                assigned_user_id=step.get("user_id"),
             )
         else:
             WorkflowService._make_ready(instance, create_post_action=create_post_action)
@@ -621,7 +621,7 @@ class WorkflowService:
                     action_type=action_type,
                     label=step.get("label"),
                     role=step.get("role"),
-                assigned_user_id=step.get("user_id"),
+                    assigned_user_id=step.get("user_id"),
                 )
             else:
                 create_post = bool((instance.metadata_json or {}).get("create_post_action"))
