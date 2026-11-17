@@ -6,6 +6,23 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## DEV-015 — Legacy ERP migration (CashLink first; reusable import adapters)
+Status: PLANNED — first implementation increment is a read-only assessment
+
+- [x] Existing CashLink UCSD volume reader, raw-record SQLite preservation and account CSV export retained.
+- [x] Migration design, phases, reconciliation gates and work items documented in `docs/LEGACY_ERP_MIGRATION.md`.
+- [ ] ERP-001 — Read-only CashLink source assessment, decode confidence, transactions, source lineage, exceptions and totals.
+- [ ] ERP-002 — Reusable staging schema and source-adapter interface.
+- [ ] ERP-003 — Company-specific account/contact mapping, dry-run reconciliation and exception sign-off.
+- [ ] ERP-004 — Maker/checker-approved, auditable, idempotent migration batches with rollback planning.
+- [ ] ERP-005 — Job Cost decode and mapping to Projects/Jobs.
+- [ ] ERP-006 — General CSV, Excel and SQLite/database-export adapters.
+- [ ] CI + actual legacy fixture validation; independent accounting and live UDA acceptance.
+
+Do not treat successful raw recovery as completed financial transaction import. No production writes until mappings and reconciliations have been reviewed.
+
+---
+
 ## DEV-014 — Custom workflows and company user role allocation
 Status: PHASE 1 IMPLEMENTED ON FEATURE BRANCH — CI & LIVE ACCEPTANCE PENDING
 
