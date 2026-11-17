@@ -358,7 +358,8 @@ class PurchasesService:
                     payable_account_id: str, expense_account_id: str,
                     currency: str = "GBP", tax_code_id: str | None = None,
                     metadata: dict | None = None, commit: bool = True,
-                    supplier_invoice_reference: str | None = None):
+                    supplier_invoice_reference: str | None = None,
+                    approved_workflow_id: str | None = None):
         if not context.can("purchases.write"):
             raise PermissionError("purchases.write")
         amount = _money(amount)
@@ -402,6 +403,24 @@ class PurchasesService:
         clean_supplier_reference = (supplier_invoice_reference or "").strip() or None
         if clean_supplier_reference and len(clean_supplier_reference) > 120:
             raise ValueError("Supplier invoice reference exceeds 120 characters")
+
+        from ledgerone.services.trading_approval import require_trading_approval
+        require_trading_approval(
+            context, policy_key="purchase_bill", approved_workflow_id=approved_workflow_id,
+            total=total, fields={
+                "supplier_id": supplier.id,
+                "bill_number": (bill_number or "").strip(),
+                "supplier_invoice_reference": clean_supplier_reference,
+                "bill_date": bill_date.isoformat(),
+                "tax_point": effective_tax_point.isoformat(),
+                "due_date": due_date.isoformat(),
+                "description": (description or "").strip() or "Purchase",
+                "amount": str(amount), "tax_amount": str(tax_amount),
+                "total": str(total), "currency": currency.upper(),
+                "payable_account_id": payable_account_id,
+                "expense_account_id": expense_account_id,
+                "tax_code_id": tax_code.id if tax_code else None,
+            })
 
         # Allocate only at final posting, not when an approval request is submitted.
         # The sequence change shares this posting transaction and rolls back on failure.

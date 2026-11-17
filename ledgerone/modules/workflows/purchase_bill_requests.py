@@ -281,6 +281,7 @@ class PurchaseBillWorkflowService:
                 "proposal_source_module": (instance.metadata_json or {}).get("proposal_source_module"),
             },
             commit=False,
+            approved_workflow_id=instance.id,
         )
         instance.status = "posted"
         instance.completed_at = utcnow()

@@ -6,6 +6,21 @@
 
 This file is the persistent development queue for LedgerOne. It is intentionally based on the current implementation on `main`, current open pull requests, tests, the audit action register, `docs/TODO.md`, and `docs/ROADMAP.md`.
 
+## DEV-013 — Sales invoice and purchase bill direct-posting approval gates
+Status: IMPLEMENTED ON FEATURE BRANCH — CI and independent acceptance pending
+
+- [x] Enforce enabled company-wide or document-specific approval thresholds at the SalesService.create_invoice and PurchasesService.create_bill service boundaries.
+- [x] Require a matching ready-to-post workflow, approved by a separate named checker.
+- [x] Compare original submitted company, party, document number/reference, dates, description, amounts, currency, tax and posting accounts before allocating controlled numbers or writing journals.
+- [x] Controlled sales/purchase workflow adapters explicitly pass the approved instance; untrusted metadata does not bypass the guard.
+- [x] Add tests for direct-post denial, successful approved posting, altered content and cross-company reuse.
+- [ ] Full CI and migration validation, then merge only when green.
+- [ ] Live UDA/browser/API and independent accounting audit acceptance.
+
+Scope: direct creation of sales invoices and purchase bills. Payments, credits/refunds, bank posting, journal reversals, period reopen and master data have distinct approval pathways and remain separately assessed. Threshold configuration is opt-in per company, not a retroactive lock on existing transactions.
+
+---
+
 ## DEV-012 — Direct manual journal approval and checker assignment integrity
 Status: IN PROGRESS — PR CI and live acceptance pending
 
