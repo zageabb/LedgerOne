@@ -62,6 +62,26 @@ class PurchaseMatchService:
             supplier_id=order.supplier_id,
             supplier_invoice_reference=reference).first()
 
+        # Legacy PO conversion records the source PO at bill header level but
+        # does not allocate bill quantities to individual PO / GRN lines.
+        # Any previously linked bill therefore blocks a "safe to clear" claim.
+        # This is intentionally conservative until line-level allocation exists.
+        prior_bills = [
+            bill for bill in PurchaseBill.query.filter_by(
+                organisation_id=context.organisation_id,
+                supplier_id=order.supplier_id).all()
+            if (bill.metadata_json or {}).get("source_purchase_order_id") == order.id
+        ]
+        if order.converted_bill_id and not any(
+            bill.id == order.converted_bill_id for bill in prior_bills
+        ):
+            converted = PurchaseBill.query.filter_by(
+                id=order.converted_bill_id,
+                organisation_id=context.organisation_id,
+                supplier_id=order.supplier_id).first()
+            if converted is not None:
+                prior_bills.append(converted)
+
         # Only issued GRNs count; acknowledgements do not constitute receipt.
         receipts = CommercialDocument.query.filter_by(
             organisation_id=context.organisation_id, document_type="grn",
@@ -149,6 +169,8 @@ class PurchaseMatchService:
                     "clearing_posting_authorised": False,
                 },
             })
+        if prior_bills:
+            issues.append("existing_po_bill_requires_line_allocation")
         if existing:
             issues.insert(0, "duplicate_supplier_invoice_reference")
         return {
@@ -164,6 +186,8 @@ class PurchaseMatchService:
             "grni_issues": grni_issues,
             "grni_accrual_coverage_sufficient": not grni_issues,
             "grni_clearing_posting_authorised": False,
+            "existing_linked_bill_count": len(prior_bills),
+            "existing_linked_bill_ids": sorted(bill.id for bill in prior_bills),
             "invoice_net_total": str(total_net),
             "lines": evaluated,
             "preview_only": True,
