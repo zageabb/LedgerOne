@@ -15,6 +15,10 @@
   <a class="button {{ '' if tab == 'ack' else 'button-secondary' }}" href="?tab=ack">Order acknowledgement</a>
   <a class="button {{ '' if tab == 'documents' else 'button-secondary' }}" href="?tab=documents">{{ 'GRNs' if is_purchase else 'Delivery notes' }}</a>
 </div>
+<div class="actions" style="margin-bottom:1rem">
+  {% if is_purchase %}<a class="button button-secondary" href="{{ url_for('purchase_orders.matching_workspace', order_id=order.id) }}">Match supplier invoice</a>{% endif %}
+  <a class="button button-secondary" href="?tab=invoice">{{ 'Supplier bill' if is_purchase else 'Sales invoice' }}</a>
+</div>
 {% if tab == 'lines' %}
 <section class="card section">
   <div class="card-head"><h2>Order header</h2></div>
@@ -35,6 +39,27 @@
       {% endfor %}</tbody>
       <tfoot><tr><td colspan="4"><strong>Order total</strong></td><td colspan="2" class="number"><strong>{{ order.currency }} {{ order.total }}</strong></td></tr></tfoot>
     </table>
+  </div>
+</section>
+{% elif tab == 'invoice' %}
+<section class="card section">
+  <div class="card-head"><h2>{{ 'Supplier bill conversion' if is_purchase else 'Sales invoice conversion' }}</h2></div>
+  <div class="card-body">
+  {% if order.status == ('approved' if is_purchase else 'confirmed') and order.lines|length == 1 %}
+  <form method="post" action="{{ url_for('purchase_orders.index' if is_purchase else 'sales_orders.index') }}" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="convert">
+    <input type="hidden" name="order_id" value="{{ order.id }}">
+    <div class="field"><label>{{ 'Bill number' if is_purchase else 'Invoice number' }}</label>
+      <input name="{{ 'bill_number' if is_purchase else 'invoice_number' }}" placeholder="Automatic if blank"></div>
+    {% if is_purchase %}<div class="field"><label>Supplier invoice reference</label><input name="supplier_invoice_reference"></div>{% endif %}
+    <div class="field"><label>Posting date</label><input type="date" name="{{ 'bill_date' if is_purchase else 'invoice_date' }}" value="{{ today }}" required></div>
+    <div class="field"><label>Due date</label><input name="due_date" type="date"></div>
+    <div class="field-full"><button class="button" type="submit">Convert and post</button></div>
+  </form>
+  {% else %}
+    <p class="help">Only approved/confirmed single-line orders can use the existing conversion. Multi-line quantity-linked invoicing remains under development.</p>
+  {% endif %}
   </div>
 </section>
 {% elif tab == 'ack' %}
