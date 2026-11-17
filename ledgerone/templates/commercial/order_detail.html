@@ -38,11 +38,11 @@
   <div class="card-head"><h2>Order lines</h2></div>
   <div class="card-body table-wrap">
     <table style="min-width:720px;width:100%">
-      <thead><tr><th>#</th><th>Description</th><th class="number">Quantity</th><th class="number">Unit price</th><th class="number">Net</th><th class="number">Tax</th></tr></thead>
+      <thead><tr><th>#</th><th>Description</th><th>Treatment</th><th class="number">Quantity</th><th class="number">Unit price</th><th class="number">Net</th><th class="number">Tax</th></tr></thead>
       <tbody>{% for line in order.lines|sort(attribute='line_number') %}
-      <tr><td>{{ line.line_number }}</td><td>{{ line.description }}</td><td class="number">{{ line.quantity }}</td><td class="number">{{ line.unit_price }}</td><td class="number">{{ line.net_amount }}</td><td class="number">{{ line.tax_amount }}</td></tr>
+      <tr><td>{{ line.line_number }}</td><td>{{ line.description }}</td><td>{{ (line.dimensions or {}).get('item_treatment', 'Unclassified')|title }}</td><td class="number">{{ line.quantity }}</td><td class="number">{{ line.unit_price }}</td><td class="number">{{ line.net_amount }}</td><td class="number">{{ line.tax_amount }}</td></tr>
       {% endfor %}</tbody>
-      <tfoot><tr><td colspan="4"><strong>Order total</strong></td><td colspan="2" class="number"><strong>{{ order.currency }} {{ order.total }}</strong></td></tr></tfoot>
+      <tfoot><tr><td colspan="5"><strong>Order total</strong></td><td colspan="2" class="number"><strong>{{ order.currency }} {{ order.total }}</strong></td></tr></tfoot>
     </table>
   </div>
 </section>
