@@ -19,6 +19,7 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Read-only supplier invoice matching now distinguishes physically received quantities from posted GRNI accrual coverage and flags unaccrued stock; no bill reservation or clearing posting.
 - [x] Schema foundation: `purchase_receipt_bill_allocations` records PO line, GRN line, bill line, quantities and values; migration `0028_bill_receipt_alloc`. No allocation writes or financial posting exposed.
 - [x] Read-only receipt/invoice allocation summary service and security/empty-state test coverage (feature increment; CI pending).
+- [x] Read-only allocation evidence flags GRN-line/PO-line ownership mismatch and overallocated receipt or PO quantities. Reports remain non-certifying; no writes or GRNI clearing enabled (CI pending).
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
 - [ ] CI green and live UDA/browser acceptance.
 
