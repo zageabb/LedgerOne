@@ -12,6 +12,34 @@ from ledgerone.modules.commercial.models import (
 from ledgerone.modules.purchases.order_models import PurchaseOrder
 
 
+def _inspect_allocation_evidence(quantities, receipt_line_owners,
+                                 receipt_line_quantities, allocations):
+    """Read-only validation; do not treat these results as posting approval."""
+    allocated = {line_id: Decimal("0") for line_id in quantities}
+    per_receipt = {line_id: Decimal("0") for line_id in receipt_line_owners}
+    invalid = []
+    for allocation in allocations:
+        owner = receipt_line_owners.get(allocation.receipt_line_id)
+        if owner != allocation.purchase_order_line_id or owner not in quantities:
+            invalid.append(allocation.id)
+            continue
+        quantity = Decimal(allocation.quantity)
+        if not quantity.is_finite() or quantity <= 0:
+            invalid.append(allocation.id)
+            continue
+        allocated[owner] += quantity
+        per_receipt[allocation.receipt_line_id] += quantity
+    over_receipts = sorted(
+        receipt_id for receipt_id, qty in per_receipt.items()
+        if qty > receipt_line_quantities[receipt_id]
+    )
+    over_lines = {
+        line_id for line_id, qty in allocated.items()
+        if qty > quantities[line_id]
+    }
+    return allocated, sorted(invalid), over_receipts, over_lines
+
+
 class PurchaseReceiptAllocationService:
     @staticmethod
     def summary(context, *, order_id: str):
@@ -26,25 +54,27 @@ class PurchaseReceiptAllocationService:
             document_type="grn", order_id=order.id, status="issued",
         ).all()
         quantities = {line.id: Decimal("0") for line in order.lines}
-        valid_receipt_lines = set()
+        receipt_line_owners = {}
+        receipt_line_quantities = {}
         for receipt in receipts:
             for line in receipt.lines:
                 if line.order_line_id in quantities:
                     quantities[line.order_line_id] += Decimal(line.quantity)
-                    valid_receipt_lines.add(line.id)
+                    receipt_line_owners[line.id] = line.order_line_id
+                    receipt_line_quantities[line.id] = Decimal(line.quantity)
 
-        allocated = {line.id: Decimal("0") for line in order.lines}
-        orphaned = []
         allocations = PurchaseReceiptBillAllocation.query.filter_by(
             organisation_id=context.organisation_id,
         ).filter(
             PurchaseReceiptBillAllocation.purchase_order_line_id.in_(list(quantities)),
         ).all() if quantities else []
-        for allocation in allocations:
-            if allocation.receipt_line_id not in valid_receipt_lines:
-                orphaned.append(allocation.id)
-                continue
-            allocated[allocation.purchase_order_line_id] += Decimal(allocation.quantity)
+        allocated, invalid, overallocated_receipts, overallocated_lines = (
+            _inspect_allocation_evidence(
+                quantities, receipt_line_owners, receipt_line_quantities,
+                allocations,
+            )
+        )
+        evidence_valid = not (invalid or overallocated_receipts or overallocated_lines)
 
         return {
             "purchase_order_id": order.id,
@@ -57,10 +87,14 @@ class PurchaseReceiptAllocationService:
                 "remaining_received_quantity": str(
                     max(Decimal("0"), quantities[line.id] - allocated[line.id])
                 ),
-                "overallocated": allocated[line.id] > quantities[line.id],
+                "overallocated": line.id in overallocated_lines,
+                "allocation_evidence_valid": evidence_valid,
             } for line in order.lines],
-            "invalid_allocation_ids": sorted(orphaned),
+            "invalid_allocation_ids": sorted(invalid),
+            "overallocated_receipt_line_ids": overallocated_receipts,
+            "allocation_evidence_valid": evidence_valid,
+            "quantity_available_for_posting_certified": False,
             "preview_only": True,
             "posting_authorised": False,
-            "note": "Read-only quantities; no posting or invoice reservations. Prior legacy bills may lack allocations.",
+            "note": "Read-only evidence checks only; no posting, invoice reservations or certification. Prior legacy bills may lack allocations.",
         }
