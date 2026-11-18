@@ -12,6 +12,34 @@ from ledgerone.modules.commercial.models import (
 from ledgerone.modules.purchases.order_models import PurchaseOrder
 
 
+def _inspect_allocation_evidence(quantities, receipt_line_owners,
+                                 receipt_line_quantities, allocations):
+    """Read-only validation; do not treat these results as posting approval."""
+    allocated = {line_id: Decimal("0") for line_id in quantities}
+    per_receipt = {line_id: Decimal("0") for line_id in receipt_line_owners}
+    invalid = []
+    for allocation in allocations:
+        owner = receipt_line_owners.get(allocation.receipt_line_id)
+        if owner != allocation.purchase_order_line_id or owner not in quantities:
+            invalid.append(allocation.id)
+            continue
+        quantity = Decimal(allocation.quantity)
+        if not quantity.is_finite() or quantity <= 0:
+            invalid.append(allocation.id)
+            continue
+        allocated[owner] += quantity
+        per_receipt[allocation.receipt_line_id] += quantity
+    over_receipts = sorted(
+        receipt_id for receipt_id, qty in per_receipt.items()
+        if qty > receipt_line_quantities[receipt_id]
+    )
+    over_lines = {
+        line_id for line_id, qty in allocated.items()
+        if qty > quantities[line_id]
+    }
+    return allocated, sorted(invalid), over_receipts, over_lines
+
+
 class PurchaseReceiptAllocationService:
     @staticmethod
     def summary(context, *, order_id: str):
@@ -35,33 +63,17 @@ class PurchaseReceiptAllocationService:
                     receipt_line_owners[line.id] = line.order_line_id
                     receipt_line_quantities[line.id] = Decimal(line.quantity)
 
-        allocated = {line.id: Decimal("0") for line in order.lines}
-        allocated_per_receipt = {line_id: Decimal("0") for line_id in receipt_line_owners}
-        invalid = []
         allocations = PurchaseReceiptBillAllocation.query.filter_by(
             organisation_id=context.organisation_id,
         ).filter(
             PurchaseReceiptBillAllocation.purchase_order_line_id.in_(list(quantities)),
         ).all() if quantities else []
-        for allocation in allocations:
-            # Reject evidence linked to a different PO line or a receipt which
-            # is not an issued GRN for this PO. Never count invalid allocations.
-            owner = receipt_line_owners.get(allocation.receipt_line_id)
-            if owner != allocation.purchase_order_line_id:
-                invalid.append(allocation.id)
-                continue
-            quantity = Decimal(allocation.quantity)
-            allocated[owner] += quantity
-            allocated_per_receipt[allocation.receipt_line_id] += quantity
-
-        overallocated_receipts = sorted(
-            receipt_id for receipt_id, quantity in allocated_per_receipt.items()
-            if quantity > receipt_line_quantities[receipt_id]
+        allocated, invalid, overallocated_receipts, overallocated_lines = (
+            _inspect_allocation_evidence(
+                quantities, receipt_line_owners, receipt_line_quantities,
+                allocations,
+            )
         )
-        overallocated_lines = {
-            line_id for line_id, quantity in allocated.items()
-            if quantity > quantities[line_id]
-        }
         evidence_valid = not (invalid or overallocated_receipts or overallocated_lines)
 
         return {
