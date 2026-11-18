@@ -19,6 +19,7 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Read-only supplier invoice matching now distinguishes physically received quantities from posted GRNI accrual coverage and flags unaccrued stock; no bill reservation or clearing posting.
 - [x] Schema foundation: `purchase_receipt_bill_allocations` records PO line, GRN line, bill line, quantities and values; migration `0028_bill_receipt_alloc`. No allocation writes or financial posting exposed.
 - [x] Read-only receipt/invoice allocation summary service and security/empty-state test coverage (feature increment; CI pending).
+- [x] Conservative, read-only receipt-to-bill allocation validator checks company/PO/bill/GRN links, quantity limits, duplicate pairs and refuses legacy bill lines lacking verified PO-line provenance. No writes or journal clearing.
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
 - [ ] CI green and live UDA/browser acceptance.
 
