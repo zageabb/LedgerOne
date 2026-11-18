@@ -121,3 +121,42 @@ def test_allocation_evidence_detects_order_line_overallocation():
     assert invalid == []
     assert over_receipts == []
     assert over_lines == {"po"}
+
+
+def test_receipt_side_wrong_po_line_is_reported_even_when_line_is_outside_order(app):
+    """A mismatched PO line must not evade the summary's allocation query."""
+    with app.app_context():
+        context, order, receipt = _receipt()
+        accounts = {account.code: account.id for account in Account.query.filter_by(
+            organisation_id=context.organisation_id).all()}
+        other_order = MultiLineOrderService.create(
+            context, kind="purchase", party_id=order.supplier_id,
+            order_number="PO-RECEIPT-OTHER", order_date=DAY,
+            expected_date=None, control_account_id=accounts["2100"],
+            lines=[{"description": "Other material", "quantity": "5",
+                    "unit_price": "12", "account_id": accounts["5000"],
+                    "item_treatment": "stock"}],
+        )
+        bill = PurchasesService.create_bill(
+            context, supplier_id=order.supplier_id,
+            bill_number="B-MISMATCH-EVIDENCE", bill_date=DAY, due_date=DAY,
+            description="Mismatched allocation fixture", amount="12",
+            payable_account_id=accounts["2100"],
+            expense_account_id=accounts["5000"],
+        )
+        db.session.add(PurchaseReceiptBillAllocation(
+            organisation_id=context.organisation_id,
+            purchase_order_line_id=other_order.lines[0].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=bill.lines[0].id,
+            quantity=Decimal("1"), receipt_cost=Decimal("12"),
+            invoice_net=Decimal("12"),
+        ))
+        db.session.commit()
+        before = Journal.query.count()
+        result = PurchaseReceiptAllocationService.summary(context, order_id=order.id)
+        assert result["allocation_evidence_valid"] is False
+        assert len(result["invalid_allocation_ids"]) == 1
+        assert result["lines"][0]["allocated_invoice_quantity"] == "0"
+        assert result["posting_authorised"] is False
+        assert Journal.query.count() == before
