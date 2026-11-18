@@ -5,6 +5,8 @@ Never use this read model as an atomic authority for bill or GRNI posting.
 """
 from decimal import Decimal
 
+from sqlalchemy import or_
+
 from ledgerone.extensions import db
 from ledgerone.modules.commercial.models import (
     CommercialDocument, PurchaseReceiptBillAllocation,
@@ -63,11 +65,26 @@ class PurchaseReceiptAllocationService:
                     receipt_line_owners[line.id] = line.order_line_id
                     receipt_line_quantities[line.id] = Decimal(line.quantity)
 
-        allocations = PurchaseReceiptBillAllocation.query.filter_by(
-            organisation_id=context.organisation_id,
-        ).filter(
-            PurchaseReceiptBillAllocation.purchase_order_line_id.in_(list(quantities)),
-        ).all() if quantities else []
+        # Include allocations referencing this PO's issued receipt lines even
+        # when their PO-line reference is wrong. Filtering solely by PO line
+        # silently hides exactly the mismatched lineage we need to report.
+        line_ids = list(quantities)
+        receipt_ids = list(receipt_line_owners)
+        allocation_filters = []
+        if line_ids:
+            allocation_filters.append(
+                PurchaseReceiptBillAllocation.purchase_order_line_id.in_(line_ids)
+            )
+        if receipt_ids:
+            allocation_filters.append(
+                PurchaseReceiptBillAllocation.receipt_line_id.in_(receipt_ids)
+            )
+        allocations = (
+            PurchaseReceiptBillAllocation.query.filter_by(
+                organisation_id=context.organisation_id,
+            ).filter(or_(*allocation_filters)).all()
+            if allocation_filters else []
+        )
         allocated, invalid, overallocated_receipts, overallocated_lines = (
             _inspect_allocation_evidence(
                 quantities, receipt_line_owners, receipt_line_quantities,
