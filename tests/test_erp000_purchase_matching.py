@@ -110,3 +110,47 @@ def test_duplicate_supplier_bill_reference_is_flagged(app):
         preview = _preview(context, po, reference="DUP-REF", mode="two_way")
         assert "duplicate_supplier_invoice_reference" in preview["issues"]
         assert preview["matched"] is False
+
+
+def test_prior_po_linked_bill_blocks_reuse_without_line_allocations(app):
+    with app.app_context():
+        context, po = _po()
+        assert _preview(context, po, mode="two_way")["matched"] is True
+        existing_bill = PurchasesService.create_bill(
+            context, supplier_id=po.supplier_id,
+            bill_number="B-PO-LINKED-001",
+            supplier_invoice_reference="OLDER-SUPPLIER-INVOICE",
+            bill_date=DAY, due_date=DAY,
+            description="Previously invoiced PO material",
+            amount="25",
+            payable_account_id=po.payable_account_id,
+            expense_account_id=po.lines[0].expense_account_id,
+            metadata={"source_purchase_order_id": po.id},
+        )
+        result = _preview(context, po, reference="DIFFERENT-INVOICE", mode="two_way")
+        assert result["matched"] is False
+        assert "existing_po_bill_requires_line_allocation" in result["issues"]
+        assert "duplicate_supplier_invoice_reference" not in result["issues"]
+        assert result["existing_linked_bill_count"] == 1
+        assert result["existing_linked_bill_ids"] == [existing_bill.id]
+        assert result["posting_authorised"] is False
+
+
+def test_bill_for_different_po_does_not_block_matching(app):
+    with app.app_context():
+        context, po = _po()
+        PurchasesService.create_bill(
+            context, supplier_id=po.supplier_id,
+            bill_number="B-OTHER-PO-001",
+            supplier_invoice_reference="OTHER-PO-INVOICE",
+            bill_date=DAY, due_date=DAY,
+            description="An unrelated purchase",
+            amount="25",
+            payable_account_id=po.payable_account_id,
+            expense_account_id=po.lines[0].expense_account_id,
+            metadata={"source_purchase_order_id": "unrelated-po"},
+        )
+        result = _preview(context, po, mode="two_way")
+        assert result["matched"] is True
+        assert result["existing_linked_bill_count"] == 0
+        assert result["existing_linked_bill_ids"] == []
