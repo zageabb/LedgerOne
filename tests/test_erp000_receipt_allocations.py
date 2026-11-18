@@ -1,5 +1,7 @@
 """Receipt-to-bill allocation read model: schema, quantities and tenant isolation."""
 from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import inspect
@@ -9,7 +11,9 @@ from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.commercial.models import PurchaseReceiptBillAllocation
 from ledgerone.modules.commercial.order_builder import MultiLineOrderService
-from ledgerone.modules.commercial.receipt_allocations import PurchaseReceiptAllocationService
+from ledgerone.modules.commercial.receipt_allocations import (
+    PurchaseReceiptAllocationService, _inspect_allocation_evidence,
+)
 from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.purchases.orders import PurchaseOrderService
 from ledgerone.modules.purchases.services import PurchasesService
@@ -51,6 +55,9 @@ def test_allocations_schema_and_empty_read_model_are_nonposting(app):
         assert result["preview_only"] is True
         assert result["posting_authorised"] is False
         assert result["invalid_allocation_ids"] == []
+        assert result["overallocated_receipt_line_ids"] == []
+        assert result["allocation_evidence_valid"] is True
+        assert result["quantity_available_for_posting_certified"] is False
         assert result["lines"][0]["ordered_quantity"] == "5.0000"
         assert result["lines"][0]["received_quantity"] == "2.0000"
         assert result["lines"][0]["allocated_invoice_quantity"] == "0"
@@ -72,3 +79,45 @@ def test_receipt_allocation_read_only_api_registered(app):
     with app.app_context():
         endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
         assert "commercial_api.purchase_receipt_allocations" in endpoints
+
+
+def test_allocation_evidence_rejects_wrong_receipt_owner_and_overallocation():
+    quantities = {"po-a": Decimal("5"), "po-b": Decimal("5")}
+    owners = {"grn-a": "po-a", "grn-b": "po-b"}
+    received = {"grn-a": Decimal("2"), "grn-b": Decimal("3")}
+    rows = [
+        SimpleNamespace(id="ok", receipt_line_id="grn-a",
+                        purchase_order_line_id="po-a", quantity=Decimal("1")),
+        SimpleNamespace(id="wrong-owner", receipt_line_id="grn-a",
+                        purchase_order_line_id="po-b", quantity=Decimal("1")),
+        SimpleNamespace(id="missing-grn", receipt_line_id="unknown",
+                        purchase_order_line_id="po-a", quantity=Decimal("1")),
+        SimpleNamespace(id="over-grn", receipt_line_id="grn-a",
+                        purchase_order_line_id="po-a", quantity=Decimal("2")),
+    ]
+    allocated, invalid, over_receipts, over_lines = _inspect_allocation_evidence(
+        quantities, owners, received, rows,
+    )
+    assert allocated == {"po-a": Decimal("3"), "po-b": Decimal("0")}
+    assert invalid == ["missing-grn", "wrong-owner"]
+    assert over_receipts == ["grn-a"]
+    assert over_lines == set()
+
+
+def test_allocation_evidence_detects_order_line_overallocation():
+    rows = [
+        SimpleNamespace(id="a", receipt_line_id="grn-1",
+                        purchase_order_line_id="po", quantity=Decimal("3")),
+        SimpleNamespace(id="b", receipt_line_id="grn-2",
+                        purchase_order_line_id="po", quantity=Decimal("3")),
+    ]
+    allocated, invalid, over_receipts, over_lines = _inspect_allocation_evidence(
+        {"po": Decimal("5")},
+        {"grn-1": "po", "grn-2": "po"},
+        {"grn-1": Decimal("4"), "grn-2": Decimal("4")},
+        rows,
+    )
+    assert allocated["po"] == Decimal("6")
+    assert invalid == []
+    assert over_receipts == []
+    assert over_lines == {"po"}
