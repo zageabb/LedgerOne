@@ -116,3 +116,15 @@ def grn_accounting_preview(grn_id):
         return jsonify(GRNAccountingPreviewService.preview(g.access_context, grn_id=grn_id))
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.get("/purchases/orders/<order_id>/receipt-allocations")
+@require_api("purchases.read")
+def purchase_receipt_allocations(order_id):
+    """Read-only quantities; never authorises billing or GRNI clearing."""
+    from ledgerone.modules.commercial.receipt_allocations import PurchaseReceiptAllocationService
+    try:
+        return jsonify(PurchaseReceiptAllocationService.summary(
+            g.access_context, order_id=order_id))
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
