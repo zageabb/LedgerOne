@@ -389,6 +389,21 @@ def new_bill_draft(order_id):
         remaining=remaining, today=date.today().isoformat())
 
 
+@bp.get("/<order_id>/bill-drafts/<bill_id>/review")
+@login_required
+@require_module("purchases")
+def review_bill_draft(order_id, bill_id):
+    from flask import abort
+    from ledgerone.modules.commercial.bill_review import PurchaseBillDraftReview
+    context = browser_context()
+    try:
+        review = PurchaseBillDraftReview.preview(
+            context, order_id=order_id, bill_id=bill_id)
+    except ValueError:
+        abort(404)
+    return render_template("commercial/bill_draft_review.html", review=review)
+
+
 @bp.get("/grn/<grn_id>/accounting-preview")
 @login_required
 @require_module("purchases")
