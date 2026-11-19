@@ -50,6 +50,10 @@
 <section class="card section">
   <div class="card-head"><h2>{{ 'Supplier bill conversion' if is_purchase else 'Sales invoice conversion' }}</h2></div>
   <div class="card-body">
+  {% if is_purchase %}
+    <p class="help">Create multi-line supplier invoice drafts against individual PO lines. Drafts do not post journals or clear GRNI.</p>
+    <a class="button button-secondary" href="{{ url_for('purchase_orders.new_bill_draft', order_id=order.id) }}">New supplier invoice draft</a>
+  {% endif %}
   {% if order.status == ('approved' if is_purchase else 'confirmed') and order.lines|length == 1 %}
   <form method="post" action="{{ url_for('purchase_orders.index' if is_purchase else 'sales_orders.index') }}" class="form-grid">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
