@@ -99,3 +99,12 @@ def test_draft_api_registration(app):
     with app.app_context():
         endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
         assert "commercial_api.create_po_bill_draft" in endpoints
+
+
+def test_dedicated_draft_browser_route_and_template_registered(app):
+    with app.app_context():
+        endpoints = {route.endpoint for route in app.url_map.iter_rules()}
+        assert "purchase_orders.new_bill_draft" in endpoints
+        assert app.jinja_env.get_template("commercial/bill_draft_editor.html")
+        order_template = app.jinja_env.get_template("commercial/order_detail.html")
+        assert order_template is not None
