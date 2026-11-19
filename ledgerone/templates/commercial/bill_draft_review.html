@@ -1,5 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Supplier bill review · LedgerOne{% endblock %}
+{% block title %}Supplier bill review · LedgerOne
+<section class="card section">
+  <div class="card-head"><h2>Suggested GRN-line allocation — read only</h2></div>
+  <div class="card-body">
+    <p class="help">FIFO proposals are not saved or reserved. Prior drafts are not deducted from GRN capacity. Stock receipts without a recorded accrual are excluded. Ledger posting remains disabled.</p>
+    {% for warning in proposal.warnings %}<p class="help">{{ warning|replace('_', ' ') }}</p>{% endfor %}
+    {% if proposal.proposals %}
+    <div class="table-wrap"><table style="width:100%;min-width:860px">
+      <thead><tr><th>Bill line</th><th>GRN</th><th>Receipt line ID</th><th class="number">Suggested qty</th><th class="number">Receipt unit cost</th><th class="number">Invoice unit price</th><th>Accrual recorded?</th></tr></thead>
+      <tbody>{% for item in proposal.proposals %}
+      <tr><td>{{ item.bill_line_number }}</td><td>{{ item.receipt_number }}</td><td>{{ item.receipt_line_id }}</td><td class="number">{{ item.quantity }}</td><td class="number">{{ item.receipt_unit_cost }}</td><td class="number">{{ item.bill_unit_price }}</td><td>{{ 'Yes' if item.posted_receipt_accrual else 'No (non-stock only)' }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="help">No eligible GRN quantities identified.</p>{% endif %}
+    {% for shortfall in proposal.shortages %}
+    <p class="help">Bill line {{ shortfall.bill_line_id }}: {{ shortfall.reason|replace('_', ' ') }}{% if shortfall.uncovered_quantity %} ({{ shortfall.uncovered_quantity }} units uncovered){% endif %}</p>
+    {% endfor %}
+    <p class="help"><strong>Posting and clearing are not authorised by this proposal.</strong></p>
+  </div>
+</section>
+{% endblock %}
 {% block content %}
 <div class="page-head">
   <div><h1>Supplier bill review — {{ review.bill_number }}</h1>

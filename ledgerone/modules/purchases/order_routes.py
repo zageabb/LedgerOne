@@ -395,13 +395,16 @@ def new_bill_draft(order_id):
 def review_bill_draft(order_id, bill_id):
     from flask import abort
     from ledgerone.modules.commercial.bill_review import PurchaseBillDraftReview
+    from ledgerone.modules.commercial.bill_allocation_proposals import BillReceiptProposalService
     context = browser_context()
     try:
         review = PurchaseBillDraftReview.preview(
             context, order_id=order_id, bill_id=bill_id)
+        proposal = BillReceiptProposalService.preview(
+            context, order_id=order_id, bill_id=bill_id)
     except ValueError:
         abort(404)
-    return render_template("commercial/bill_draft_review.html", review=review)
+    return render_template("commercial/bill_draft_review.html", review=review, proposal=proposal)
 
 
 @bp.get("/grn/<grn_id>/accounting-preview")
