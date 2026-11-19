@@ -1,0 +1,86 @@
+# DEV-020 review-only. Source default port is development-only; effective host
+# port, account storage, and release startup must be reconciled before deploy.
+schema_version: 2
+application:
+  name: ledgerone
+  kind: web
+  display_name: LedgerOne
+source:
+  repository: zageabb/LedgerOne
+  branch: main
+builds:
+  - name: python-deps
+    toolchain: python
+    working_dir: .
+    commands:
+      - ["python3", "-m", "venv", ".venv"]
+      - [".venv/bin/python", "-m", "pip", "install", "-r", "requirements.txt"]
+services:
+  - name: web
+    role: web
+    runtime: python
+    working_dir: .
+    entrypoint: [".venv/bin/python", "-m", "flask", "--app", "run.py", "run", "--host", "127.0.0.1", "--port", "5000"]
+    port: 5000
+    required_builds: [python-deps]
+    restart: on-failure
+    environment_refs:
+      - FLASK_ENV
+      - SECRET_KEY
+      - DATABASE_URL
+      - AUTO_CREATE_SCHEMA
+      - AUTO_SEED_DEFAULTS
+      - LEDGERONE_ADMIN_EMAIL
+      - LEDGERONE_ADMIN_PASSWORD
+      - LEDGERONE_DOCUMENT_STORAGE_DIR
+    health:
+      type: http
+      path: /api/v1/system/health
+proxy:
+  enabled: true
+  upstream: web
+  canonical_path: /apps/ledgerone/
+  authentication: uda
+environment:
+  required:
+    - FLASK_ENV
+    - SECRET_KEY
+    - DATABASE_URL
+    - AUTO_CREATE_SCHEMA
+    - AUTO_SEED_DEFAULTS
+    - LEDGERONE_ADMIN_EMAIL
+    - LEDGERONE_ADMIN_PASSWORD
+    - LEDGERONE_DOCUMENT_STORAGE_DIR
+  definitions:
+    - name: FLASK_ENV
+      source: config
+      phase: runtime
+    - name: SECRET_KEY
+      source: secret
+      phase: runtime
+    - name: DATABASE_URL
+      source: secret
+      phase: runtime
+    - name: AUTO_CREATE_SCHEMA
+      source: config
+      phase: runtime
+    - name: AUTO_SEED_DEFAULTS
+      source: config
+      phase: runtime
+    - name: LEDGERONE_ADMIN_EMAIL
+      source: config
+      phase: runtime
+    - name: LEDGERONE_ADMIN_PASSWORD
+      source: secret
+      phase: runtime
+    - name: LEDGERONE_DOCUMENT_STORAGE_DIR
+      source: config
+      phase: runtime
+deployment:
+  strategy: systemd
+  approval: explicit
+  auto_update: false
+  rollback: false
+  github_reporting: false
+lifecycle:
+  owner: ledgerone
