@@ -35,7 +35,7 @@
     <p class="help">Posting prerequisites:</p>
     <ul>{% for issue in preview.issues %}<li>{{ issue }}</li>{% endfor %}</ul>
     {% endif %}
-    {% if preview.posted_journal_lines if preview.posted else preview.lines %}
+    {% if (preview.posted and preview.posted_journal_lines) or (not preview.posted and preview.lines) %}
     <div class="table-wrap"><table style="width:100%">
       <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
       <tbody>{% for line in (preview.posted_journal_lines if preview.posted else preview.lines) %}
