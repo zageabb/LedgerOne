@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Supplier bill review · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Supplier bill review — {{ review.bill_number }}</h1>
+  <p>PO {{ review.purchase_order_number }} · Supplier invoice {{ review.supplier_invoice_reference }} · {{ review.currency }} {{ review.total }}</p></div>
+  <div class="actions"><a class="button button-secondary" href="{{ url_for('purchase_orders.new_bill_draft', order_id=review.purchase_order_id) }}">Back to supplier invoices</a></div>
+</div>
+<section class="card section">
+  <div class="card-head"><h2>Read-only review status</h2></div>
+  <div class="card-body">
+    <p><strong>{{ 'No discrepancies in this preview' if review.operational_match else 'Discrepancies require review' }}</strong></p>
+    <p class="help">This comparison does not reserve receipts, approve bills, recognise VAT, post journals or clear GRNI. Receipt allocations and final accounting controls are not implemented.</p>
+    {% for issue in review.issues %}<p class="help">{{ issue|replace('_', ' ') }}</p>{% endfor %}
+    <p>Net {{ review.subtotal }} · VAT {{ review.tax_total }} · Total {{ review.total }}</p>
+  </div>
+</section>
+<section class="card section">
+  <div class="card-head"><h2>PO / GRN / supplier invoice lines</h2></div>
+  <div class="card-body table-wrap">
+    <table style="width:100%;min-width:1150px">
+      <thead><tr><th>Line</th><th>Description</th><th>Treatment</th><th class="number">PO qty</th><th class="number">Received</th><th class="number">All draft qty</th><th class="number">This bill</th><th class="number">Unbilled received</th><th class="number">Accrued stock qty</th><th class="number">PO price</th><th class="number">Bill price</th><th>Issues</th></tr></thead>
+      <tbody>{% for line in review.lines %}
+      <tr>
+        <td>{{ line.bill_line_number }}</td><td>{{ line.description }}</td><td>{{ line.item_treatment|title }}</td>
+        <td class="number">{{ line.ordered_quantity }}</td>
+        <td class="number">{{ line.received_quantity }}</td>
+        <td class="number">{{ line.total_linked_draft_quantity }}</td>
+        <td class="number">{{ line.this_bill_quantity }}</td>
+        <td class="number">{{ line.remaining_received_unbilled_quantity }}</td>
+        <td class="number">{{ line.posted_accrual_quantity if line.posted_accrual_quantity is not none else 'N/A' }}</td>
+        <td class="number">{{ line.po_unit_price }}</td>
+        <td class="number">{{ line.bill_unit_price }}</td>
+        <td>{{ line.issues|join(', ')|replace('_', ' ') or 'None' }}</td>
+      </tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -53,7 +53,7 @@
     <div class="table-wrap"><table style="width:100%">
       <thead><tr><th>Bill number</th><th>Supplier reference</th><th>Date</th><th>Status</th><th class="number">Net</th><th class="number">Total</th></tr></thead>
       <tbody>{% for bill in existing_bills %}
-      <tr><td>{{ bill.bill_number }}</td><td>{{ bill.supplier_invoice_reference or '—' }}</td><td>{{ bill.bill_date }}</td><td>{{ bill.status|title }}</td><td class="number">{{ bill.subtotal }}</td><td class="number">{{ bill.total }}</td></tr>
+      <tr><td>{% if bill.status == 'draft' and (bill.metadata_json or {}).get('creation_mode') == 'multiline_po_draft' %}<a href="{{ url_for('purchase_orders.review_bill_draft', order_id=order.id, bill_id=bill.id) }}">{{ bill.bill_number }}</a>{% else %}{{ bill.bill_number }}{% endif %}</td><td>{{ bill.supplier_invoice_reference or '—' }}</td><td>{{ bill.bill_date }}</td><td>{{ bill.status|title }}</td><td class="number">{{ bill.subtotal }}</td><td class="number">{{ bill.total }}</td></tr>
       {% endfor %}</tbody>
     </table></div>
     {% else %}

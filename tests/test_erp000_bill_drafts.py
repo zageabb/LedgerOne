@@ -6,6 +6,8 @@ import pytest
 from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.commercial.bill_drafts import PurchaseBillDraftService
+from ledgerone.modules.commercial.bill_review import PurchaseBillDraftReview
+from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.commercial.order_builder import MultiLineOrderService
 from ledgerone.modules.purchases.models import PurchaseBill
 from ledgerone.modules.purchases.orders import PurchaseOrderService
@@ -108,3 +110,69 @@ def test_dedicated_draft_browser_route_and_template_registered(app):
         assert app.jinja_env.get_template("commercial/bill_draft_editor.html")
         order_template = app.jinja_env.get_template("commercial/order_detail.html")
         assert order_template is not None
+
+
+def test_bill_draft_review_detects_missing_grn_and_then_clears_receipt_warning(app):
+    with app.app_context():
+        ctx, po = _po()
+        draft = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="REVIEW-INV-001",
+            bill_number="B-REVIEW-001", bill_date=DAY, lines=_lines(po))
+        before = Journal.query.count()
+        initial = PurchaseBillDraftReview.preview(
+            ctx, order_id=po.id, bill_id=draft.id)
+        assert initial["preview_only"] is True
+        assert initial["posting_authorised"] is False
+        assert initial["operational_match"] is False
+        assert "bill_line_1:invoice_quantity_exceeds_receipts" in initial["issues"]
+        assert "bill_line_1:stock_grni_accrual_incomplete" in initial["issues"]
+        CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id,
+            document_date=DAY, lines=[
+                {"order_line_id": po.lines[0].id, "quantity": "2"},
+                {"order_line_id": po.lines[1].id, "quantity": "1"},
+            ])
+        reviewed = PurchaseBillDraftReview.preview(
+            ctx, order_id=po.id, bill_id=draft.id)
+        assert "bill_line_1:invoice_quantity_exceeds_receipts" not in reviewed["issues"]
+        assert "bill_line_2:invoice_quantity_exceeds_receipts" not in reviewed["issues"]
+        assert "bill_line_1:stock_grni_accrual_incomplete" in reviewed["issues"]
+        assert reviewed["lines"][0]["remaining_received_unbilled_quantity"] == "0"
+        assert Journal.query.count() == before
+
+
+def test_bill_review_detects_other_drafts_and_price_variance(app):
+    with app.app_context():
+        ctx, po = _po()
+        before = Journal.query.count()
+        first = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="REVIEW-INV-001",
+            bill_number="B-REVIEW-001", bill_date=DAY, lines=_lines(po))
+        second = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="REVIEW-INV-002",
+            bill_number="B-REVIEW-002", bill_date=DAY,
+            lines=[
+                {"order_line_id": po.lines[0].id, "quantity": "1", "unit_price": "13"},
+            ])
+        CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id,
+            document_date=DAY, lines=[
+                {"order_line_id": po.lines[0].id, "quantity": "2"},
+                {"order_line_id": po.lines[1].id, "quantity": "1"},
+            ])
+        preview = PurchaseBillDraftReview.preview(
+            ctx, order_id=po.id, bill_id=second.id)
+        assert "bill_line_1:invoice_quantity_exceeds_receipts" in preview["issues"]
+        assert "bill_line_1:price_variance_requires_review" in preview["issues"]
+        assert preview["lines"][0]["total_linked_draft_quantity"] == "3.0000"
+        with pytest.raises(ValueError, match="Purchase order not found"):
+            PurchaseBillDraftReview.preview(
+                AccessContext.system("foreign"), order_id=po.id, bill_id=first.id)
+        assert Journal.query.count() == before
+
+
+def test_bill_review_screen_route_registered(app):
+    with app.app_context():
+        endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
+        assert "purchase_orders.review_bill_draft" in endpoints
+        assert app.jinja_env.get_template("commercial/bill_draft_review.html")
