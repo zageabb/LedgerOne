@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Supplier invoice draft · LedgerOne{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Supplier invoice draft — {{ order.order_number }}</h1>
+    <p>{{ order.supplier.name }} · {{ order.currency }} · Record supplier invoice lines without posting to the ledger.</p>
+  </div>
+  <div class="actions">
+    <a class="button button-secondary" href="{{ url_for('purchase_orders.order_detail', order_id=order.id, tab='invoice') }}">Back to PO</a>
+    <a class="button button-secondary" href="{{ url_for('purchase_orders.matching_workspace', order_id=order.id) }}">Invoice matching</a>
+  </div>
+</div>
+<section class="card section">
+  <div class="card-head"><h2>Invoice header</h2></div>
+  <div class="card-body">
+    <p class="help"><strong>Draft only:</strong> saving this form will not approve or post the invoice, allocate GRNs, recognise VAT, or clear GRNI.</p>
+    {% if order.status not in ['approved', 'sent'] %}
+    <p class="help">Approve or send the purchase order before creating a supplier invoice draft.</p>
+    {% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="field"><label for="supplier_invoice_reference">Supplier invoice reference</label><input id="supplier_invoice_reference" name="supplier_invoice_reference" maxlength="120" required value="{{ request.form.get('supplier_invoice_reference', '') }}"></div>
+        <div class="field"><label for="bill_number">Internal bill number (optional)</label><input id="bill_number" name="bill_number" maxlength="120" placeholder="Automatic draft number" value="{{ request.form.get('bill_number', '') }}"></div>
+        <div class="field"><label for="bill_date">Invoice date</label><input id="bill_date" name="bill_date" type="date" value="{{ request.form.get('bill_date', today) }}" required></div>
+        <div class="field"><label for="due_date">Due date (optional)</label><input id="due_date" name="due_date" type="date" value="{{ request.form.get('due_date', '') }}"></div>
+      </div>
+      <h2>Invoice lines</h2>
+      <p class="help">Enter the quantity from this supplier invoice against each PO line. Leave a quantity at zero to exclude that line. Remaining figures include previously saved PO-linked drafts.</p>
+      <div class="table-wrap"><table style="width:100%;min-width:900px">
+        <thead><tr><th>Line</th><th>Description</th><th>Treatment</th><th class="number">Ordered</th><th class="number">Remaining</th><th class="number">PO unit price</th><th>Invoice qty</th><th>Invoice unit price</th></tr></thead>
+        <tbody>{% for line in order.lines|sort(attribute='line_number') %}
+        <tr>
+          <td>{{ line.line_number }}<input type="hidden" name="order_line_id[]" value="{{ line.id }}"></td>
+          <td>{{ line.description }}</td>
+          <td>{{ (line.dimensions or {}).get('item_treatment', 'Unclassified')|title }}</td>
+          <td class="number">{{ line.quantity }}</td>
+          <td class="number">{{ remaining[line.id] }}</td>
+          <td class="number">{{ line.unit_price }}</td>
+          <td><input type="number" min="0" max="{{ remaining[line.id] }}" step="0.0001" name="bill_quantity[]" aria-label="Quantity for line {{ line.line_number }}" value="{{ request.form.getlist('bill_quantity[]')[loop.index0] if request.form.getlist('bill_quantity[]')|length > loop.index0 else '0' }}" required style="width:120px"></td>
+          <td><input type="number" min="0" step="0.0001" name="bill_price[]" aria-label="Unit price for line {{ line.line_number }}" value="{{ request.form.getlist('bill_price[]')[loop.index0] if request.form.getlist('bill_price[]')|length > loop.index0 else line.unit_price }}" required style="width:120px"></td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      <div style="margin-top:1rem"><button class="button" type="submit" {% if order.status not in ['approved', 'sent'] %}disabled{% endif %}>Save supplier invoice draft</button></div>
+    </form>
+  </div>
+</section>
+<section class="card section">
+  <div class="card-head"><h2>Previously linked supplier bills</h2></div>
+  <div class="card-body">
+    {% if existing_bills %}
+    <div class="table-wrap"><table style="width:100%">
+      <thead><tr><th>Bill number</th><th>Supplier reference</th><th>Date</th><th>Status</th><th class="number">Net</th><th class="number">Total</th></tr></thead>
+      <tbody>{% for bill in existing_bills %}
+      <tr><td>{{ bill.bill_number }}</td><td>{{ bill.supplier_invoice_reference or '—' }}</td><td>{{ bill.bill_date }}</td><td>{{ bill.status|title }}</td><td class="number">{{ bill.subtotal }}</td><td class="number">{{ bill.total }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}
+    <p class="help">No PO-linked supplier invoices recorded yet.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

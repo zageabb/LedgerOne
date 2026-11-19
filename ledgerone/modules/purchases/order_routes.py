@@ -323,6 +323,72 @@ def matching_workspace(order_id):
         match_preview=match_preview)
 
 
+@bp.route("/<order_id>/bill-drafts/new", methods=["GET", "POST"])
+@login_required
+@require_module("purchases")
+def new_bill_draft(order_id):
+    from decimal import Decimal
+    from flask import abort
+    from ledgerone.extensions import db
+    from ledgerone.modules.commercial.bill_drafts import PurchaseBillDraftService
+    from ledgerone.modules.purchases.models import PurchaseBill
+    from ledgerone.modules.purchases.order_models import PurchaseOrder
+    context = browser_context()
+    if not context.can("purchases.read"):
+        raise PermissionError("purchases.read")
+    order = db.session.get(PurchaseOrder, order_id)
+    if not order or order.organisation_id != context.organisation_id:
+        abort(404)
+    existing = [
+        bill for bill in PurchaseBill.query.filter_by(
+            organisation_id=context.organisation_id,
+            supplier_id=order.supplier_id).all()
+        if (bill.metadata_json or {}).get("source_purchase_order_id") == order.id
+    ]
+    used = {line.id: Decimal("0") for line in order.lines}
+    for bill in existing:
+        for line in bill.lines:
+            source = (line.dimensions or {}).get("source_purchase_order_line_id")
+            if source in used:
+                used[source] += Decimal(line.quantity)
+    remaining = {
+        line.id: max(Decimal("0"), Decimal(line.quantity) - used[line.id])
+        for line in order.lines
+    }
+    if request.method == "POST":
+        try:
+            if not context.can("purchases.write"):
+                raise PermissionError("purchases.write")
+            ids = request.form.getlist("order_line_id[]")
+            quantities = request.form.getlist("bill_quantity[]")
+            prices = request.form.getlist("bill_price[]")
+            expected = [line.id for line in sorted(order.lines, key=lambda row: row.line_number)]
+            if (ids != expected or len(ids) != len(quantities)
+                    or len(ids) != len(prices) or len(ids) > 200):
+                raise ValueError("Invoice lines must match the current PO lines")
+            submitted = [
+                {"order_line_id": line_id, "quantity": qty, "unit_price": price}
+                for line_id, qty, price in zip(ids, quantities, prices)
+                if qty.strip() and Decimal(qty) > 0
+            ]
+            draft = PurchaseBillDraftService.create(
+                context, order_id=order.id,
+                supplier_invoice_reference=request.form.get("supplier_invoice_reference", ""),
+                bill_number=request.form.get("bill_number") or None,
+                bill_date=date.fromisoformat(request.form.get("bill_date") or ""),
+                due_date=date.fromisoformat(request.form["due_date"])
+                if request.form.get("due_date") else None,
+                lines=submitted)
+            flash(f"Supplier invoice {draft.bill_number} saved as draft; no journal posted.", "success")
+            return redirect(url_for("purchase_orders.new_bill_draft", order_id=order.id))
+        except (ValueError, PermissionError, ArithmeticError) as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "commercial/bill_draft_editor.html",
+        order=order, existing_bills=existing,
+        remaining=remaining, today=date.today().isoformat())
+
+
 @bp.get("/grn/<grn_id>/accounting-preview")
 @login_required
 @require_module("purchases")
