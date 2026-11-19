@@ -23,6 +23,7 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Read-only proposed GRN-to-bill line allocation validation checks ownership, duplicate pairs, cumulative receipt/bill quantities, and rejects legacy unverified bill-line provenance; no financial writes (CI pending).
 - [x] API-backed non-posting, PO-linked multi-line supplier bill draft creation with quantity ceilings, duplicate supplier reference checks, tax calculation, source PO-line provenance and regression tests (CI pending).
 - [x] Dedicated multi-line supplier invoice draft screen (separate header and detail grid), prior-bill history and navigation from PO invoice tab; posting remains disabled (CI pending).
+- [x] Read-only multi-line bill draft review: PO/GRN/other draft quantity coverage, PO price variances, linked inventory accrual coverage, separate screen and tests (CI pending). No approvals or journal writes.
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
 - [ ] CI green and live UDA/browser acceptance.
 
