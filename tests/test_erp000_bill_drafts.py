@@ -7,6 +7,7 @@ from ledgerone.models.core import Organisation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.commercial.bill_drafts import PurchaseBillDraftService
 from ledgerone.modules.commercial.bill_review import PurchaseBillDraftReview
+from ledgerone.modules.commercial.bill_allocation_proposals import BillReceiptProposalService
 from ledgerone.modules.commercial.services import CommercialDocumentService
 from ledgerone.modules.commercial.order_builder import MultiLineOrderService
 from ledgerone.modules.purchases.models import PurchaseBill
@@ -176,3 +177,56 @@ def test_bill_review_screen_route_registered(app):
         endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
         assert "purchase_orders.review_bill_draft" in endpoints
         assert app.jinja_env.get_template("commercial/bill_draft_review.html")
+
+
+def test_grn_line_proposals_exclude_unaccrued_stock_and_match_nonstock(app):
+    with app.app_context():
+        ctx, po = _po()
+        draft = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="PROP-001",
+            bill_number="B-PROP-001", bill_date=DAY, lines=_lines(po))
+        baseline = Journal.query.count()
+        receipt = CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id, document_date=DAY,
+            lines=[
+                {"order_line_id": po.lines[0].id, "quantity": "2"},
+                {"order_line_id": po.lines[1].id, "quantity": "1"},
+            ])
+        proposal = BillReceiptProposalService.preview(
+            ctx, order_id=po.id, bill_id=draft.id)
+        assert proposal["preview_only"] is True
+        assert proposal["allocation_reserved"] is False
+        assert proposal["posting_authorised"] is False
+        assert proposal["fully_covered_in_preview"] is False
+        assert len(proposal["proposals"]) == 1
+        assert proposal["proposals"][0]["po_line_id"] == po.lines[1].id
+        assert proposal["proposals"][0]["receipt_id"] == receipt.id
+        assert proposal["proposals"][0]["quantity"] == "1.0000"
+        assert proposal["shortages"][0]["uncovered_quantity"] == "2.0000"
+        assert Journal.query.count() == baseline
+
+
+def test_grn_proposal_ignores_other_drafts_as_reservations_but_warns(app):
+    with app.app_context():
+        ctx, po = _po()
+        first = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="PROP-001",
+            bill_number="B-PROP-001", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1", "unit_price": "7"}])
+        second = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="PROP-002",
+            bill_number="B-PROP-002", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1", "unit_price": "7"}])
+        CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id, document_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1"}])
+        proposal = BillReceiptProposalService.preview(
+            ctx, order_id=po.id, bill_id=second.id)
+        assert proposal["fully_covered_in_preview"] is True
+        assert "other_po_linked_bills_are_not_receipt_reservations" in proposal["warnings"]
+        assert proposal["allocation_reserved"] is False
+        assert proposal["grni_clearing_authorised"] is False
+        assert proposal["proposals"][0]["quantity"] == "1.0000"
+        with pytest.raises(ValueError, match="Purchase order not found"):
+            BillReceiptProposalService.preview(
+                AccessContext.system("another-org"), order_id=po.id, bill_id=first.id)
