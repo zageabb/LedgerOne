@@ -144,6 +144,7 @@ def test_bill_draft_review_detects_missing_grn_and_then_clears_receipt_warning(a
 def test_bill_review_detects_other_drafts_and_price_variance(app):
     with app.app_context():
         ctx, po = _po()
+        before = Journal.query.count()
         first = PurchaseBillDraftService.create(
             ctx, order_id=po.id, supplier_invoice_reference="REVIEW-INV-001",
             bill_number="B-REVIEW-001", bill_date=DAY, lines=_lines(po))
@@ -167,7 +168,7 @@ def test_bill_review_detects_other_drafts_and_price_variance(app):
         with pytest.raises(ValueError, match="Purchase order not found"):
             PurchaseBillDraftReview.preview(
                 AccessContext.system("foreign"), order_id=po.id, bill_id=first.id)
-        assert Journal.query.count() == 0
+        assert Journal.query.count() == before
 
 
 def test_bill_review_screen_route_registered(app):
