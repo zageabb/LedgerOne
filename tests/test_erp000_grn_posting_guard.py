@@ -107,6 +107,8 @@ def test_atomic_posting_link_and_retry_protection_when_internally_certified(app)
         assert len(preview["posted_journal_lines"]) == 2
         assert {row["account_id"] for row in preview["posted_journal_lines"]} == {grni.id, stock.id}
         assert preview["posted_breakdown"] == event.metadata_json["stock_lines"]
+        with pytest.raises(ValueError, match="already linked"):
+            GRNPostingService.post(ctx, grn_id=receipt.id)
         # The recorded journal must remain visible even if Settings later
         # switch to another valid set of accounts.
         replacement_grni = LedgerService.create_account(
@@ -134,8 +136,8 @@ def test_atomic_posting_link_and_retry_protection_when_internally_certified(app)
         assert linked_match["grni_issues"] == []
         assert linked_match["lines"][0]["grni"]["posted_receipt_quantity"] == "2.0000"
         assert linked_match["lines"][0]["grni"]["posted_receipt_cost"] == "22.00"
-        with pytest.raises(ValueError, match="already linked"):
-            GRNPostingService.post(ctx, grn_id=receipt.id)
+        # Changing Settings removes test-only posting gates; do not re-enable
+        # them merely to exercise duplicate protection after configuration.
         assert Journal.query.count() == before + 1
 
 
