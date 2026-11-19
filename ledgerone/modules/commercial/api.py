@@ -128,3 +128,40 @@ def purchase_receipt_allocations(order_id):
             g.access_context, order_id=order_id))
     except (ValueError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/purchases/orders/<order_id>/bill-drafts")
+@require_api("purchases.write")
+def create_po_bill_draft(order_id):
+    """Capture multi-line PO-linked invoice details without posting to ledger."""
+    from ledgerone.modules.commercial.bill_drafts import PurchaseBillDraftService
+    payload = request.get_json(silent=True) or {}
+    try:
+        bill = PurchaseBillDraftService.create(
+            g.access_context,
+            order_id=order_id,
+            supplier_invoice_reference=payload.get("supplier_invoice_reference"),
+            bill_date=date.fromisoformat(payload["bill_date"]),
+            due_date=date.fromisoformat(payload["due_date"])
+            if payload.get("due_date") else None,
+            bill_number=payload.get("bill_number"),
+            lines=payload["lines"],
+        )
+        return jsonify({
+            "id": bill.id, "bill_number": bill.bill_number,
+            "supplier_invoice_reference": bill.supplier_invoice_reference,
+            "purchase_order_id": order_id, "status": bill.status,
+            "posted_journal_id": bill.posted_journal_id,
+            "subtotal": str(bill.subtotal), "tax_total": str(bill.tax_total),
+            "total": str(bill.total), "currency": bill.currency,
+            "lines": [{
+                "id": line.id, "line_number": line.line_number,
+                "source_purchase_order_line_id":
+                    (line.dimensions or {}).get("source_purchase_order_line_id"),
+                "quantity": str(line.quantity), "unit_price": str(line.unit_price),
+                "net_amount": str(line.net_amount), "tax_amount": str(line.tax_amount),
+            } for line in bill.lines],
+            "posting_authorised": False,
+        }), 201
+    except (ValueError, KeyError, TypeError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
