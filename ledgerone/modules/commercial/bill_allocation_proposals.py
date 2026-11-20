@@ -11,7 +11,7 @@ from ledgerone.extensions import db
 from ledgerone.modules.commercial.models import (
     CommercialDocument, CommercialAccountingEvent, PurchaseReceiptBillAllocation,
 )
-from ledgerone.modules.purchases.models import PurchaseBill
+from ledgerone.modules.purchases.models import PurchaseBill, PurchaseBillLine
 from ledgerone.modules.purchases.order_models import PurchaseOrder
 
 
@@ -60,8 +60,25 @@ class BillReceiptProposalService:
         used = defaultdict(lambda: Decimal("0"))
         already_for_bill = set()
         invalid_allocation_ids = []
+        invalid_bill_line_allocation_ids = []
         receipt_line_lookup = {line.id: line for _, line in receipt_lines}
         current_bill_line_ids = {line.id for line in bill.lines}
+        # A valid GRN-to-PO link alone is insufficient. Its supplier bill
+        # line must also belong to this company, supplier, PO and PO line.
+        linked_bill_line_ids = {row.bill_line_id for row in persisted}
+        linked_bill_lines = {
+            row.id: row for row in PurchaseBillLine.query.filter(
+                PurchaseBillLine.id.in_(linked_bill_line_ids)
+            ).all()
+        } if linked_bill_line_ids else {}
+        linked_bill_ids = {row.bill_id for row in linked_bill_lines.values()}
+        parent_bills = {
+            row.id: row for row in PurchaseBill.query.filter(
+                PurchaseBill.id.in_(linked_bill_ids),
+                PurchaseBill.organisation_id == context.organisation_id,
+                PurchaseBill.supplier_id == order.supplier_id,
+            ).all()
+        } if linked_bill_ids else {}
         for item in persisted:
             receipt_line = receipt_line_lookup.get(item.receipt_line_id)
             quantity = Decimal(item.quantity)
@@ -69,6 +86,15 @@ class BillReceiptProposalService:
                     or item.purchase_order_line_id != receipt_line.order_line_id
                     or not quantity.is_finite() or quantity <= 0):
                 invalid_allocation_ids.append(item.id)
+                continue
+            linked_line = linked_bill_lines.get(item.bill_line_id)
+            parent_bill = parent_bills.get(linked_line.bill_id) if linked_line else None
+            if (parent_bill is None
+                    or (parent_bill.metadata_json or {}).get("source_purchase_order_id") != order.id
+                    or (linked_line.dimensions or {}).get("source_purchase_order_line_id")
+                    != item.purchase_order_line_id
+                    or parent_bill.currency != order.currency):
+                invalid_bill_line_allocation_ids.append(item.id)
                 continue
             used[item.receipt_line_id] += quantity
             if item.bill_line_id in current_bill_line_ids:
@@ -88,6 +114,8 @@ class BillReceiptProposalService:
         warnings = []
         if invalid_allocation_ids:
             warnings.append("invalid_persisted_receipt_allocations")
+        if invalid_bill_line_allocation_ids:
+            warnings.append("invalid_persisted_supplier_bill_lineage")
         if overallocated_receipt_ids:
             warnings.append("overallocated_receipt_line")
         if linked_bills:
@@ -158,6 +186,7 @@ class BillReceiptProposalService:
             "proposals": proposed, "shortages": shortages,
             "warnings": warnings, "fully_covered_in_preview": not shortages,
             "invalid_persisted_allocation_ids": sorted(invalid_allocation_ids),
+            "invalid_bill_line_allocation_ids": sorted(invalid_bill_line_allocation_ids),
             "overallocated_receipt_line_ids": overallocated_receipt_ids,
             "evidence_safe_for_review": not shortages and not warnings,
             "preview_only": True, "allocation_reserved": False,
