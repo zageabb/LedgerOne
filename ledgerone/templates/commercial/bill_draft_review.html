@@ -14,6 +14,9 @@
     {% if proposal.overallocated_receipt_line_ids %}
     <p class="help">Overallocated GRN lines: {{ proposal.overallocated_receipt_line_ids|join(', ') }}</p>
     {% endif %}
+    {% if proposal.invalid_bill_line_allocation_ids %}
+    <p class="help"><strong>Supplier bill allocation lineage mismatch:</strong> {{ proposal.invalid_bill_line_allocation_ids|join(', ') }}. A stored allocation references a bill outside the source PO, supplier or bill line. Reconciliation is required before this receipt can be used for posting.</p>
+    {% endif %}
     {% if proposal.proposals %}
     <div class="table-wrap"><table style="width:100%;min-width:860px">
       <thead><tr><th>Bill line</th><th>GRN</th><th>Receipt line ID</th><th class="number">Suggested qty</th><th class="number">Receipt unit cost</th><th class="number">Invoice unit price</th><th>Accrual recorded?</th></tr></thead>
