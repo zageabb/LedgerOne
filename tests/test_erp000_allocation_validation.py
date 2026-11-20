@@ -4,6 +4,8 @@ from datetime import date
 import pytest
 
 from ledgerone.models.core import Organisation
+from ledgerone.extensions import db
+from ledgerone.modules.commercial.models import PurchaseReceiptBillAllocation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.commercial.allocation_validation import PurchaseReceiptAllocationValidation
 from ledgerone.modules.commercial.services import CommercialDocumentService
@@ -88,3 +90,65 @@ def test_rejects_cross_company_and_unknown_bill_line(app):
             PurchaseReceiptAllocationValidation.preview(
                 AccessContext.system("another-company"),
                 order_id=order.id, bill_id=bill.id, allocations=proposal)
+
+
+def test_preflight_rejects_invalid_prior_bill_lineage_and_keeps_journals_unchanged(app):
+    with app.app_context():
+        context, order, receipt, bill = _setup()
+        baseline = Journal.query.count()
+        corrupt = PurchaseReceiptBillAllocation(
+            organisation_id=context.organisation_id,
+            purchase_order_line_id=order.lines[0].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=bill.lines[0].id,
+            quantity="0.25", receipt_cost="25", invoice_net="25",
+        )
+        db.session.add(corrupt)
+        db.session.commit()
+        result = PurchaseReceiptAllocationValidation.preview(
+            context, order_id=order.id, bill_id=bill.id,
+            allocations=[{
+                "receipt_line_id": receipt.lines[0].id,
+                "bill_line_id": bill.lines[0].id,
+                "quantity": "0.25",
+            }])
+        assert result["valid"] is False
+        assert "invalid_persisted_allocation_lineage" in result["issues"]
+        assert corrupt.id in result["invalid_persisted_allocation_ids"]
+        assert result["posting_authorised"] is False
+        assert Journal.query.count() == baseline
+
+
+def test_preflight_rejects_existing_receipt_overallocation(app):
+    with app.app_context():
+        context, order, receipt, bill = _setup()
+        # Simulate a historical imported allocation with explicit PO line
+        # provenance, but more allocated than was physically received.
+        from sqlalchemy.orm.attributes import flag_modified
+        bill_line = bill.lines[0]
+        bill_line.dimensions = {
+            **(bill_line.dimensions or {}),
+            "source_purchase_order_line_id": order.lines[0].id,
+        }
+        flag_modified(bill_line, "dimensions")
+        db.session.add(PurchaseReceiptBillAllocation(
+            organisation_id=context.organisation_id,
+            purchase_order_line_id=order.lines[0].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=bill_line.id,
+            quantity="1.5", receipt_cost="150", invoice_net="150",
+        ))
+        db.session.commit()
+        baseline = Journal.query.count()
+        result = PurchaseReceiptAllocationValidation.preview(
+            context, order_id=order.id, bill_id=bill.id,
+            allocations=[{
+                "receipt_line_id": receipt.lines[0].id,
+                "bill_line_id": bill_line.id,
+                "quantity": "0.25",
+            }])
+        assert result["valid"] is False
+        assert "previous_receipt_overallocated" in result["issues"]
+        assert "previous_bill_line_overallocated" in result["issues"]
+        assert "allocation_1:duplicate_bill_receipt_line_pair" in result["issues"]
+        assert Journal.query.count() == baseline
