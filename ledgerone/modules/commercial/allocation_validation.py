@@ -59,20 +59,59 @@ class PurchaseReceiptAllocationValidation:
         receipt_used = {line_id: Decimal("0") for line_id in receipt_lines}
         bill_used = {line_id: Decimal("0") for line_id in bill_lines}
         existing_pairs = set()
-        for entry in PurchaseReceiptBillAllocation.query.filter_by(
-                organisation_id=context.organisation_id).filter(
-                    PurchaseReceiptBillAllocation.receipt_line_id.in_(list(receipt_lines))
-                ).all() if receipt_lines else []:
-            receipt_used[entry.receipt_line_id] += Decimal(entry.quantity)
+        issues_preexisting = []
+        prior_invalid_allocation_ids = []
+        existing = (PurchaseReceiptBillAllocation.query.filter_by(
+            organisation_id=context.organisation_id
+        ).filter(
+            PurchaseReceiptBillAllocation.receipt_line_id.in_(list(receipt_lines))
+        ).all() if receipt_lines else [])
+        source_bill_line_ids = {entry.bill_line_id for entry in existing}
+        source_bill_lines = {
+            line.id: line for line in PurchaseBillLine.query.filter(
+                PurchaseBillLine.id.in_(source_bill_line_ids)
+            ).all()
+        } if source_bill_line_ids else {}
+        parent_ids = {line.bill_id for line in source_bill_lines.values()}
+        parent_bills = {
+            row.id: row for row in PurchaseBill.query.filter(
+                PurchaseBill.id.in_(parent_ids),
+                PurchaseBill.organisation_id == context.organisation_id,
+                PurchaseBill.supplier_id == order.supplier_id
+            ).all()
+        } if parent_ids else {}
+        for entry in existing:
+            receipt_line = receipt_lines[entry.receipt_line_id]
+            linked_line = source_bill_lines.get(entry.bill_line_id)
+            linked_bill = parent_bills.get(linked_line.bill_id) if linked_line else None
+            quantity = Decimal(entry.quantity)
+            if (entry.purchase_order_line_id != receipt_line.order_line_id
+                    or not quantity.is_finite() or quantity <= 0
+                    or linked_bill is None
+                    or (linked_bill.metadata_json or {}).get("source_purchase_order_id") != order.id
+                    or linked_bill.currency != order.currency
+                    or (linked_line.dimensions or {}).get("source_purchase_order_line_id")
+                    != receipt_line.order_line_id):
+                prior_invalid_allocation_ids.append(entry.id)
+                continue
+            receipt_used[entry.receipt_line_id] += quantity
             if entry.bill_line_id in bill_used:
-                bill_used[entry.bill_line_id] += Decimal(entry.quantity)
+                bill_used[entry.bill_line_id] += quantity
             existing_pairs.add((entry.bill_line_id, entry.receipt_line_id))
+        for receipt_line_id, consumed in receipt_used.items():
+            if consumed > Decimal(receipt_lines[receipt_line_id].quantity):
+                issues_preexisting.append("previous_receipt_overallocated")
+        for bill_line_id, consumed in bill_used.items():
+            if consumed > Decimal(bill_lines[bill_line_id].quantity):
+                issues_preexisting.append("previous_bill_line_overallocated")
 
         requested_receipt = {}
         requested_bill = {}
         seen = set()
         results = []
-        issues = []
+        issues = list(dict.fromkeys(issues_preexisting))
+        if prior_invalid_allocation_ids:
+            issues.insert(0, "invalid_persisted_allocation_lineage")
         for index, proposal in enumerate(allocations, 1):
             if not isinstance(proposal, dict):
                 raise ValueError("Every allocation must be an object")
@@ -110,6 +149,7 @@ class PurchaseReceiptAllocationValidation:
             "bill_id": bill.id,
             "valid": not issues,
             "issues": issues,
+            "invalid_persisted_allocation_ids": sorted(prior_invalid_allocation_ids),
             "allocations": results,
             "preview_only": True,
             "posting_authorised": False,
