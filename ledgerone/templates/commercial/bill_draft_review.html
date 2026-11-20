@@ -4,7 +4,16 @@
   <div class="card-head"><h2>Suggested GRN-line allocation — read only</h2></div>
   <div class="card-body">
     <p class="help">FIFO proposals are not saved or reserved. Prior drafts are not deducted from GRN capacity. Stock receipts without a recorded accrual are excluded. Ledger posting remains disabled.</p>
+    {% if not proposal.evidence_safe_for_review %}
+    <p class="help"><strong>Requires reconciliation:</strong> some receipts are uncovered, competing invoice drafts exist, or previously stored receipt allocations are inconsistent. These suggestions are not approved or safe for posting.</p>
+    {% endif %}
     {% for warning in proposal.warnings %}<p class="help">{{ warning|replace('_', ' ') }}</p>{% endfor %}
+    {% if proposal.invalid_persisted_allocation_ids %}
+    <p class="help">Invalid prior allocation records: {{ proposal.invalid_persisted_allocation_ids|join(', ') }}</p>
+    {% endif %}
+    {% if proposal.overallocated_receipt_line_ids %}
+    <p class="help">Overallocated GRN lines: {{ proposal.overallocated_receipt_line_ids|join(', ') }}</p>
+    {% endif %}
     {% if proposal.proposals %}
     <div class="table-wrap"><table style="width:100%;min-width:860px">
       <thead><tr><th>Bill line</th><th>GRN</th><th>Receipt line ID</th><th class="number">Suggested qty</th><th class="number">Receipt unit cost</th><th class="number">Invoice unit price</th><th>Accrual recorded?</th></tr></thead>
