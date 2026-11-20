@@ -28,6 +28,7 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Non-posting FIFO GRN-line proposals for supplier invoice drafts, respecting persisted receipt allocations and stock receipt accrual evidence; other drafts explicitly warned as unreserved (CI pending).
 - [x] FIFO proposal evidence flags inconsistent PO/GRN allocation links, persisted overallocations and competing draft warnings, with explicit non-authorisation of posting (CI pending).
 - [x] Read-only receipt allocation proposals cross-check persisted bill line ownership, supplier, company, currency and source PO/PO-line provenance; flag broken links before finance posting (CI pending).
+- [x] Read-only allocation preflight API flags corrupt existing supplier bill/GRN links and prior receipt/bill overallocations before accepting new quantity proposals, with no posting or reservation (CI pending).
 - [ ] Supplier invoice GRNI clearing, price differences, partial matching and no double expense; sales delivery valuation and COGS posting.
 - [ ] CI green and live UDA/browser acceptance.
 
