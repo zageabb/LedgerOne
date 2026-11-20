@@ -165,3 +165,18 @@ def create_po_bill_draft(order_id):
         }), 201
     except (ValueError, KeyError, TypeError, PermissionError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@api_bp.post("/purchases/orders/<order_id>/bill-drafts/<bill_id>/allocation-preflight")
+@require_api("purchases.read")
+def validate_receipt_bill_allocations(order_id, bill_id):
+    """Read-only preflight of proposed GRN/bill line links; never reserves them."""
+    from ledgerone.modules.commercial.allocation_validation import PurchaseReceiptAllocationValidation
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = PurchaseReceiptAllocationValidation.preview(
+            g.access_context, order_id=order_id, bill_id=bill_id,
+            allocations=payload.get("allocations"))
+        return jsonify(result)
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
