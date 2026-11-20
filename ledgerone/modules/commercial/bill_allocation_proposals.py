@@ -59,10 +59,24 @@ class BillReceiptProposalService:
         ).all() if receipt_ids_by_line else [])
         used = defaultdict(lambda: Decimal("0"))
         already_for_bill = set()
+        invalid_allocation_ids = []
+        receipt_line_lookup = {line.id: line for _, line in receipt_lines}
+        current_bill_line_ids = {line.id for line in bill.lines}
         for item in persisted:
-            used[item.receipt_line_id] += Decimal(item.quantity)
-            if any(line.id == item.bill_line_id for line in bill.lines):
+            receipt_line = receipt_line_lookup.get(item.receipt_line_id)
+            quantity = Decimal(item.quantity)
+            if (receipt_line is None
+                    or item.purchase_order_line_id != receipt_line.order_line_id
+                    or not quantity.is_finite() or quantity <= 0):
+                invalid_allocation_ids.append(item.id)
+                continue
+            used[item.receipt_line_id] += quantity
+            if item.bill_line_id in current_bill_line_ids:
                 already_for_bill.add(item.bill_line_id)
+        overallocated_receipt_ids = sorted(
+            receipt_line_id for receipt_line_id, amount in used.items()
+            if amount > Decimal(receipt_line_lookup[receipt_line_id].quantity)
+        )
 
         linked_bills = [
             row for row in PurchaseBill.query.filter_by(
@@ -72,6 +86,10 @@ class BillReceiptProposalService:
             and row.id != bill.id
         ]
         warnings = []
+        if invalid_allocation_ids:
+            warnings.append("invalid_persisted_receipt_allocations")
+        if overallocated_receipt_ids:
+            warnings.append("overallocated_receipt_line")
         if linked_bills:
             warnings.append("other_po_linked_bills_are_not_receipt_reservations")
         if any((row.metadata_json or {}).get("creation_mode") != "multiline_po_draft"
@@ -139,6 +157,9 @@ class BillReceiptProposalService:
             "order_id": order.id, "bill_id": bill.id,
             "proposals": proposed, "shortages": shortages,
             "warnings": warnings, "fully_covered_in_preview": not shortages,
+            "invalid_persisted_allocation_ids": sorted(invalid_allocation_ids),
+            "overallocated_receipt_line_ids": overallocated_receipt_ids,
+            "evidence_safe_for_review": not shortages and not warnings,
             "preview_only": True, "allocation_reserved": False,
             "posting_authorised": False, "grni_clearing_authorised": False,
             "note": "FIFO suggestions only. Other drafts are not reserved or deducted; all allocations require atomic posting-time validation.",
