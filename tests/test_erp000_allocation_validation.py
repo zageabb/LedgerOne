@@ -152,3 +152,20 @@ def test_preflight_rejects_existing_receipt_overallocation(app):
         assert "previous_bill_line_overallocated" in result["issues"]
         assert "allocation_1:duplicate_bill_receipt_line_pair" in result["issues"]
         assert Journal.query.count() == baseline
+
+
+def test_allocation_preflight_api_route_is_read_only(app):
+    with app.app_context():
+        routes = {route.endpoint for route in app.url_map.iter_rules()}
+        assert "commercial_api.validate_receipt_bill_allocations" in routes
+        context, order, receipt, bill = _setup()
+        baseline = Journal.query.count()
+        preview = PurchaseReceiptAllocationValidation.preview(
+            context, order_id=order.id, bill_id=bill.id,
+            allocations=[{
+                "receipt_line_id": receipt.lines[0].id,
+                "bill_line_id": bill.lines[0].id, "quantity": "0.5",
+            }])
+        assert preview["posting_authorised"] is False
+        assert preview["preview_only"] is True
+        assert Journal.query.count() == baseline
