@@ -4,6 +4,8 @@ from datetime import date
 import pytest
 
 from ledgerone.models.core import Organisation
+from ledgerone.extensions import db
+from ledgerone.modules.commercial.models import PurchaseReceiptBillAllocation
 from ledgerone.models.ledger import Account, Journal
 from ledgerone.modules.commercial.bill_drafts import PurchaseBillDraftService
 from ledgerone.modules.commercial.bill_review import PurchaseBillDraftReview
@@ -230,3 +232,65 @@ def test_grn_proposal_ignores_other_drafts_as_reservations_but_warns(app):
         with pytest.raises(ValueError, match="Purchase order not found"):
             BillReceiptProposalService.preview(
                 AccessContext.system("another-org"), order_id=po.id, bill_id=first.id)
+
+
+def test_fifo_proposal_flags_malformed_persisted_allocations_without_posting(app):
+    with app.app_context():
+        ctx, po = _po()
+        draft = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="ALLOC-EVIDENCE-001",
+            bill_number="B-ALLOC-EVIDENCE", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1", "unit_price": "7"}])
+        receipt = CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id, document_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "2"}])
+        baseline = Journal.query.count()
+        # Model constraints validate positive quantity, but historical or
+        # imported lineage may still point at the wrong PO line.
+        invalid = PurchaseReceiptBillAllocation(
+            organisation_id=ctx.organisation_id,
+            purchase_order_line_id=po.lines[0].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=draft.lines[0].id,
+            quantity="1", receipt_cost="7", invoice_net="7")
+        db.session.add(invalid)
+        db.session.commit()
+        result = BillReceiptProposalService.preview(
+            ctx, order_id=po.id, bill_id=draft.id)
+        assert invalid.id in result["invalid_persisted_allocation_ids"]
+        assert "invalid_persisted_receipt_allocations" in result["warnings"]
+        assert result["evidence_safe_for_review"] is False
+        assert result["allocation_reserved"] is False
+        assert result["proposals"][0]["quantity"] == "1.0000"
+        assert Journal.query.count() == baseline
+
+
+def test_fifo_proposal_detects_persisted_overallocation(app):
+    with app.app_context():
+        ctx, po = _po()
+        first = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="ALLOC-OV-001",
+            bill_number="B-ALLOC-OV-1", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "2", "unit_price": "7"}])
+        second = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="ALLOC-OV-002",
+            bill_number="B-ALLOC-OV-2", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1", "unit_price": "7"}])
+        receipt = CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id, document_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1"}])
+        entry = PurchaseReceiptBillAllocation(
+            organisation_id=ctx.organisation_id,
+            purchase_order_line_id=po.lines[1].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=first.lines[0].id, quantity="2",
+            receipt_cost="14", invoice_net="14")
+        db.session.add(entry)
+        db.session.commit()
+        result = BillReceiptProposalService.preview(
+            ctx, order_id=po.id, bill_id=second.id)
+        assert receipt.lines[0].id in result["overallocated_receipt_line_ids"]
+        assert "overallocated_receipt_line" in result["warnings"]
+        assert result["fully_covered_in_preview"] is False
+        assert result["evidence_safe_for_review"] is False
+        assert result["posting_authorised"] is False
