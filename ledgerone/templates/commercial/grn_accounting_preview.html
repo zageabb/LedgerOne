@@ -8,7 +8,7 @@
   <a class="button button-secondary" href="{{ url_for('purchase_orders.grn_workspace', order_id=preview.purchase_order_id) }}">Back to GRNs</a>
 </div>
 <section class="card section">
-  <div class="card-head"><h2>Receipt valuation</h2></div>
+  <div class="card-head"><h2>{{ 'Recorded receipt valuation' if preview.posted else 'Receipt valuation preview' }}</h2></div>
   <div class="card-body">
     {% if preview.posted %}
     <p class="help"><strong>Accrual journal linked.</strong> Journal ID: <code>{{ preview.journal_id }}</code> · Posted stock value: {{ preview.currency }} {{ preview.posted_value }}. Posting from this screen remains disabled.</p>
@@ -17,30 +17,34 @@
     {% endif %}
     <div class="table-wrap"><table style="width:100%">
       <thead><tr><th>Description</th><th>Treatment</th><th>Quantity</th><th>PO unit cost</th><th class="number">Accrual value</th></tr></thead>
-      <tbody>{% for item in preview.breakdown %}
+      <tbody>{% for item in (preview.posted_breakdown if preview.posted else preview.breakdown) %}
       <tr><td>{{ item.description }}</td><td>{{ item.treatment }}</td><td>{{ item.quantity }}</td>
       <td>{{ item.unit_cost or '—' }}</td><td class="number">{{ item.receipt_value }}</td></tr>
       {% endfor %}</tbody>
-      <tfoot><tr><td colspan="4"><strong>Stock value</strong></td><td class="number"><strong>{{ preview.currency }} {{ preview.stock_cost_value }}</strong></td></tr></tfoot>
+      <tfoot><tr><td colspan="4"><strong>Stock value</strong></td><td class="number"><strong>{{ preview.currency }} {{ preview.posted_value if preview.posted else preview.stock_cost_value }}</strong></td></tr></tfoot>
     </table></div>
   </div>
 </section>
 <section class="card section">
-  <div class="card-head"><h2>{{ "Accrual journal lines — linked" if preview.posted else "Proposed journal — not posted" }}</h2></div>
+  <div class="card-head"><h2>{{ "Actual posted journal lines" if preview.posted else "Proposed journal — not posted" }}</h2></div>
   <div class="card-body">
-    {% if preview.issues %}
+    {% if preview.posted %}
+    <p class="help">Journal values are read directly from the posted ledger record, not recalculated from today's account settings or PO prices.</p>
+    {% endif %}
+    {% if preview.issues and not preview.posted %}
     <p class="help">Posting prerequisites:</p>
     <ul>{% for issue in preview.issues %}<li>{{ issue }}</li>{% endfor %}</ul>
     {% endif %}
-    {% if preview.lines %}
+    {% if (preview.posted and preview.posted_journal_lines) or (not preview.posted and preview.lines) %}
     <div class="table-wrap"><table style="width:100%">
       <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
-      <tbody>{% for line in preview.lines %}
+      <tbody>{% for line in (preview.posted_journal_lines if preview.posted else preview.lines) %}
       <tr><td>{{ line.account_code }} · {{ line.account_name }}</td>
       <td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr>{% endfor %}</tbody>
     </table></div>
-    {% else %}<p class="help">Configure the GRNI clearing and Inventory accounts in Settings to preview the journal lines.</p>{% endif %}
-    <p class="help">Inventory costs shown use the recorded purchase-order unit prices and exclude VAT. Stock valuation and later supplier-invoice price variances still require implementation.</p>
+    {% if preview.posted %}<p class="help">Recorded debits: {{ preview.posted_total_debit }} · Recorded credits: {{ preview.posted_total_credit }}</p>{% endif %}
+    {% else %}<p class="help">{{ 'Linked journal lines could not be loaded; investigate the accounting link.' if preview.posted else 'Configure GRNI clearing and Inventory accounts in Settings to preview the journal lines.' }}</p>{% endif %}
+    <p class="help">{{ 'Recorded accrual values are historical ledger evidence.' if preview.posted else 'Proposed inventory costs use current purchase-order unit prices and exclude VAT.' }} Supplier-invoice price variances and GRNI clearing still require implementation.</p>
   </div>
 </section>
 {% endblock %}

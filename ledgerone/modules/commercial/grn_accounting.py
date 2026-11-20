@@ -98,6 +98,28 @@ class GRNAccountingPreviewService:
             event_type="grn_inventory_accrual",
         ).first()
         posted = linked is not None
+        # Posted evidence is immutable ledger data, not a fresh calculation
+        # using potentially changed PO prices or account configuration.
+        recorded_lines = []
+        recorded_breakdown = []
+        recorded_total_debit = None
+        recorded_total_credit = None
+        if linked:
+            journal = linked.journal
+            if journal is None or journal.organisation_id != context.organisation_id:
+                issues.append("Linked GRN journal is missing or belongs to another company")
+            else:
+                recorded_lines = [{
+                    "account_id": row.account_id,
+                    "account_code": row.account.code if row.account else None,
+                    "account_name": row.account.name if row.account else None,
+                    "debit": str(row.debit),
+                    "credit": str(row.credit),
+                    "line_number": row.line_number,
+                } for row in sorted(journal.lines, key=lambda item: item.line_number)]
+                recorded_total_debit = str(journal.total_debit)
+                recorded_total_credit = str(journal.total_credit)
+            recorded_breakdown = list((linked.metadata_json or {}).get("stock_lines") or [])
         return {
             "grn_id": receipt.id, "grn_number": receipt.document_number,
             "purchase_order_id": order.id, "purchase_order_number": order.order_number,
@@ -109,6 +131,10 @@ class GRNAccountingPreviewService:
             "posting_enabled": False, "posted": posted,
             "journal_id": linked.journal_id if posted else None,
             "posted_value": str(linked.posted_value) if posted else None,
+            "posted_journal_lines": recorded_lines,
+            "posted_breakdown": recorded_breakdown,
+            "posted_total_debit": recorded_total_debit,
+            "posted_total_credit": recorded_total_credit,
             "accounting_event_id": linked.id if posted else None,
             "preview_only": True,
             "note": (

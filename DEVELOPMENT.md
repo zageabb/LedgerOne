@@ -15,6 +15,7 @@ Status: FEATURE BRANCH; CI and acceptance pending
 - [x] Flag missing/invalid account configurations and unclassified legacy lines; add regression coverage for no journals, values and company boundaries.
 - [x] Internal-only atomic GRN accrual posting service and unique document/journal event link table, with DB retry protection and explicit disabled-by-default activation gate (PR pending CI).
 - [x] Read-only matching detects prior PO-linked supplier bills and blocks claims that quantities are available for another bill when line-level allocations are absent.
+- [x] Posted GRN accounting screens read original immutable journal lines and event valuation snapshots, distinct from recomputed unposted previews; regression evidence for changing account configuration (CI pending).
 - [ ] Certified GRNI bill clearing and externally supported activation, reversals and operational posting remain outstanding.
 - [x] Read-only supplier invoice matching now distinguishes physically received quantities from posted GRNI accrual coverage and flags unaccrued stock; no bill reservation or clearing posting.
 - [x] Schema foundation: `purchase_receipt_bill_allocations` records PO line, GRN line, bill line, quantities and values; migration `0028_bill_receipt_alloc`. No allocation writes or financial posting exposed.
