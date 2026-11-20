@@ -294,3 +294,86 @@ def test_fifo_proposal_detects_persisted_overallocation(app):
         assert result["fully_covered_in_preview"] is False
         assert result["evidence_safe_for_review"] is False
         assert result["posting_authorised"] is False
+
+
+def test_fifo_proposal_rejects_persisted_allocation_to_wrong_bill_po_line(app):
+    with app.app_context():
+        ctx, po = _po()
+        draft = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="LINEAGE-001",
+            bill_number="B-LINEAGE-001", bill_date=DAY,
+            lines=_lines(po, qty1="1", qty2="1"))
+        receipt = CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id, document_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1"}])
+        before = Journal.query.count()
+        # The GRN and PO line match, but the bill line belongs to PO line 1.
+        bad = PurchaseReceiptBillAllocation(
+            organisation_id=ctx.organisation_id,
+            purchase_order_line_id=po.lines[1].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=draft.lines[0].id,
+            quantity="1", receipt_cost="7", invoice_net="12")
+        db.session.add(bad)
+        db.session.commit()
+        preview = BillReceiptProposalService.preview(
+            ctx, order_id=po.id, bill_id=draft.id)
+        assert bad.id in preview["invalid_bill_line_allocation_ids"]
+        assert "invalid_persisted_supplier_bill_lineage" in preview["warnings"]
+        assert preview["evidence_safe_for_review"] is False
+        assert preview["allocation_reserved"] is False
+        # A bad allocation cannot be considered valid consumed quantity.
+        assert any(row["receipt_line_id"] == receipt.lines[0].id
+                   and row["quantity"] == "1.0000"
+                   for row in preview["proposals"])
+        assert Journal.query.count() == before
+
+
+def test_fifo_proposal_rejects_allocation_for_wrong_source_po(app):
+    with app.app_context():
+        ctx, po = _po()
+        linked = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="LINEAGE-002",
+            bill_number="B-LINEAGE-002", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id,
+                    "quantity": "1", "unit_price": "7"}])
+        receipt = CommercialDocumentService.create(
+            ctx, document_type="grn", order_id=po.id, document_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id, "quantity": "1"}])
+        entry = PurchaseReceiptBillAllocation(
+            organisation_id=ctx.organisation_id,
+            purchase_order_line_id=po.lines[1].id,
+            receipt_line_id=receipt.lines[0].id,
+            bill_line_id=linked.lines[0].id,
+            quantity="1", receipt_cost="7", invoice_net="7")
+        db.session.add(entry)
+        db.session.flush()
+        # Simulate historical source corruption. Revert after preview to
+        # preserve normal test isolation and keep accounting non-posting.
+        linked.metadata_json = {
+            **linked.metadata_json, "source_purchase_order_id": "other-po"
+        }
+        db.session.commit()
+        before = Journal.query.count()
+        # Use a different eligible draft for the same order.
+        # Its service rejects this corrupted historical bill, as intended.
+        # Correct its header only to create the second draft, then corrupt it.
+        linked.metadata_json = {
+            **linked.metadata_json, "source_purchase_order_id": po.id
+        }
+        db.session.commit()
+        other = PurchaseBillDraftService.create(
+            ctx, order_id=po.id, supplier_invoice_reference="LINEAGE-003",
+            bill_number="B-LINEAGE-003", bill_date=DAY,
+            lines=[{"order_line_id": po.lines[1].id,
+                    "quantity": "1", "unit_price": "7"}])
+        linked.metadata_json = {
+            **linked.metadata_json, "source_purchase_order_id": "other-po"
+        }
+        db.session.commit()
+        preview = BillReceiptProposalService.preview(
+            ctx, order_id=po.id, bill_id=other.id)
+        assert entry.id in preview["invalid_bill_line_allocation_ids"]
+        assert "invalid_persisted_supplier_bill_lineage" in preview["warnings"]
+        assert preview["posting_authorised"] is False
+        assert Journal.query.count() == before
